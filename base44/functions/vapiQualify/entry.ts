@@ -11,6 +11,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { secrets } from 'base44:runtime';
 import {
   appBaseUrl,
+  assistantList,
   buildAssistantPayload,
   contactCardForToken,
   findSession,
@@ -51,6 +52,8 @@ export default async function (req: Request) {
         protofaceEmbedId: cfg.protofaceEmbedId || '',
         agentDrivenMode: cfg.agentDrivenMode === true,
         protofaceAvatarId: cfg.protofaceAvatarId || '',
+        // The faces the page offers. Only keys and names travel; the avatar ids stay here.
+        assistants: assistantList(cfg).map((entry: any) => ({ key: entry.key, name: entry.name, blurb: entry.blurb })),
         sessionToken: session.sessionToken,
         matched: !!lead,
         lead: leadView(lead),
@@ -88,7 +91,7 @@ export default async function (req: Request) {
         debtTier: body.debtTier,
         transcript: body.transcript,
         bridged: !!body.bridged,
-        agentName: cfg.agentName || 'Stephani',
+        agentName: session.assistant || cfg.agentName || 'Stephani',
         actor: 'stephani-video',
       });
       const tier = String(body.debtTier || '').trim();

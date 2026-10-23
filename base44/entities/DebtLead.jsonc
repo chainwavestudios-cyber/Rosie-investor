@@ -8,7 +8,7 @@
     },
     "protofaceId": {
       "type": "string",
-      "title": "Stephani Video Link Token (pf_... \u2014 stamped when the card's video link is created; the token that link carries)"
+      "title": "Invitation Token (pf_... \u2014 stamped when the card's AI invitation links are created; the token those links carry)"
     },
     "firstName": {
       "type": "string",
@@ -222,6 +222,20 @@
       "type": "string",
       "title": "Last Call Transcript (JSON)",
       "format": "textarea"
+    },
+    "rosieAiAssistant": {
+      "type": "string",
+      "title": "Rosie AI \u2014 Which Assistant They Met (Rosie / Digital Chris, stamped when their video call starts)"
+    },
+    "rosieAiAnalysis": {
+      "type": "string",
+      "title": "Rosie AI \u2014 Full Analysis Of Their Conversation (JSON written by the analysis)",
+      "format": "textarea"
+    },
+    "rosieAiAnalyzedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Rosie AI \u2014 Analysis Written At"
     },
     "callbackAt": {
       "type": "string",

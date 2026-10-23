@@ -22,6 +22,12 @@
       "title": "Knowledge Base She Answers From (the KnowledgeBase set to search, plus everything in the Fronter knowledge base)",
       "default": "Debt Settlement"
     },
+    "assistantsJson": {
+      "type": "string",
+      "title": "Choose Your Assistant (JSON array of {key, name, avatarId, blurb} \u2014 the faces a visitor picks between; the invitation links carry ?assistant=<key>. Leave empty to use the single Protoface Avatar ID below)",
+      "format": "textarea",
+      "default": "[{\"key\":\"rosie\",\"name\":\"Rosie\",\"avatarId\":\"av_01M5MYDVN230MXY5H4NYZCKC49\",\"blurb\":\"Your friendly AI assistant\"},{\"key\":\"chris\",\"name\":\"Digital Chris\",\"avatarId\":\"av_01M5MZXZJDKAR05CBTRJ88TM3J\",\"blurb\":\"Chris's AI counterpart, not him live\"}]"
+    },
     "agentVoiceId": {
       "type": "string",
       "title": "Her Voice \u2014 ElevenLabs Voice ID (used by the agent-driven avatar)",
@@ -29,7 +35,7 @@
     },
     "agentName": {
       "type": "string",
-      "title": "Agent Name (shown in the widget)",
+      "title": "Agent Name (fallback name when no assistant list is set)",
       "default": "Sarah"
     },
     "assistantId": {
@@ -97,7 +103,7 @@
     },
     "protofaceAvatarId": {
       "type": "string",
-      "title": "Protoface Avatar ID (av_... \u2014 the avatar the agent-driven widget brings into the call)"
+      "title": "Protoface Avatar ID (av_... \u2014 the single avatar used when no assistant list is set)"
     },
     "updatedBy": {
       "type": "string",

@@ -1,17 +1,17 @@
 /**
- * stephaniLink — the video link for one Debt Call Coach contact card.
+ * aiInviteLinks — the AI invitation links for one contact card.
  *
- * A rep clicks the button on the card and gets a link they can text or email the
- * client. The card's own Protoface ID is minted the first time (the same "pf_"
- * token the distributed leads carry) and stamped on the card, so the link stays
- * stable for that client; opening it starts a fresh qualification call with
- * Stephani, who already knows who is on the page.
+ * The card's own Protoface ID is minted on first use and stamped on the card, and
+ * the links a rep can text or email come back with it: one for each assistant the
+ * video page offers (Rosie, Digital Chris), each carrying ?assistant=<key> so the
+ * call opens with the face the client picked. Same link shape as the mailed ones.
  *
  *  body: { leadId }
- *  → { ok, protofaceId, url }
+ *  → { ok, protofaceId, url, links: [{ key, name, url }] }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { PROTOFACE_ID_RE, formatProtofaceId, qualifyLink } from '../../shared/protofaceId.ts';
+import { assistantList, loadConfig } from '../../shared/videoQualify.ts';
 
 export default async function (req) {
   try {
@@ -29,8 +29,18 @@ export default async function (req) {
       await base44.asServiceRole.entities.DebtLead.update(card.id, { protofaceId });
     }
 
-    return Response.json({ ok: true, protofaceId, url: qualifyLink(protofaceId) });
+    const cfg = await loadConfig(base44);
+    const links = assistantList(cfg).map((a: any) => ({
+      key: a.key,
+      name: a.name,
+      url: qualifyLink(protofaceId, a.key),
+    }));
+
+    return Response.json({ ok: true, protofaceId, url: qualifyLink(protofaceId), links });
   } catch (error) {
-    return Response.json({ error: (error && (error as Error).message) || 'The video link could not be created.' }, { status: 500 });
+    return Response.json(
+      { error: (error && (error as Error).message) || 'The invitation links could not be created.' },
+      { status: 500 },
+    );
   }
 }

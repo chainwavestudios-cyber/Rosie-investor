@@ -31,6 +31,10 @@
       ],
       "default": "landing_page"
     },
+    "assistant": {
+      "type": "string",
+      "title": "Assistant They Chose (Rosie / Digital Chris \u2014 stamped when the video call starts)"
+    },
     "mode": {
       "type": "string",
       "title": "Qualification Mode (voice = Sarah on video, text = typed fallback)",

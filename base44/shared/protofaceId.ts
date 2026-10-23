@@ -33,7 +33,13 @@ export function assignProtofaceIds(count = 1): string[] {
 /** Where a per-lead video link points — the public domain the mailed links already use. */
 export const QUALIFY_LINK_BASE = 'https://debtsolutions.cc';
 
-/** The link a lead opens to start a video qualification call with the video agent. */
-export function qualifyLink(protofaceId: string): string {
-  return `${QUALIFY_LINK_BASE}/qualify?token=${encodeURIComponent(String(protofaceId || ''))}`;
+/**
+ * The link a lead opens to start a video qualification call. With an assistant key
+ * the page opens on that assistant (rosie / chris), so one invitation can offer
+ * each face its own link.
+ */
+export function qualifyLink(protofaceId: string, assistantKey?: string): string {
+  const url = `${QUALIFY_LINK_BASE}/qualify?token=${encodeURIComponent(String(protofaceId || ''))}`;
+  const key = String(assistantKey || '').trim().toLowerCase();
+  return key ? `${url}&assistant=${encodeURIComponent(key)}` : url;
 }

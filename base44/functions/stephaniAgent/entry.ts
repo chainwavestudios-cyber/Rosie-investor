@@ -18,7 +18,7 @@ import { mintRoomPass } from '../../shared/livekitToken.ts';
 import { getSpeechPcmBase64, PCM_SAMPLE_RATE } from '../../shared/elevenLabsTts.ts';
 import { findRelevantKB, formatAnswers } from '../../shared/kbSearch.ts';
 import { toE164 } from '../../shared/twilioHelpers.ts';
-import { SYSTEM_PROMPT, findSession, leadView, loadConfig } from '../../shared/videoQualify.ts';
+import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant } from '../../shared/videoQualify.ts';
 
 const PROTOFACE_API = 'https://api.protoface.com';
 const DEFAULT_VOICE_ID = 'ogwqBH5bbF03DSbNiRNN';
@@ -119,7 +119,10 @@ export default async function (req: Request): Promise<Response> {
     // ── room: the credentials the page joins with, plus her opening line ──────
     if (action === 'room') {
       if (!session) return Response.json({ error: 'This call session has expired.' }, { status: 404 });
-      const avatarId = clean(cfg.protofaceAvatarId, 80);
+      // The visitor picks between the assistants the page offers; an unknown or missing
+      // pick falls back to the first one, and to the single avatar when only one is set.
+      const assistant = resolveAssistant(cfg, clean(body.assistant, 40) || session.assistant || '');
+      const avatarId = clean(assistant?.avatarId, 80);
       if (!avatarId) return Response.json({ error: 'No avatar is set for the video widget yet.' }, { status: 400 });
 
       const pass = await mintRoomPass(`qualify-${session.sessionToken}`, `prospect-${session.sessionToken}`);
@@ -127,15 +130,20 @@ export default async function (req: Request): Promise<Response> {
         ? await service.entities.LeadVaultEntry.get(session.vaultLeadId).catch(() => null)
         : null;
 
+      const assistantName = clean(assistant?.name, 40) || clean(cfg.agentName, 40) || 'Stephani';
+      const patch: Record<string, any> = { assistant: assistantName };
       if (session.status !== 'bridged') {
-        await service.entities.VideoQualifySession.update(session.id, { mode: 'voice', status: 'in_progress' }).catch(() => null);
+        patch.mode = 'voice';
+        patch.status = 'in_progress';
       }
+      await service.entities.VideoQualifySession.update(session.id, patch).catch(() => null);
 
       return Response.json({
         ok: true,
         ...pass,
         avatarId,
-        agentName: clean(cfg.agentName, 40) || 'Stephani',
+        assistantName,
+        agentName: assistantName,
         voiceId: clean(cfg.agentVoiceId, 60) || clean(cfg.elevenLabsVoiceId, 60) || DEFAULT_VOICE_ID,
         kbName: clean(cfg.kbName, 60) || DEFAULT_KB,
         opening: openingLine(cfg, lead, session),
@@ -223,7 +231,7 @@ export default async function (req: Request): Promise<Response> {
 
       const result: any = await service.integrations.Core.InvokeLLM({
         prompt: replyPrompt({
-          agentName: clean(cfg.agentName, 40) || 'Stephani',
+          agentName: clean(session.assistant, 40) || clean(cfg.agentName, 40) || 'Stephani',
           script: clean(cfg.systemPrompt, 6000) || SYSTEM_PROMPT,
           lead,
           session,

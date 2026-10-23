@@ -105,6 +105,45 @@ export async function loadConfig(base44: any): Promise<any> {
 }
 
 /**
+ * The assistants a visitor can choose between. The config's own list wins; when it
+ * is empty the widget keeps its single avatar, so an app with one face is unchanged.
+ */
+export function assistantList(cfg: any): any[] {
+  let raw: any[] = [];
+  try {
+    const parsed = JSON.parse(String(cfg?.assistantsJson || '[]'));
+    if (Array.isArray(parsed)) raw = parsed;
+  } catch {
+    raw = [];
+  }
+  const cleaned = raw
+    .map((entry: any) => ({
+      key: String(entry?.key || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, ''),
+      name: String(entry?.name || '').trim().slice(0, 40),
+      avatarId: String(entry?.avatarId || '').trim().slice(0, 80),
+      blurb: String(entry?.blurb || '').trim().slice(0, 120),
+    }))
+    .filter((entry: any) => entry.key && entry.avatarId && entry.name);
+  if (cleaned.length) return cleaned;
+
+  const single = String(cfg?.protofaceAvatarId || '').trim();
+  if (!single) return [];
+  return [{
+    key: 'default',
+    name: String(cfg?.agentName || 'Stephani').trim().slice(0, 40) || 'Stephani',
+    avatarId: single,
+    blurb: '',
+  }];
+}
+
+/** The assistant an invitation link or the visitor picked; anything unknown falls back to the first. */
+export function resolveAssistant(cfg: any, key: string): any {
+  const list = assistantList(cfg);
+  const wanted = String(key || '').trim().toLowerCase();
+  return list.find((entry: any) => entry.key === wanted) || list[0] || null;
+}
+
+/**
  * The email link carries the lead's Protoface ID, a vault entry id, or the
  * Notice ID printed on the notice.
  */
@@ -364,6 +403,7 @@ export async function finishQualification(
         notes: existing.notes || notes,
         debtAmount: existing.debtAmount || estimate || undefined,
         transcriptJson,
+        rosieAiAssistant: agent,
         lastCallAt: now,
         callCount: Number(existing.callCount || 0) + 1,
       })
@@ -377,6 +417,7 @@ export async function finishQualification(
         status: 'qualified',
         notes,
         transcriptJson,
+        rosieAiAssistant: agent,
         lastCallAt: now,
         callCount: 1,
       });
