@@ -18,7 +18,8 @@ import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import ApptTrackingBadges from '@/components/debt/ApptTrackingBadges';
 import { useQueryClient } from '@tanstack/react-query';
 import { HOT_LEADS_KEY } from '@/lib/hotLeads';
-import StephaniLinkButton from '@/components/debt/StephaniLinkButton';
+import AiInviteLinksButton from '@/components/debt/AiInviteLinksButton';
+import RosieAiTab from '@/components/debt/RosieAiTab';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -49,6 +50,7 @@ const TABS = [
   { id: 'hardship', label: '⚠️ Hardship' },
   { id: 'qa', label: '❓ Q&A' },
   { id: 'transcripts', label: '📝 Transcripts' },
+  { id: 'rosie_ai', label: '🤖 Rosie AI' },
   { id: 'credit_report', label: '📷 Credit Report' },
   { id: 'closing', label: '🏁 Closing' },
   { id: 'calculator', label: '📊 Do Nothing Calculator' },
@@ -325,7 +327,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <StephaniLinkButton leadId={local.id} clientName={`${local.firstName || ''} ${local.lastName || ''}`.trim()} />
+          <AiInviteLinksButton leadId={local.id} clientName={`${local.firstName || ''} ${local.lastName || ''}`.trim()} />
           <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 16px', cursor: saving || !local.id ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
             {saving ? '⏳' : '💾 Save'}
           </button>
@@ -637,6 +639,17 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'rosie_ai' && (
+          <RosieAiTab
+            lead={local}
+            onAnalyzed={(analysis, analyzedAt) => setLocal((prev) => ({
+              ...prev,
+              rosieAiAnalysis: JSON.stringify(analysis || {}),
+              rosieAiAnalyzedAt: analyzedAt || new Date().toISOString(),
+            }))}
+          />
         )}
 
         {tab === 'credit_report' && (

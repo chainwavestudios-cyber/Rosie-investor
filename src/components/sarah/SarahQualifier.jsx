@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Loader2, Mic, PhoneCall } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import AssistantChooser from './AssistantChooser';
 import SarahProtofaceStage from './SarahProtofaceStage';
 import StephaniAgentStage from './StephaniAgentStage';
 import SarahVideoPanel from './SarahVideoPanel';
@@ -49,7 +50,7 @@ function formatFollowUp(iso) {
   }
 }
 
-export default function SarahQualifier({ token = '', source = 'landing_page', videoOnly = false }) {
+export default function SarahQualifier({ token = '', source = 'landing_page', videoOnly = false, assistant = '' }) {
   const [config, setConfig] = useState(null);
   const [phase, setPhase] = useState('loading');
   const [messages, setMessages] = useState([]);
@@ -59,6 +60,8 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
   const [startSignal, setStartSignal] = useState(0);
   const [endSignal, setEndSignal] = useState(0);
   const [outcome, setOutcome] = useState(null);
+  const [assistantKey, setAssistantKey] = useState('');
+  const [autoStart, setAutoStart] = useState(false);
 
   const stepRef = useRef('debt');
   const tierRef = useRef('');
@@ -67,7 +70,10 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
   const transcriptRef = useRef([]);
   const finishedRef = useRef(false);
 
-  const agentName = config?.agentName || 'Stephani';
+  // Who they talk with: the assistant they chose, otherwise the config's own name.
+  const assistants = Array.isArray(config?.assistants) ? config.assistants : [];
+  const chosen = assistants.find((entry) => entry.key === assistantKey) || null;
+  const agentName = chosen?.name || config?.agentName || 'Stephani';
   const name = config?.lead?.firstName || 'there';
   const stateName = config?.lead?.state || 'your area';
   const embedId = config?.protofaceEmbedId || '';
@@ -263,13 +269,25 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
       )}
 
       <div className={videoOnly ? 'space-y-3' : 'grid gap-5 md:grid-cols-[1.4fr_1fr]'}>
-        {agentDriven ? (
+        {assistants.length > 1 && agentDriven && !chosen ? (
+          <AssistantChooser
+            assistants={assistants}
+            invited={assistant}
+            onChoose={(key) => {
+              setAssistantKey(key);
+              setAutoStart(true);
+            }}
+          />
+        ) : agentDriven ? (
           <StephaniAgentStage
+            key={assistantKey}
             sessionToken={sessionToken}
             agentName={agentName}
             leadName={config?.lead?.firstName}
             startSignal={startSignal}
             endSignal={endSignal}
+            assistant={assistantKey}
+            autoStart={autoStart}
             onLine={handleStageLine}
             onStatus={handleStageStatus}
             onEnded={handleStageEnded}
@@ -334,6 +352,19 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
                 </button>
               )}
             </>
+          )}
+
+          {assistants.length > 1 && chosen && !busy && ['ready', 'saved', 'done'].includes(phase) && (
+            <button
+              type="button"
+              onClick={() => {
+                setAssistantKey('');
+                setAutoStart(false);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm text-slate-200 hover:bg-white/5"
+            >
+              ↺ Choose a different assistant
+            </button>
           )}
 
           {phase === 'saving' && <p className="text-sm text-slate-300">Saving your details…</p>}

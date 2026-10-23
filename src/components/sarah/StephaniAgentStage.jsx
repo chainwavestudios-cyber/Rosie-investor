@@ -26,6 +26,8 @@ export default function StephaniAgentStage({
   leadName,
   startSignal = 0,
   endSignal = 0,
+  assistant = '',
+  autoStart = false,
   onLine,
   onStatus,
   onEnded,
@@ -132,7 +134,7 @@ export default function StephaniAgentStage({
     setSetupError('');
     report('joining');
     try {
-      const res = await base44.functions.invoke('stephaniAgent', { action: 'room', sessionToken: tokenRef.current });
+      const res = await base44.functions.invoke('stephaniAgent', { action: 'room', sessionToken: tokenRef.current, assistant });
       if (!res?.data?.ok) throw new Error(res?.data?.error || 'The video assistant is unavailable right now.');
       setRoom(res.data);
       base44.analytics.track({ eventName: 'video_qualify_agent_call_start' });
@@ -140,13 +142,22 @@ export default function StephaniAgentStage({
       setSetupError(err?.response?.data?.error || err?.message || 'The video assistant is unavailable right now.');
       report('failed');
     }
-  }, [room, report, startClient]);
+  }, [room, report, startClient, assistant]);
 
   useEffect(() => {
     if (startSignal === startSignalRef.current) return;
     startSignalRef.current = startSignal;
     void begin();
   }, [startSignal, begin]);
+
+  // They just picked this assistant, so the call starts as soon as the stage appears.
+  useEffect(() => {
+    if (!autoStart) return undefined;
+    void begin();
+    return undefined;
+    // Mount-time only: later starts come from the button above or from startSignal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (endSignal === endSignalRef.current) return;

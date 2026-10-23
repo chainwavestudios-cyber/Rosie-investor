@@ -6,6 +6,8 @@ import SiteFooter from '@/components/home/SiteFooter';
 export default function SarahQualifyPage() {
   const params = new URLSearchParams(window.location.search);
   const token = params.get('token') || params.get('id') || '';
+  // The invitation link carries which assistant they were invited to meet.
+  const assistant = params.get('assistant') || '';
 
   return (
     <div className="home-theme min-h-screen bg-home-canvas font-home-sans text-home-ink">
@@ -24,7 +26,7 @@ export default function SarahQualifyPage() {
                 You&apos;re one step from <span className="italic text-home-silver">relief.</span>
               </h1>
               <p className="max-w-md text-base leading-relaxed text-home-silver">
-                Stephani will confirm a few details and connect you with a specialist on the phone right now.
+                Choose your AI assistant, and they will confirm a few details before connecting you with a specialist on the phone.
               </p>
             </div>
 
@@ -32,6 +34,7 @@ export default function SarahQualifyPage() {
               <SarahQualifier
                 token={token}
                 source={token ? 'email_link' : 'landing_page'}
+                assistant={assistant}
                 videoOnly
               />
             </div>
