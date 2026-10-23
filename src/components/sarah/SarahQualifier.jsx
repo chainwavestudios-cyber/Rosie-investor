@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Loader2, Mic, PhoneCall } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import SarahProtofaceStage from './SarahProtofaceStage';
+import StephaniAgentStage from './StephaniAgentStage';
 import SarahVideoPanel from './SarahVideoPanel';
 import SarahChatPanel from './SarahChatPanel';
 
@@ -71,6 +72,8 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
   const stateName = config?.lead?.state || 'your area';
   const embedId = config?.protofaceEmbedId || '';
   const sessionToken = config?.sessionToken;
+  // Agent-driven: our own knowledge base answers and our own voice speaks, the embed is ignored.
+  const agentDriven = config?.agentDrivenMode === true;
 
   useEffect(() => {
     let alive = true;
@@ -260,7 +263,18 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
       )}
 
       <div className={videoOnly ? 'space-y-3' : 'grid gap-5 md:grid-cols-[1.4fr_1fr]'}>
-        {embedId ? (
+        {agentDriven ? (
+          <StephaniAgentStage
+            sessionToken={sessionToken}
+            agentName={agentName}
+            leadName={config?.lead?.firstName}
+            startSignal={startSignal}
+            endSignal={endSignal}
+            onLine={handleStageLine}
+            onStatus={handleStageStatus}
+            onEnded={handleStageEnded}
+          />
+        ) : embedId ? (
           <SarahProtofaceStage
             embedId={embedId}
             agentName={agentName}
@@ -306,7 +320,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
                 </button>
               )}
 
-              {phase === 'text' && embedId && (
+              {phase === 'text' && (agentDriven || embedId) && (
                 <button
                   type="button"
                   onClick={() => {

@@ -257,26 +257,6 @@ export default async function (req: Request): Promise<Response> {
       return Response.json({ ok: true, say, debtTier: tier, phone });
     }
 
-    if (action === 'avatars') {
-      const apiKey = String(secrets.get('PROTOFACE_API_KEY') || '').trim();
-      const res = await fetch(`${PROTOFACE_API}/v1/avatars?limit=100`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(20000),
-      });
-      const data: any = await res.json().catch(() => ({}));
-      const rows = Array.isArray(data) ? data : data?.data || data?.items || [];
-      return Response.json({
-        ok: res.ok,
-        status: res.status,
-        total: rows.length,
-        avatars: rows
-          .filter((row: any) => !String(row?.id || '').startsWith('av_stock'))
-          .slice(0, 20)
-          .map((row: any) => ({ id: row?.id, name: row?.name, status: row?.status })),
-        error: res.ok ? null : data?.error?.message || null,
-      });
-    }
-
     return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
   } catch (error: any) {
     console.error('[stephaniAgent] Error:', error?.message);
