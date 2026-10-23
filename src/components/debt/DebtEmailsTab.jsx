@@ -339,7 +339,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: '4px', padding: '12px', marginBottom: '16px' }}>
           <div style={{ color: PURPLE, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Available Variables</div>
           <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.8 }}>
-            {'{{firstName}}'} · {'{{lastName}}'} · {'{{phone}}'} · {'{{email}}'} · {'{{appointmentDate}}'} · {'{{debtAmount}}'} · {'{{confirmUrl}}'} · {'{{changeUrl}}'} · {'{{personalMessageUrl}}'}
+            {'{{firstName}}'} · {'{{lastName}}'} · {'{{phone}}'} · {'{{email}}'} · {'{{appointmentDate}}'} · {'{{debtAmount}}'} · {'{{confirmUrl}}'} · {'{{changeUrl}}'} · {'{{personalMessageUrl}}'} · {'{{protofaceId}}'}
           </div>
         </div>
 

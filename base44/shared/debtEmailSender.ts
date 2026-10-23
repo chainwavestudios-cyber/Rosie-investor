@@ -54,6 +54,9 @@ export async function sendTemplateEmail(
     lastName: lead.lastName || '',
     phone: lead.phone || '',
     email: lead.email || '',
+    // The video qualification invitation link carries the contact's own Protoface token.
+    protofaceId: lead.protofaceId || '',
+    protoface_id: lead.protofaceId || '',
     appointmentDate: apptDateStr,
     debtAmount: lead.debtAmount ? '$' + Number(lead.debtAmount).toLocaleString() : '',
     confirmUrl: `${TRACKING_BASE}/confirmAppointment?leadId=${lead.id}`,
