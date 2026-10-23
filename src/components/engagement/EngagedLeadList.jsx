@@ -12,7 +12,7 @@ const FILTERS = [
   { id: 'all', label: 'All activity', keep: () => true },
 ];
 
-export default function EngagedLeadList({ leads }) {
+export default function EngagedLeadList({ leads, system = 'coach' }) {
   const [filter, setFilter] = useState('engaged+');
   const active = FILTERS.find((f) => f.id === filter) || FILTERS[0];
   const rows = (leads || []).filter(active.keep);
@@ -31,7 +31,7 @@ export default function EngagedLeadList({ leads }) {
         <span style={{ color: C.dim, fontSize: '11px', alignSelf: 'center' }}>{rows.length} of {(leads || []).length} scored leads</span>
       </div>
 
-      {rows.length === 0 && <div style={emptyStyle}>No leads in this band yet — activity will appear here as the emails get opened.</div>}
+      {rows.length === 0 && <div style={emptyStyle}>Nothing in this band yet — activity appears here the moment an email is opened.</div>}
 
       {rows.map((lead, index) => {
         const style = tierStyle(lead.tier);
@@ -42,6 +42,7 @@ export default function EngagedLeadList({ leads }) {
               <div style={{ display: 'flex', gap: '7px', alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <span style={{ color: C.ink, fontSize: '13px', fontWeight: 'bold' }}>{lead.name || 'Unknown lead'}</span>
                 <span style={chip(style.color)}>{style.icon} {style.label}</span>
+                {lead.hotLead && <span style={chip(C.danger)}>🚨 {system === 'coach' ? 'HOT LEAD' : 'HOT PROSPECT'}</span>}
                 {lead.assignedTo && <span style={chip(C.coach)}>◉ {lead.assignedTo}</span>}
                 {lead.status && lead.status !== 'prospect' && <span style={chip(C.muted)}>{lead.status.replace('_', ' ')}</span>}
               </div>

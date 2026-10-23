@@ -1,14 +1,33 @@
 /**
- * engagement.ts — the single engagement model for tracked email activity.
+ * engagement.ts — the engagement model for tracked email activity.
  *
- * Every open, link click and qualification-page visit recorded in
- * EmailTrackingEvent is turned into one 0-100 score here, so the contact-card
- * badge, the follow-up ranking and the campaign table all read the same number.
+ * TWO systems, TWO scores, never mixed:
+ *
+ *   • coach   — Debt Call Coach email: credentials & welcome, the DAA cold
+ *               introduction, the follow-up introduction, the appointment
+ *               reminders, the notice mailer, Steph and the Golden Boy outreach.
+ *               These scores sit on Debt Call Coach contact cards, and a Hot Lead
+ *               here is the top of the ladder in either system.
+ *
+ *   • fronter — the fronter prospecting workspace's own tracked outreach. These
+ *               scores sit on fronter prospect / lead cards and drive the
+ *               prospect → lead promotion and the migrate decision.
+ *
+ * A fronter score NEVER travels into Debt Call Coach: a lead that migrates starts
+ * at MIGRATION_START_SCORE and re-earns its coach score from coach email only.
+ *
  * Pure functions only — no SDK, no I/O.
  */
 
 /** A brand-new event is ignored this long: mail preview crawlers open instantly. */
 export const BOT_FILTER_MS = 30_000;
+
+/** What every lead starts on in Debt Call Coach the moment it migrates. */
+export const MIGRATION_START_SCORE = 20;
+
+export const HOT_SCORE = 70;
+export const ENGAGED_SCORE = 45;
+export const WARMING_SCORE = MIGRATION_START_SCORE;
 
 /** The credential links in the welcome email, and the one that is not one of them
  *  (any other link is the personal welcome-message link). */
@@ -18,7 +37,83 @@ export const CREDENTIAL_LINKS = [
   { key: 'trustpilot', match: 'trustpilot.com', label: 'Trustpilot' },
 ];
 
-const HOUR = 3_600_000;
+/** A click on our own site counts on its own, whichever email carried it. */
+export const COMPANY_URL_MATCH = 'debtadvisorsofamerica.com';
+
+export type SystemKey = 'coach' | 'fronter';
+
+interface Weights {
+  open: number;
+  repeat: number;
+  click: number;
+  depth: number;
+  welcome: number;
+  qualify: number;
+  site: number;
+}
+
+export interface EmailCategory {
+  key: string;
+  label: string;
+  system: SystemKey;
+  weights: Weights;
+  match: string[];
+}
+
+const W = (open: number, repeat: number, click: number, depth: number, welcome: number, qualify: number, site: number): Weights =>
+  ({ open, repeat, click, depth, welcome, qualify, site });
+
+/**
+ * The email families and what one lead's behaviour in each is worth.
+ *   open     points for the first open
+ *   repeat   points for each open after the first
+ *   click    points per distinct link clicked
+ *   depth    points when two or more vetted links were opened
+ *   welcome  points for opening the personal welcome message
+ *   qualify  points for reaching the qualification page
+ *   site     points for visiting our own site
+ *
+ * Order matters: the first family whose keyword appears in the email's name wins.
+ */
+export const CATEGORIES: EmailCategory[] = [
+  { key: 'creds_welcome', label: 'Credentials & Welcome Message', system: 'coach', weights: W(14, 8, 12, 12, 18, 30, 12), match: ['cred', 'welcome'] },
+  { key: 'cold_intro', label: 'DAA Cold Outreach Introduction', system: 'coach', weights: W(10, 6, 12, 8, 0, 25, 10), match: ['cold', 'introduction 1', 'intro email 1', 'intro 1'] },
+  { key: 'followup_intro', label: 'Follow-Up Introduction', system: 'coach', weights: W(9, 5, 12, 8, 0, 25, 10), match: ['follow', 'introduction 2', 'intro 2'] },
+  { key: 'reminder_night', label: 'Night-Before Reminder', system: 'coach', weights: W(7, 3, 10, 6, 0, 20, 8), match: ['night'] },
+  { key: 'reminder_hour', label: 'Reminder (1-hour / 5-minute)', system: 'coach', weights: W(5, 2, 8, 6, 0, 20, 8), match: ['hour', '5 min', 'reminder'] },
+  { key: 'notice', label: 'Notice / Rate-Drop Mailer', system: 'coach', weights: W(9, 5, 12, 10, 0, 24, 12), match: ['notice', 'rate drop', 'mailer'] },
+  { key: 'steph', label: 'Steph (video avatar)', system: 'coach', weights: W(10, 5, 14, 10, 0, 28, 12), match: ['steph'] },
+  { key: 'golden', label: 'Golden Boy final outreach', system: 'coach', weights: W(12, 6, 16, 12, 0, 28, 12), match: ['golden'] },
+];
+
+/** Everything that is not one of the coach families is fronter prospecting outreach. */
+export const FRONTER_CATEGORY: EmailCategory = {
+  key: 'fronter_outreach', label: 'Fronter cold outreach', system: 'fronter',
+  weights: W(8, 4, 12, 8, 0, 20, 10), match: [],
+};
+
+const ALL_CATEGORIES = [...CATEGORIES, FRONTER_CATEGORY];
+
+export const categoryByKey = (key: string): EmailCategory =>
+  ALL_CATEGORIES.find((category) => category.key === key) || FRONTER_CATEGORY;
+
+/** Which family an email belongs to, from its name (or its subject as a fallback). */
+export function categoryFor(templateName?: string, fallbackName?: string): EmailCategory {
+  const hay = `${templateName || ''} ${fallbackName || ''}`.toLowerCase();
+  return CATEGORIES.find((category) => category.match.some((needle) => hay.includes(needle))) || FRONTER_CATEGORY;
+}
+
+export interface CategoryActivity {
+  key: string;
+  label: string;
+  system: SystemKey;
+  opens: number;
+  clicks: number;
+  urls: string[];
+  qualify: boolean;
+  siteVisit: boolean;
+  lastAt: string | null;
+}
 
 export interface LeadSignals {
   leadId: string;
@@ -31,6 +126,7 @@ export interface LeadSignals {
   firstAt: string | null;
   lastAt: string | null;
   templates: string[];
+  categories: CategoryActivity[];
 }
 
 /**
@@ -42,6 +138,8 @@ export function signalsForLead(leadId: string, events: any[], nowMs: number): Le
   const urls = new Set<string>();
   const linkKeys = new Set<string>();
   const templates = new Set<string>();
+  const byCategory = new Map<string, CategoryActivity>();
+
   const signals: LeadSignals = {
     leadId: String(leadId),
     opens: 0,
@@ -53,6 +151,7 @@ export function signalsForLead(leadId: string, events: any[], nowMs: number): Le
     firstAt: null,
     lastAt: null,
     templates: [],
+    categories: [],
   };
 
   for (const event of events || []) {
@@ -63,14 +162,28 @@ export function signalsForLead(leadId: string, events: any[], nowMs: number): Le
     const time = at ? new Date(at).getTime() : 0;
     if (time && time > cutoff) continue;
 
+    const spec = categoryFor(event.templateName, event.subject);
+    if (!byCategory.has(spec.key)) {
+      byCategory.set(spec.key, { key: spec.key, label: spec.label, system: spec.system, opens: 0, clicks: 0, urls: [], qualify: false, siteVisit: false, lastAt: null });
+    }
+    const activity = byCategory.get(spec.key)!;
+    if (at && (!activity.lastAt || time > new Date(activity.lastAt).getTime())) activity.lastAt = at;
+
     const url = String(event.url || '');
     if (type === 'open') {
       signals.opens += 1;
+      activity.opens += 1;
     } else if (type === 'qualify_visit') {
+      activity.qualify = true;
       if (!signals.qualifyAt || time > new Date(signals.qualifyAt).getTime()) signals.qualifyAt = at;
     } else {
       signals.clicks += 1;
-      if (url) urls.add(url);
+      activity.clicks += 1;
+      if (url) {
+        urls.add(url);
+        activity.urls.push(url);
+        if (url.includes(COMPANY_URL_MATCH)) activity.siteVisit = true;
+      }
       const hit = CREDENTIAL_LINKS.find((link) => url.includes(link.match));
       if (hit) linkKeys.add(hit.key);
       else if (!signals.welcomeAudioAt) signals.welcomeAudioAt = at;
@@ -84,15 +197,19 @@ export function signalsForLead(leadId: string, events: any[], nowMs: number): Le
   signals.distinctUrls = urls.size;
   signals.linkKeys = [...linkKeys];
   signals.templates = [...templates];
+  signals.categories = [...byCategory.values()];
   return signals;
 }
 
-export interface EngagementScore {
+export interface SystemScore {
+  system: SystemKey;
   score: number;
   tier: 'hot' | 'engaged' | 'warming' | 'cold';
   tierLabel: string;
+  hotLead: boolean;
   action: string;
   reasons: string[];
+  lastAt: string | null;
 }
 
 function relative(iso: string | null, nowMs: number): string {
@@ -101,69 +218,123 @@ function relative(iso: string | null, nowMs: number): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
+const cap = (value: number, max: number) => Math.min(max, value);
+
 /**
- * 0-100 engagement score.
- *   opens            8 for the first, 6 for the second, 4 for the third, +2 each after (max 20)
- *   link clicks      10 per distinct link (max 30)
- *   depth            +10 when two or more credential links were opened
- *   welcome message  +12 when the personal welcome link was opened
- *   qualification    +28 when the video qualification page was reached
- *   recency          +12 / +8 / +5 / +2 for activity inside 24h / 3d / 7d / 30d
+ * One system's 0-100 score for a lead, plus why and what to do next.
+ * Coach scores start on MIGRATION_START_SCORE — the fronter score never carries over.
  */
-export function scoreSignals(signals: LeadSignals, nowMs: number): EngagementScore {
+export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: number): SystemScore {
   const reasons: string[] = [];
   let score = 0;
+  let forcedHot = false;
 
-  if (signals.opens > 0) {
-    const openPoints = Math.min(20, 8 + (signals.opens >= 2 ? 6 : 0) + (signals.opens >= 3 ? 4 : 0) + Math.max(0, signals.opens - 3) * 2);
-    score += openPoints;
-    reasons.push(signals.opens === 1 ? 'Opened the email' : `Opened the email ${signals.opens}×`);
+  const inSystem = signals.categories.filter((activity) => activity.system === system);
+  const byKey = new Map(inSystem.map((activity) => [activity.key, activity]));
+
+  for (const activity of inSystem) {
+    const weights = categoryByKey(activity.key).weights;
+    if (activity.opens > 0) {
+      score += weights.open + cap(activity.opens - 1, 3) * weights.repeat;
+      reasons.push(`${activity.label} opened${activity.opens > 1 ? ` ${activity.opens}×` : ''}`);
+    }
+    if (activity.clicks > 0) {
+      score += cap(activity.clicks, 3) * weights.click;
+      const hosts = [...new Set(activity.urls.map((url) => hostOf(url)).filter(Boolean))];
+      reasons.push(`${activity.label}: clicked ${hosts.slice(0, 2).join(', ') || `${activity.clicks} link`}`);
+    }
+    if (signals.linkKeys.length >= 2) { score += weights.depth; }
+    if (signals.welcomeAudioAt) { score += weights.welcome; }
+    if (activity.qualify) score += weights.qualify;
+    if (activity.siteVisit) score += weights.site;
   }
-  if (signals.distinctUrls > 0) {
-    score += Math.min(30, signals.distinctUrls * 10);
-    reasons.push(`Clicked ${signals.distinctUrls} link${signals.distinctUrls === 1 ? '' : 's'}`);
-  }
+
+  if (signals.welcomeAudioAt) reasons.push('Opened the personal welcome message');
   if (signals.linkKeys.length >= 2) {
-    score += 10;
     const names = CREDENTIAL_LINKS.filter((link) => signals.linkKeys.includes(link.key)).map((link) => link.label);
     reasons.push(`Vetted us on ${names.join(' + ')}`);
   }
-  if (signals.welcomeAudioAt) {
-    score += 12;
-    reasons.push('Opened the welcome message');
+  if (signals.qualifyAt) reasons.push('Reached the qualification page');
+
+  // ── Patterns: the combinations that mean more than the sum of their opens ──
+  const night = byKey.get('reminder_night');
+  const hour = byKey.get('reminder_hour');
+  if (night?.opens && hour?.opens) {
+    score += 18;
+    reasons.push('Opened both the night-before and the reminder email');
   }
-  if (signals.qualifyAt) {
-    score += 28;
-    reasons.push('Reached the qualification page');
+  const followUp = byKey.get('followup_intro');
+  if (followUp && (followUp.clicks >= 2 || followUp.clicks + followUp.opens >= 3)) {
+    score += 20;
+    reasons.push('Follow-up introduction: 2+ links — Introduction 2 is due');
   }
-  if (signals.lastAt) {
-    const hours = (nowMs - new Date(signals.lastAt).getTime()) / HOUR;
-    if (hours <= 24) { score += 12; reasons.push(`Active ${relative(signals.lastAt, nowMs)}`); }
-    else if (hours <= 72) score += 8;
-    else if (hours <= 168) score += 5;
-    else if (hours <= 720) score += 2;
+  const creds = byKey.get('creds_welcome');
+  if (creds) {
+    // Repeat opens, and coming back the next morning, are the pattern that makes a hot lead.
+    const repeatPattern = creds.opens >= 3 || (creds.opens >= 2 && creds.siteVisit);
+    if (repeatPattern || (creds.opens >= 1 && creds.qualify)) forcedHot = true;
+    if (repeatPattern) {
+      score += 12;
+      reasons.push(`Credentials email opened ${creds.opens}× — hot pattern`);
+    }
+  }
+  const golden = byKey.get('golden');
+  if (golden && golden.qualify) { score += 12; reasons.push('Golden Boy opened and watched the avatar — Golden A Buy'); }
+
+  if (system === 'fronter') {
+    if (signals.clicks > 0) { score += 8; reasons.push('Engaged with the cold outreach'); }
+    else if (signals.opens >= 2) { score += 6; reasons.push('Opened the cold outreach more than once'); }
   }
 
-  score = Math.max(0, Math.min(100, Math.round(score)));
-  const tier = score >= 55 ? 'hot' : score >= 25 ? 'engaged' : score >= 5 ? 'warming' : 'cold';
+  const floor = system === 'coach' ? MIGRATION_START_SCORE : 0;
+  score = Math.max(floor, Math.min(100, Math.round(score)));
+
+  const tier = score >= HOT_SCORE ? 'hot' : score >= ENGAGED_SCORE ? 'engaged' : score >= WARMING_SCORE ? 'warming' : 'cold';
   const tierLabel = { hot: 'Hot', engaged: 'Engaged', warming: 'Warming', cold: 'Cold' }[tier];
+  const hotLead = tier === 'hot' || forcedHot;
 
-  let action = 'No tracked email engagement yet — send the credentials email';
-  if (signals.qualifyAt) action = 'Call now — they reached the qualification page';
-  else if (signals.welcomeAudioAt && signals.linkKeys.length >= 2) action = 'Call now — welcome message opened and 2+ credential links clicked';
-  else if (signals.linkKeys.length >= 2) action = 'Call now — they vetted us on two or more sites';
-  else if (signals.distinctUrls > 0 || signals.opens > 0) action = 'Send the follow-up — they are reading but have not vetted us yet';
-  else if (signals.opens > 0) action = 'Send the follow-up — the email was opened';
+  if (signals.lastAt) {
+    const hours = (nowMs - new Date(signals.lastAt).getTime()) / 3_600_000;
+    if (hours <= 24) reasons.push(`Active ${relative(signals.lastAt, nowMs)}`);
+  }
 
-  return { score, tier, tierLabel, action, reasons: reasons.slice(0, 5) };
+  return { system, score, tier, tierLabel, hotLead, action: actionFor(signals, system, hotLead), reasons: reasons.slice(0, 6), lastAt: signals.lastAt };
 }
 
-/** One call: signals plus the score for a lead's events. */
+function hostOf(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
+function actionFor(signals: LeadSignals, system: SystemKey, hotLead: boolean): string {
+  const byKey = new Map(signals.categories.map((activity) => [activity.key, activity]));
+  if (system === 'fronter') {
+    if (signals.qualifyAt) return 'Call now — they reached the qualification page';
+    if (hotLead || signals.clicks > 0) return 'Call now — working the cold outreach, promote to a lead card';
+    if (signals.opens >= 2) return 'Call now — repeat opens on the cold outreach';
+    if (signals.opens > 0) return 'Follow up — the prospect opened the email';
+    return 'No fronter email activity yet — send the cold outreach';
+  }
+  if (signals.qualifyAt) return 'Call now — HOT LEAD: they reached the qualification page';
+  if (byKey.get('reminder_night')?.opens && byKey.get('reminder_hour')?.opens) return 'Call now — they opened both reminders for the appointment';
+  if ((byKey.get('followup_intro')?.clicks || 0) >= 2) return 'Send Introduction 2 — they clicked 2+ links';
+  if (hotLead) return 'Call now — HOT LEAD: repeat behaviour on the credentials email';
+  if (signals.welcomeAudioAt) return 'Call now — they listened to the welcome message';
+  if (signals.clicks > 0) return 'Call now — they are clicking through the email';
+  if (signals.opens > 0) return 'Send the follow-up — reading but not clicking yet';
+  return 'No coach email activity yet — start with the credentials email';
+}
+
+/** One call: a lead's signals plus its score in one system. */
+export function scoreForSystem(leadId: string, events: any[], system: SystemKey, nowMs: number) {
+  const signals = signalsForLead(leadId, events, nowMs);
+  return { signals, ...scoreSignals(signals, system, nowMs) };
+}
+
+/** Both systems at once — a lead can only score in the one it lives in. */
 export function engagementForLead(leadId: string, events: any[], nowMs: number) {
   const signals = signalsForLead(leadId, events, nowMs);
-  return { signals, ...scoreSignals(signals, nowMs) };
+  return { signals, coach: scoreSignals(signals, 'coach', nowMs), fronter: scoreSignals(signals, 'fronter', nowMs) };
 }

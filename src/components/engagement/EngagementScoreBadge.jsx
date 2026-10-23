@@ -8,7 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { tierStyle, scoreTooltip } from '@/lib/engagementTiers';
 
-export default function EngagementScoreBadge({ leadId }) {
+export default function EngagementScoreBadge({ leadId, system = 'fronter' }) {
   const { sessionUserId, sessionToken } = useDebtCoachAuth();
   const [lead, setLead] = useState(null);
   const [ready, setReady] = useState(false);
@@ -20,7 +20,7 @@ export default function EngagementScoreBadge({ leadId }) {
     const load = async () => {
       try {
         const response = await base44.functions.invoke('engagementReport', { leadId, sessionUserId, sessionToken });
-        if (mounted) setLead(response.data?.lead || null);
+        if (mounted) setLead(response.data?.lead?.[system] || null);
       } catch {
         if (mounted) setLead(null);
       }
@@ -33,14 +33,14 @@ export default function EngagementScoreBadge({ leadId }) {
       timer.current = setTimeout(load, 4000);
     });
     return () => { mounted = false; clearTimeout(timer.current); try { unsubscribe(); } catch { /* ignore */ } };
-  }, [leadId, sessionUserId, sessionToken]);
+  }, [leadId, sessionUserId, sessionToken, system]);
 
   const style = tierStyle(lead?.tier);
   const label = ready && lead ? `${style.icon} ${lead.score} ${style.label}` : ready ? '❄️ — Cold' : '🎯 scoring…';
 
   return (
     <span
-      title={scoreTooltip(lead)}
+      title={scoreTooltip(lead, system)}
       style={{
         padding: '3px 10px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
         background: ready && lead ? `${style.color}22` : 'rgba(255,255,255,0.05)',

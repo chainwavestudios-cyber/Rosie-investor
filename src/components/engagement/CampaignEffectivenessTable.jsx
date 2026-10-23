@@ -5,7 +5,7 @@
  */
 import { C, ago } from '@/components/superadmin/kit';
 
-const HEAD = ['Campaign', 'System', 'Sent', 'Engaged', 'Opened', 'Clicked', 'Welcome', 'Qual page', 'Hot', 'Avg score', 'Last'];
+const HEAD = ['Campaign', 'Email type', 'Sent', 'Engaged', 'Opened', 'Clicked', 'Welcome', 'Qual page', 'Hot', 'Avg score', 'Last'];
 
 const pct = (part, total) => (total ? `${Math.round((part / total) * 100)}%` : '—');
 
@@ -37,7 +37,7 @@ export default function CampaignEffectivenessTable({ campaigns }) {
                     {isBest && <span title="Most effective campaign" style={{ marginRight: '5px' }}>🏆</span>}
                     {row.name}
                   </td>
-                  <td style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', color: row.system === 'coach' ? C.coach : C.fronter, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{row.system}</td>
+                  <td style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', color: C.muted, fontSize: '10px' }}>{row.categoryLabel || '—'}</td>
                   <td style={cell()}>{row.sent ?? '—'}</td>
                   <td style={{ ...cell(), color: C.fronter, fontWeight: 'bold' }}>{row.engagedLeads}</td>
                   <td style={cell()}>{row.uniqueOpeners} <span style={sub()}>{pct(row.uniqueOpeners, row.sent)}</span></td>
