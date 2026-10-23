@@ -1,29 +1,17 @@
-import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
 import { base44 } from '@/api/base44Client';
-import HomeHero from '@/components/home/HomeHero';
-import HomeLeadConfirm from '@/components/home/HomeLeadConfirm';
-import StephaniAccessPopup from '@/components/home/StephaniAccessPopup';
-import HomeTrust from '@/components/home/HomeTrust';
-import HomeNews from '@/components/home/HomeNews';
-import SiteFooter from '@/components/home/SiteFooter';
+import WelcomeEmbed from '@/components/home/WelcomeEmbed';
 
 const APP_BASE_URL = window.location.origin;
 
 const SESSION_KEY = "home_access_granted";
 const SESSION_USER_KEY = "home_access_user";
 
-// A link from an email carries a token (mailer / notice / contact card id) — the video
-// session is only offered to a visitor who arrived on one of those links.
-const TOKEN_KEYS = ['lead', 'leadId', 'lid', 'id', 'notice', 'noticeId', 'code', 'c', 'ref'];
-
 export default function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [unlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === 'true');
-  const [hasToken] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return TOKEN_KEYS.some((key) => params.get(key));
-  });
   const [leadProfile, setLeadProfile] = useState(null);
 
   // If already unlocked, go straight to investor page
@@ -105,24 +93,18 @@ export default function Home() {
     }
   };
 
+  // The welcome page personalizes itself from its query string, so the visitor's own
+  // link parameters (token, invitation base) and the name on their file travel into it.
+  const embedSrc = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    if (leadProfile?.firstName && !params.get('firstName')) params.set('firstName', leadProfile.firstName);
+    const query = params.toString();
+    return `/welcome.html${query ? `?${query}` : ''}`;
+  }, [leadProfile, location.search]);
+
   return (
-    <div className="home-theme min-h-screen bg-home-canvas font-home-sans text-home-ink">
-      <main>
-        <HomeHero leadProfile={leadProfile} onLeadFound={setLeadProfile} />
-
-        {leadProfile && (
-          <div className="mx-auto max-w-7xl px-5 pt-10 md:px-8">
-            <HomeLeadConfirm profile={leadProfile} />
-          </div>
-        )}
-
-        <HomeTrust />
-        <HomeNews />
-      </main>
-
-      <SiteFooter />
-
-      <StephaniAccessPopup hasToken={hasToken || !!leadProfile} />
+    <div className="home-theme h-screen w-full overflow-hidden bg-home-canvas">
+      <WelcomeEmbed src={embedSrc} />
     </div>
   );
 }
