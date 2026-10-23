@@ -36,7 +36,7 @@ export default function EngagementContactCard({ target, username, onClose }) {
   if (state === 'ready' && lead) {
     const onSave = (updated) => setLead(updated || lead);
     if (target.source === 'fronter') {
-      return <FronterContactCard lead={lead} username={username} onClose={onClose} onSave={onSave} embedded />;
+      return <FronterContactCard lead={lead} username={username} onClose={onClose} onSave={onSave} />;
     }
     return <ClientProfileModal lead={lead} username={username} onClose={onClose} onSave={onSave} />;
   }
