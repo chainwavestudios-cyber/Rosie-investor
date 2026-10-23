@@ -12,6 +12,7 @@ import { buildMime, TRACKING_BASE } from '../../shared/emailTracking.ts';
 import { sendViaGmail, normalizeEmail, assertValidEmail } from '../../shared/gmailSend.ts';
 import { getEmailSignature } from '../../shared/emailSignature.ts';
 import { companyMergeVars } from '../../shared/companyInfo.ts';
+import { renderMarketingEmail, sendMarketingEmail } from '../../shared/fronterMarketing.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
@@ -35,9 +36,29 @@ export default async function (req: Request): Promise<Response> {
       const template = await loadTemplate('FronterEmailTemplate', templateId);
       if (!template) return Response.json({ error: 'That template no longer exists.' }, { status: 404 });
       name = template.label || '';
-      // The fronter send fills exactly these two tags, so the test matches it.
-      subject = String(template.subject || '').replace(/{{firstName}}/g, 'Test').replace(/{{email}}/g, recipient);
-      html = String(template.body || '').replace(/{{firstName}}/g, 'Test').replace(/{{email}}/g, recipient);
+      // The fronter workspace renders every saved tag and puts these out through
+      // the outreach account, so the test matches the live email: same render,
+      // same sender, no tracking.
+      const draft = { id: template.id, subject: template.subject || '', html: template.body || '' };
+      const card = {
+        id: 'test', firstName: 'Test', lastName: 'Contact', email: recipient,
+        phone: '(555) 010-0100', state: 'CA', protofaceId: 'PF-TEST-0001', debtAmount: 20000,
+      };
+      if ((template.emailProvider || 'gmail') === 'smtpfast') {
+        const sent = await sendMarketingEmail(base44, draft, card, { test: true });
+        return Response.json({
+          success: true,
+          templateName: name,
+          to: sent.to,
+          subject: sent.subject,
+          account: 'outreach (SMTPfast)',
+          sentBy: sentBy || 'admin',
+          sentAt: new Date().toISOString(),
+        });
+      }
+      const rendered = await renderMarketingEmail(base44, draft, card);
+      subject = rendered.subject;
+      html = rendered.html;
     } else {
       const template = await loadTemplate('DebtEmailTemplate', templateId);
       if (!template) return Response.json({ error: 'That template no longer exists.' }, { status: 404 });
