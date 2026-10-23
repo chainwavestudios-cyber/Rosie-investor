@@ -42,6 +42,15 @@
       "type": "string",
       "title": "Lead Source (as mapped from the CSV)"
     },
+    "debtAmount": {
+      "type": "number",
+      "title": "Debt Amount ($, as mapped from the CSV)"
+    },
+    "leadDate": {
+      "type": "string",
+      "format": "date",
+      "title": "Lead Date (when the lead came in, as mapped from the CSV)"
+    },
     "customJson": {
       "type": "string",
       "title": "Extra CSV Columns (JSON of column name to value)",

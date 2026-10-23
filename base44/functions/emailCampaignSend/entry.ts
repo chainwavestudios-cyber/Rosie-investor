@@ -93,6 +93,8 @@ export default async function (req: Request): Promise<Response> {
           email: vars.email,
           state: vars.state,
           source: vars.source,
+          debtAmount: vars.debtAmount || '',
+          leadDate: vars.leadDate || '',
           inviteLink: vars.inviteLink,
           rosieInviteLink: vars.rosieInviteLink || '',
           chrisInviteLink: vars.chrisInviteLink || '',

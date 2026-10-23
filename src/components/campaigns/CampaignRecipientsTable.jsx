@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Btn, BORDER, DIM, MUTED, SURFACE, inputStyle } from './kit';
+import { Btn, BORDER, DIM, GOLD, MUTED, SURFACE, inputStyle } from './kit';
 
 const PAGE = 200;
 const TONE = { pending: '#60a5fa', sent: '#10b981', failed: '#ef4444', skipped: '#f59e0b' };
@@ -109,6 +109,13 @@ export default function CampaignRecipientsTable({ campaignId, refreshKey, select
                   <td style={{ padding: '5px 9px', color: '#c4cdd8', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <div>{`${row.firstName || ''} ${row.lastName || ''}`.trim() || '—'}</div>
                     <div style={{ color: DIM, fontSize: '10px' }}>{row.email}</div>
+                    {(row.debtAmount > 0 || row.leadDate) && (
+                      <div style={{ color: GOLD, fontSize: '10px' }}>
+                        {row.debtAmount > 0 ? `$${Number(row.debtAmount).toLocaleString()}` : ''}
+                        {row.debtAmount > 0 && row.leadDate ? ' · ' : ''}
+                        {row.leadDate || ''}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '5px 9px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ color: tone, fontWeight: 'bold', textTransform: 'uppercase', fontSize: '10px', letterSpacing: '1px' }}>{row.status}</span>

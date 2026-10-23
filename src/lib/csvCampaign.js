@@ -21,6 +21,8 @@ export const CAMPAIGN_FIELDS = [
   { key: 'state', label: 'State' },
   { key: 'zip', label: 'ZIP' },
   { key: 'source', label: 'Lead source' },
+  { key: 'debtAmount', label: 'Debt amount ($)' },
+  { key: 'leadDate', label: 'Lead date (when the lead came in)' },
   { key: 'status', label: 'Status' },
 ];
 
@@ -38,6 +40,8 @@ const SYNONYMS = {
   state: ['state', 'st', 'province', 'region'],
   zip: ['zip', 'zipcode', 'postalcode', 'postcode', 'zip5', 'zipcode5'],
   source: ['leadsource', 'source', 'referral', 'referralsource', 'campaign', 'channel', 'origin', 'leadorigin'],
+  debtAmount: ['debtamount', 'debt', 'totaldebt', 'debtbalance', 'unsecureddebt', 'creditcarddebt', 'amountowed', 'debtvalue', 'balance', 'amount'],
+  leadDate: ['leaddate', 'datecreated', 'createddate', 'createdat', 'dateadded', 'leaddateadded', 'signupdate', 'entrydate', 'optindate', 'inquirydate'],
   status: ['status', 'leadstatus', 'stage', 'pipeline', 'disposition'],
 };
 
@@ -183,13 +187,47 @@ export function parseAddressLine(value) {
   return out;
 }
 
+/** A money cell as a plain number ("$12,500.00" → "12500"), or '' when it holds no figure. */
+export function parseAmountCell(value) {
+  const digits = String(value ?? '').replace(/[^0-9.]/g, '');
+  const number = Number(digits);
+  return digits && Number.isFinite(number) ? String(number) : '';
+}
+
+/** A date cell as YYYY-MM-DD — ISO, US "10/01/2026", "October 1, 2026" — or the text as typed. */
+export function parseDateCell(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(text);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  const us = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/.exec(text);
+  if (us) {
+    let year = Number(us[3]);
+    if (year < 100) year += year < 70 ? 2000 : 1900;
+    return `${year}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  }
+  return text;
+}
+
+/** The fields whose cell needs cleaning before it is saved. */
+const CELL_CLEANERS = { debtAmount: parseAmountCell, leadDate: parseDateCell };
+
 /** A row as the plain object the importer expects, using the confirmed mapping. */
 export function applyMapping(row, mapping) {
   const mapped = {};
   for (const field of CAMPAIGN_FIELDS) {
     if (field.derived) continue;
     const column = mapping[field.key];
-    if (column) mapped[field.key] = String(row[column] ?? '').trim();
+    if (!column) continue;
+    const raw = String(row[column] ?? '').trim();
+    if (!raw) continue;
+    const clean = CELL_CLEANERS[field.key];
+    const value = clean ? clean(raw) : raw;
+    if (value) mapped[field.key] = value;
   }
 
   // A combined column is split for the operator; nothing it produces overwrites a

@@ -24,7 +24,7 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const CARD_FIELDS = ['firstName', 'lastName', 'phone', 'address', 'city', 'state', 'zip', 'email'];
 
 /** Fields the recipient row keeps for its own display and personalization. */
-export const RECIPIENT_FIELDS = ['firstName', 'lastName', 'phone', 'company', 'city', 'state', 'source', 'status'];
+export const RECIPIENT_FIELDS = ['firstName', 'lastName', 'phone', 'company', 'city', 'state', 'source', 'debtAmount', 'leadDate', 'status'];
 
 export function clean(value: unknown): string {
   return String(value ?? '').trim();
@@ -93,6 +93,8 @@ export function recipientVars(recipient: any, assistants: Array<{ key: string; n
     state: clean(recipient?.state),
     source: clean(recipient?.source),
     status: clean(recipient?.status),
+    debtAmount: amountOf(recipient) ? String(amountOf(recipient)) : '',
+    leadDate: clean(recipient?.leadDate),
     leadId: clean(recipient?.leadId),
     inviteToken: token,
     inviteLink: token ? qualifyLink(token) : '',
@@ -154,19 +156,47 @@ export function renderEmail(template: any, vars: Record<string, string>) {
   return { subject, html, text, tags, missing, images: (html.match(/<img\b/gi) || []).length, links: (html.match(/<a\s+[^>]*href=/gi) || []).length };
 }
 
+/** The debt amount on a row as a number, or 0 when the cell holds no figure. */
+export function amountOf(row: any): number {
+  const number = Number(String(row?.debtAmount ?? '').replace(/[^0-9.]/g, ''));
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+/** A lead-date cell as YYYY-MM-DD — ISO, US "10/01/2026", "October 1, 2026" — or the text as typed. */
+export function normalizeLeadDate(value: unknown): string {
+  const text = clean(value);
+  if (!text) return '';
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(text);
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+  const us = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/.exec(text);
+  if (us) {
+    let year = Number(us[3]);
+    if (year < 100) year += year < 70 ? 2000 : 1900;
+    return `${year}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  }
+  return text;
+}
+
 /** A card's own empty fields, filled from the row — never overwriting what is there. */
-export function cardPatchFor(card: any, row: any): Record<string, string> {
-  const patch: Record<string, string> = {};
+export function cardPatchFor(card: any, row: any): Record<string, any> {
+  const patch: Record<string, any> = {};
   for (const field of CARD_FIELDS) {
     const incoming = clean(row?.[field]);
     const existing = clean(card?.[field]);
     if (incoming && !existing) patch[field] = incoming;
   }
+  const amount = amountOf(row);
+  if (amount && !Number(clean(card?.debtAmount) || 0)) patch.debtAmount = amount;
   return patch;
 }
 
 /** The card a brand-new contact is created from. */
 export function cardForRow(row: any, listName: string) {
+  const amount = amountOf(row);
   return {
     firstName: clean(row?.firstName) || 'Contact',
     lastName: clean(row?.lastName),
@@ -176,6 +206,7 @@ export function cardForRow(row: any, listName: string) {
     city: clean(row?.city),
     state: clean(row?.state),
     zip: clean(row?.zip),
+    ...(amount ? { debtAmount: amount } : {}),
     status: 'new',
     notes: `Added by the Email Campaign Manager${listName ? ` (list: ${listName})` : ''}.`,
   };

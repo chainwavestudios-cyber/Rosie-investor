@@ -22,6 +22,7 @@ import {
   inviteLinks,
   isEmailUnsubscribed,
   normalizeAddress,
+  normalizeLeadDate,
   clean,
 } from '../../shared/emailCampaign.ts';
 
@@ -65,6 +66,8 @@ export default async function (req: Request): Promise<Response> {
         state: clean(raw?.state),
         zip: clean(raw?.zip),
         source: clean(raw?.source),
+        debtAmount: Number(String(raw?.debtAmount ?? '').replace(/[^0-9.]/g, '')) || 0,
+        leadDate: normalizeLeadDate(raw?.leadDate),
         customJson: raw?.custom && typeof raw.custom === 'object' ? JSON.stringify(raw.custom) : '{}',
       });
     }
@@ -172,6 +175,8 @@ export default async function (req: Request): Promise<Response> {
         city: row.city,
         state: row.state,
         source: row.source,
+        debtAmount: row.debtAmount,
+        leadDate: row.leadDate,
         customJson: row.customJson,
         status: 'pending',
         leadId: cardIdFor.get(row.email) || '',

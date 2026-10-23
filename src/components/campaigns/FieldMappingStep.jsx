@@ -12,7 +12,7 @@ import { Btn, Card, DIM, Field, GOLD, MUTED, Stat, SURFACE, BORDER, inputStyle }
 import { CAMPAIGN_FIELDS, applyMapping, downloadCsv, looksLikeEmail, rejectionCsv } from '@/lib/csvCampaign';
 
 const CHUNK = 400;
-const CHUNK_FIELDS = ['email', 'firstName', 'lastName', 'phone', 'company', 'address', 'city', 'state', 'zip', 'source', 'status'];
+const CHUNK_FIELDS = ['email', 'firstName', 'lastName', 'phone', 'company', 'address', 'city', 'state', 'zip', 'source', 'status', 'debtAmount', 'leadDate'];
 
 /** The rows the server will be asked about, in chunks, with file-level duplicates removed first. */
 function chunksFor(rows, mapping) {
