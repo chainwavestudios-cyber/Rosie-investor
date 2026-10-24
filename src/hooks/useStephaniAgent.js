@@ -15,7 +15,7 @@ const TRANSCRIBE_MODEL = 'nova-2';
 // How her voice is handed to the avatar: 100 ms of audio, then the next slice 100 ms later. That
 // is true speaking speed, so the face never drifts ahead of the words. voiceDelayMs is how long
 // her voice waits before the visitor hears it — the number that lines the words up with the lips.
-const DEFAULT_TUNING = { chunkMs: 100, gapMs: 100, voiceDelayMs: 400 };
+const DEFAULT_TUNING = { chunkMs: 100, gapMs: 100, voiceDelayMs: 1200 };
 
 function base64ToBytes(base64) {
   const binary = atob(base64);

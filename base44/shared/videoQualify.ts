@@ -161,7 +161,7 @@ export function voiceForAssistant(cfg: any, keyOrName: string): string {
  * The lip-sync pacing the widget runs on: how much audio is handed to the avatar at a time,
  * how long between chunks, and how long her voice waits before the visitor hears it.
  */
-export const SPEECH_DEFAULTS = { chunkMs: 100, gapMs: 100, voiceDelayMs: 400 };
+export const SPEECH_DEFAULTS = { chunkMs: 100, gapMs: 100, voiceDelayMs: 1200 };
 
 export function speechTuning(cfg: any) {
   const num = (value: any, fallback: number, min: number, max: number) => {

@@ -21,7 +21,7 @@ export default function ProtoFaceScriptPanel({ config, save }) {
     bridgeWhisper: config.bridgeWhisper || '',
     speechChunkMs: config.speechChunkMs ?? 100,
     speechGapMs: config.speechGapMs ?? 100,
-    voiceDelayMs: config.voiceDelayMs ?? 400,
+    voiceDelayMs: config.voiceDelayMs ?? 1200,
   });
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -37,7 +37,7 @@ export default function ProtoFaceScriptPanel({ config, save }) {
         temperature: num(form.temperature, 0.6),
         speechChunkMs: num(form.speechChunkMs, 100),
         speechGapMs: num(form.speechGapMs, 100),
-        voiceDelayMs: num(form.voiceDelayMs, 400),
+        voiceDelayMs: num(form.voiceDelayMs, 1200),
       });
       setNote('Saved. Takes effect on the next call.');
     } catch (err) {
@@ -105,7 +105,7 @@ export default function ProtoFaceScriptPanel({ config, save }) {
             label="Voice delay (ms)"
             value={form.voiceDelayMs}
             onChange={(v) => set('voiceDelayMs', v)}
-            hint="How long her voice waits before the visitor hears it. Raise it if the lips run ahead, lower it if the voice runs ahead."
+            hint="How long her voice waits before the visitor hears it — the beat the face needs to come up. Raise it if her lips lag behind her voice, lower it if her mouth moves before the visitor hears her."
           />
         </div>
         <p className="text-[11px] leading-snug text-[#6b7a99]">
