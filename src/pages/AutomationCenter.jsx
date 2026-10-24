@@ -97,12 +97,6 @@ export default function AutomationCenter() {
 
       <PortalNavButtons current="automations" isAdmin={isAdmin} />
 
-      {!isAdmin && !loading && (
-        <div style={{ background: `${C.warn}12`, border: `1px solid ${C.warn}44`, borderRadius: '6px', padding: '12px', color: C.warn, fontSize: '12px', marginBottom: '12px' }}>
-          This screen is for admins — signing in as an admin shows every rule and lets you change the scoring.
-        </div>
-      )}
-
       <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginBottom: '10px' }}>
         {TABS.map((entry) => {
           const on = entry.key === tab;
