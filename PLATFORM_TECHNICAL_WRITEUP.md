@@ -3,7 +3,7 @@
 **Document type:** full platform technical audit + capability dossier
 **Scope:** every system, screen, backend function, data entity, workflow and integration in this codebase
 **Compiled:** 2026-10-24 · **Method:** direct read of the repository (routes, components, functions, entities, workflows, shared modules, configured secrets) — not a live end-to-end test of each endpoint
-**Companion documents:** `LIVE_QA_AUDIT_REPORT.md` (Live Q&A tool, deep dive) · `src/AI_AGENT_AUDIT_REPORT.md` (AI Voice Agent, deep dive) · `base44/shared/appSystemMap.ts` (the in-app AI console's own map of the platform)
+**Companion documents:** `PLATFORM_CRM_AND_LIVE_CALL_ANALYTICS.md` (**Part II** — the CRM screen by screen, every tab in the app, and the live-call analytics engine in depth) · `LIVE_QA_AUDIT_REPORT.md` (Live Q&A tool, deep dive) · `src/AI_AGENT_AUDIT_REPORT.md` (AI Voice Agent, deep dive) · `base44/shared/appSystemMap.ts` (the in-app AI console's own map of the platform)
 
 ---
 
@@ -16,7 +16,7 @@
 | Backend functions | **138** |
 | Data entities (typed schemas) | **120** |
 | Scheduled / triggered workflows | **23** |
-| Frontend routes | **37** |
+| Frontend routes | **36** (35 screens + catch-all) |
 | React components | **~420** across 22 modules |
 | Shared backend modules | **42** (5,473 lines) |
 | External services integrated | **13** |
@@ -538,7 +538,9 @@ Every entity is a typed schema (field types, enums, titles, descriptions); the 1
 
 ---
 
-## PART D — WORKFLOWS (23), SHARED MODULES (42), ROUTES (37)
+## PART D — WORKFLOWS (23), SHARED MODULES (42), ROUTES (36)
+
+> The **screen-by-screen and tab-by-tab** inventory, the CRM capability map, and the live-call analytics deep dive are in Part II: `PLATFORM_CRM_AND_LIVE_CALL_ANALYTICS.md`.
 
 ### Scheduled / automated workflows
 Appointment Reminders · Auto-Tag NB Tech Leads · Bridge Keepalive · Cleanup Expired BOB Sessions · Cleanup Soft-Deleted Leads · Connector Keepalive · Debt Coach Marketing Engine · Debt Coach Marketing Nightly Report · Email Follow-Up Automation · Fronter Meeting Reminders · Fronter Performance Audits · Fronter Quote Broadcaster · NB Tech Campaign Runner · Nightly AI Cost Report · Nightly Script Backup · Rate Drop Mailer Engine · Scrape Social Leads 4x Daily · Sync Debt KB · Sync Investors to Google Sheets · Sync Leads to Google Sheets · Sync Objections to KB · Sync Scripts for BOB.
