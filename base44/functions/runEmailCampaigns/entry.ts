@@ -4,6 +4,7 @@
  * Checks all active campaigns and fires batches that are due.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const MJ_KEY    = Deno.env.get('MAILJET_API_KEY');
 const MJ_SECRET = Deno.env.get('MAILJET_API_SECRET');
@@ -76,6 +77,9 @@ async function sendNbtechBatch(base44, campaign, leadsToSend) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req).asServiceRole;
+    const gate = await automationGate(base44, 'nbtech_campaign');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'nbtech_campaign', reason: gate.reason });
+
     const now = new Date();
     const nowISO = now.toISOString();
     const currentHour = now.getUTCHours(); // Will be adjusted below per campaign timezone

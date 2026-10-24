@@ -6,6 +6,7 @@
  * Called by a scheduled workflow every 15 minutes.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const ET_TZ = 'America/New_York';
 
@@ -38,6 +39,8 @@ function formatInTz(iso: string, tz: string): string {
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'fronter_meetings');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'fronter_meetings', reason: gate.reason });
     const now = new Date();
 
     // Get all meetings with customerReminder=true and status=scheduled

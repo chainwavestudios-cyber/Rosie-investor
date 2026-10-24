@@ -10,11 +10,14 @@
  * Called by the "Appointment Reminders" workflow every 15 minutes.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 import { sendTemplateEmail, DEFAULT_NIGHT_BEFORE, DEFAULT_HOUR_BEFORE } from '../../shared/debtEmailSender.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'appointment_reminders');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'appointment_reminders', reason: gate.reason });
     const now = new Date();
 
     // Load templates from the database

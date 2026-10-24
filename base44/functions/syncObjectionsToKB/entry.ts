@@ -5,10 +5,13 @@
  * Called by a scheduled workflow every 2 hours, or manually.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.49';
+import { automationGate } from '../../shared/automationRules.ts';
 
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'sync_objections');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'sync_objections', reason: gate.reason });
 
     // Fetch all enabled objections
     const objections = await base44.asServiceRole.entities.Objection.filter({

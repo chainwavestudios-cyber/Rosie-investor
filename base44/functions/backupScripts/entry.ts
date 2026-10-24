@@ -1,10 +1,13 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 // Nightly backup of DebtScripts that have alwaysSaveBackup enabled.
 // Creates a ScriptBackup record per script, then deletes backups older than 7 days.
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'script_backup');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'script_backup', reason: gate.reason });
     const svc = base44.asServiceRole;
 
     const now = new Date();

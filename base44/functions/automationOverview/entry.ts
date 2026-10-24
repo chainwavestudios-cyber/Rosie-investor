@@ -16,6 +16,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 import { marketingUser } from '../../shared/fronterMarketing.ts';
 import { CATEGORIES, DEFAULT_SCORING, FRONTER_CATEGORY } from '../../shared/engagement.ts';
 import { DEFAULT_FOLLOW_UP_LINKS, readScoringRecord, rulesFromRecord } from '../../shared/scoringConfig.ts';
+import { AUTOMATION_SWITCHES, automationStateFromRecord, automationSwitch, readAutomationRecord } from '../../shared/automationRules.ts';
 
 const GROUPS = ['Email & engagement', 'Appointments & calls', 'Lead pipeline', 'Syncs & knowledge', 'Upkeep & monitoring'];
 
@@ -210,6 +211,35 @@ export default async function (req: Request): Promise<Response> {
     const user = await marketingUser(base44, body);
     if (!user.canEdit) return Response.json({ error: 'Only an admin can see or change the automations.' }, { status: 403 });
 
+    if (body.action === 'saveAutomations') {
+      const allowed = new Set(AUTOMATION_SWITCHES.map((row) => row.key));
+      const enabledIn = body.enabled && typeof body.enabled === 'object' ? body.enabled : {};
+      const intervalsIn = body.intervals && typeof body.intervals === 'object' ? body.intervals : {};
+
+      // Only a switch that is off is stored; anything on is simply absent (the app's own default).
+      const enabled: any = {};
+      Object.keys(enabledIn).forEach((key) => {
+        if (allowed.has(key) && enabledIn[key] === false) enabled[key] = false;
+      });
+
+      const intervals: any = {};
+      Object.keys(intervalsIn).forEach((key) => {
+        const minutes = Number(intervalsIn[key]);
+        if (allowed.has(key) && Number.isFinite(minutes) && minutes > 0) intervals[key] = Math.min(10080, Math.round(minutes));
+      });
+
+      const existingAutomation = await readAutomationRecord(base44);
+      const automationPayload = {
+        configName: 'automations',
+        enabledJson: JSON.stringify(enabled),
+        intervalsJson: JSON.stringify(intervals),
+        updatedBy: user.username || user.email || 'admin',
+        updatedAt: new Date().toISOString(),
+      };
+      if (existingAutomation) await base44.asServiceRole.entities.AutomationConfig.update(existingAutomation.id, automationPayload);
+      else await base44.asServiceRole.entities.AutomationConfig.create(automationPayload);
+    }
+
     if (body.action === 'save') {
       const thresholds = body.thresholds || {};
       const patterns = body.patterns || {};
@@ -253,17 +283,28 @@ export default async function (req: Request): Promise<Response> {
       else await base44.asServiceRole.entities.ScoringConfig.create(payload);
     }
 
-    const [coachTemplates, fronterTemplates, record] = await Promise.all([
+    const [coachTemplates, fronterTemplates, record, automationRecord] = await Promise.all([
       base44.asServiceRole.entities.DebtEmailTemplate.list('-created_date', 200),
       base44.asServiceRole.entities.FronterEmailTemplate.list('-created_date', 200),
       readScoringRecord(base44),
+      readAutomationRecord(base44),
     ]);
     const rules: any = rulesFromRecord(record);
 
     return Response.json({
       generatedAt: new Date().toISOString(),
       groups: GROUPS,
-      automations: AUTOMATIONS,
+      automations: AUTOMATIONS.map((automation: any) => {
+        const meta = automationSwitch(automation.key);
+        return {
+          ...automation,
+          kind: meta?.kind || 'timed',
+          enforcedBy: meta?.enforcedBy || '',
+          gated: Boolean(meta?.enforcedBy),
+          warn: meta?.warn || '',
+        };
+      }),
+      automationState: automationStateFromRecord(automationRecord),
       emailRules: templateRules(coachTemplates, fronterTemplates),
       scoring: {
         thresholds: thresholdsOf(rules),

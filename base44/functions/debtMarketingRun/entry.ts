@@ -7,6 +7,7 @@
  * a precomputed send time), so this tick can never double-send.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 import { OUTREACH_FROM_NAME, smtpfastSend } from '../../shared/smtpfastSender.ts';
 import { injectDccTracking, linkHostsFromHtml } from '../../shared/debtMarketingTracking.ts';
 import { TRACKING_BASE } from '../../shared/emailTracking.ts';
@@ -28,6 +29,8 @@ function render(text: string, vars: Record<string, string>) {
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'coach_engine');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'coach_engine', reason: gate.reason });
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });

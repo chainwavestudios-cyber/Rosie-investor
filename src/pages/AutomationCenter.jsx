@@ -11,12 +11,19 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import AutomationsTab from '@/components/automation/AutomationsTab';
 import ScoringRulesTab from '@/components/automation/ScoringRulesTab';
+import AutomationControlTab from '@/components/automation/AutomationControlTab';
 import { C, emptyStyle } from '@/components/superadmin/kit';
 
 const TABS = [
-  { key: 'automations', label: '⚙️ Automations', note: 'Everything that runs by itself — what starts it, what it does, how often.' },
+  { key: 'controls', label: '🎛 Automations & AI rules', note: 'Every automation in one place — timed, event-driven and the AI / scoring rules — each with its own switch, its timing and when it last ran.' },
+  { key: 'automations', label: '📖 What each one does', note: 'The same automations written out in plain English: what starts it, what it then does, how often.' },
   { key: 'scoring', label: '🎯 Scoring rules', note: 'What each behaviour is worth, and where the hot, engaged and warming lines sit.' },
 ];
+
+const buildAutomationDraft = (state) => ({
+  enabled: { ...(state?.enabled || {}) },
+  intervals: { ...(state?.intervals || {}) },
+});
 
 const buildDraft = (scoring) => ({
   thresholds: { ...scoring.thresholds },
@@ -28,7 +35,8 @@ export default function AutomationCenter() {
   const { isAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
   const [overview, setOverview] = useState(null);
   const [draft, setDraft] = useState(null);
-  const [tab, setTab] = useState('automations');
+  const [automationDraft, setAutomationDraft] = useState(null);
+  const [tab, setTab] = useState('controls');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,6 +48,7 @@ export default function AutomationCenter() {
       if (response.data?.error) throw new Error(response.data.error);
       setOverview(response.data);
       setDraft(buildDraft(response.data.scoring));
+      setAutomationDraft(buildAutomationDraft(response.data.automationState));
       setError('');
     } catch (err) {
       setError(err?.response?.data?.error || err?.message || 'Could not load the automations');
@@ -54,14 +63,15 @@ export default function AutomationCenter() {
     if (response.data?.error) throw new Error(response.data.error);
     setOverview(response.data);
     setDraft(buildDraft(response.data.scoring));
+    setAutomationDraft(buildAutomationDraft(response.data.automationState));
   };
 
-  const commit = async (payload) => {
+  const commit = async (payload, message) => {
     setSaving(true);
     setNote('');
     try {
       await send(payload);
-      setNote('Saved — every score in the app now uses these numbers.');
+      setNote(message || 'Saved — every score in the app now uses these numbers.');
     } catch (err) {
       setNote(err?.response?.data?.error || err?.message || 'Could not save the rules');
     }
@@ -85,6 +95,17 @@ export default function AutomationCenter() {
       families: defaults.families.map((family) => ({ ...family.weights, key: family.key })),
     });
   };
+
+  const saveAutomations = () => automationDraft && commit({
+    action: 'saveAutomations',
+    enabled: automationDraft.enabled,
+    intervals: automationDraft.intervals,
+  }, 'Saved — every automation now runs exactly as switched above.');
+
+  const restoreAutomations = () => commit(
+    { action: 'saveAutomations', enabled: {}, intervals: {} },
+    'Back to the app’s own settings — every automation on, no throttle.',
+  );
 
   const active = TABS.find((entry) => entry.key === tab) || TABS[0];
 
@@ -116,6 +137,19 @@ export default function AutomationCenter() {
 
       {loading && <div style={emptyStyle}>Loading every automation…</div>}
       {!loading && error && <div style={{ color: C.danger, fontSize: '12px' }}>{error}</div>}
+
+      {!loading && overview && automationDraft && tab === 'controls' && (
+        <AutomationControlTab
+          overview={overview}
+          draft={automationDraft}
+          onToggle={(key, next) => setAutomationDraft((prev) => ({ ...prev, enabled: { ...prev.enabled, [key]: next } }))}
+          onInterval={(key, value) => setAutomationDraft((prev) => ({ ...prev, intervals: { ...prev.intervals, [key]: value } }))}
+          onSave={saveAutomations}
+          onRestore={restoreAutomations}
+          saving={saving}
+          note={note}
+        />
+      )}
 
       {!loading && overview && draft && tab === 'automations' && (
         <AutomationsTab

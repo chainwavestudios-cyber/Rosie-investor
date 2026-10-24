@@ -3,12 +3,15 @@
  * (deletedAt set) more than 7 days ago. Called by a scheduled workflow daily.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'cleanup_leads');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'cleanup_leads', reason: gate.reason });
     const all = await base44.asServiceRole.entities.DebtLead.list('-created_date', 500);
     const leads = all || [];
     const cutoff = new Date(Date.now() - SEVEN_DAYS_MS);

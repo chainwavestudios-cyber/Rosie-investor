@@ -4,6 +4,7 @@
 // per agent and per AI feature. Called nightly by the workflow and on demand
 // from the AI Reports tab.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 import { computeCostUsd, etDayRange, etDayString } from '../../shared/aiCost.ts';
 
 // Storage guards — the report keeps the highest-cost calls and trims detail
@@ -20,6 +21,8 @@ function round(n: number, dp = 6) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'ai_cost');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'ai_cost', reason: gate.reason });
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });

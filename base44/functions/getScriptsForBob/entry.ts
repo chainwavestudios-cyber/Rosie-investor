@@ -4,6 +4,7 @@
  * Called by a scheduled workflow every 2 hours, or manually from the BOB trainer.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.49';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const BOB_API_KEY = 'Ajwnedfjklnadsjknfgjknasdjkfnjkasdnfjandskj';
 const SCRIPTS_URL = 'https://organic-train-intel-flow.base44.app/functions/GetScriptsForBob';
@@ -21,6 +22,8 @@ export default async function(req: Request): Promise<Response> {
     const openers = data.openers || [];
 
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'sync_scripts');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'sync_scripts', reason: gate.reason });
 
     // Get existing scenario entries to avoid duplicates (match by external_id in tags)
     const existing = await base44.asServiceRole.entities.KnowledgeBase.filter({

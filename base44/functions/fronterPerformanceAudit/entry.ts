@@ -10,6 +10,7 @@
  * needed. The 'generate' action generates a single report on demand.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const AUDIT_PROMPT = `You are an expert Sales Quality Assurance & Operations Auditor for Debt Solutions Corporation. Your task is to evaluate the call transcripts and metrics of each active "Fronter" twice a day. You will analyze adherence to the streamlined pitch, objection handling, conversion performance, and operational efficiency, generating an actionable, data-driven performance report.
 
@@ -88,6 +89,9 @@ Deno.serve(async (req) => {
 
   try {
     if (action === 'check') {
+      const gate = await automationGate(base44, 'fronter_audits');
+      if (!gate.run) return Response.json({ skipped: true, automation: 'fronter_audits', reason: gate.reason });
+
       const today = todayET();
       const now = Date.now();
       const generated: any[] = [];

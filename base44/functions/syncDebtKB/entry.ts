@@ -5,6 +5,7 @@
  * Called by a scheduled workflow every 2 hours, or manually.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.49';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const DEBT_CATEGORIES = [
   'debt_kb', 'debt_faq', 'debt_agent', 'debt_customer',
@@ -15,6 +16,8 @@ const DEBT_CATEGORIES = [
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'sync_kb');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'sync_kb', reason: gate.reason });
 
     // List all KnowledgeBase entries
     const all = await base44.asServiceRole.entities.KnowledgeBase.list('-created_date', 1000);

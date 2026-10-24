@@ -1,0 +1,60 @@
+{
+  "name": "AutomationConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "title": "Config Name (singleton key)",
+      "default": "automations"
+    },
+    "enabledJson": {
+      "type": "string",
+      "title": "On/Off per automation (JSON map of automation key to true/false; missing = the app's own default)",
+      "format": "textarea"
+    },
+    "intervalsJson": {
+      "type": "string",
+      "title": "Throttle per automation (JSON map of automation key to minutes; 0 or missing = runs every time its schedule fires)",
+      "format": "textarea"
+    },
+    "lastRunJson": {
+      "type": "string",
+      "title": "When each automation last actually ran (JSON map of automation key to ISO time, written by the jobs themselves)",
+      "format": "textarea"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Last Updated By (username)"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Updated At"
+    }
+  },
+  "required": [
+    "configName"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

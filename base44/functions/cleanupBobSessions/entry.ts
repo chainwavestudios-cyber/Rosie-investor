@@ -4,10 +4,13 @@
  * are auto-deleted after 24 hours.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'cleanup_bob');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'cleanup_bob', reason: gate.reason });
     const all = await base44.asServiceRole.entities.BobSession.list('-created_date', 500);
     const sessions = all || [];
     const now = new Date();

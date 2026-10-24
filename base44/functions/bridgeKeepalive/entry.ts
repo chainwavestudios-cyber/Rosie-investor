@@ -7,8 +7,14 @@
  * disconnect immediately when the prospect answers.
  */
 import { secrets } from 'base44:runtime';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 
 export default async function(req: Request): Promise<Response> {
+  const base44 = createClientFromRequest(req);
+  const gate = await automationGate(base44, 'bridge_keepalive');
+  if (!gate.run) return Response.json({ ok: true, skipped: true, automation: 'bridge_keepalive', reason: gate.reason });
+
   const bridgeUrl = (secrets.get('WS_BRIDGE_URL') || '').replace(/\/$/, '');
   if (!bridgeUrl) {
     return Response.json({ ok: false, error: 'WS_BRIDGE_URL not set' });

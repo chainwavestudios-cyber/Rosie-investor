@@ -11,6 +11,7 @@
  * only has to send what is due — it can never double-send or run past the quota.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 import {
   ensureMailers,
   findMailer,
@@ -25,6 +26,8 @@ const MAX_SENDS_PER_CAMPAIGN = 25;
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'rate_drop');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'rate_drop', reason: gate.reason });
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 
 // Keeps the shared Google connections warm.
 // Each run asks the platform for a live access token (which performs the OAuth
@@ -7,6 +8,8 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 export default async function (req) {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'connector_keepalive');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'connector_keepalive', reason: gate.reason });
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });

@@ -7,6 +7,7 @@
  * Called by a scheduled workflow every 15 minutes.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 const CHATROOM_RECIPIENT = '__chatroom__';
 const CHRIS_USERNAME = 'chris';
@@ -109,6 +110,8 @@ async function generateAiQuote(base44: any): Promise<string> {
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'quote_broadcaster');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'quote_broadcaster', reason: gate.reason });
     const now = new Date().toISOString();
 
     // 1. Ensure today's AI quotes exist

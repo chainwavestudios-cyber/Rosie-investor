@@ -13,6 +13,7 @@
  * this scraper fast and within rate limits.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { automationGate } from '../../shared/automationRules.ts';
 
 // ── Default config (used when no SmartLeadConfig entity exists yet) ────────
 const DEFAULT_SUBREDDITS = ['Debt', 'povertyfinance', 'CreditCards', 'personalfinance'];
@@ -390,6 +391,8 @@ Important: Each post MUST have a real URL from ${platform === 'x_twitter' ? 'x.c
 export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'scrape_social');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'scrape_social', reason: gate.reason });
 
     // Auth: non-fatal — if me() throws, we still allow the scrape but log it.
     // The frontend already gates this behind admin role, so the function call

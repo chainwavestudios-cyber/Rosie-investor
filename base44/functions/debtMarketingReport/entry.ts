@@ -10,6 +10,7 @@
  * demand from the Marketing tab ({} = today in ET, or { date: 'YYYY-MM-DD' }).
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
+import { automationGate } from '../../shared/automationRules.ts';
 import { etDayWindow } from '../../shared/etTime.ts';
 
 const PAGE = 500;
@@ -32,6 +33,8 @@ async function windowed(base44: any, field: string, start: string, end: string) 
 export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'nightly_marketing');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'nightly_marketing', reason: gate.reason });
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });

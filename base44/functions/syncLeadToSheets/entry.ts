@@ -1,8 +1,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { automationGate } from '../../shared/automationRules.ts';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const gate = await automationGate(base44, 'sync_leads');
+    if (!gate.run) return Response.json({ skipped: true, automation: 'sync_leads', reason: gate.reason });
     const payload = await req.json();
 
     const { event, data } = payload;
