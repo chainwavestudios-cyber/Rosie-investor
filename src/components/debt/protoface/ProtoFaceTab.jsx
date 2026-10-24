@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { Loader2 } from 'lucide-react';
 import ProtoFaceAssistantsPanel from './ProtoFaceAssistantsPanel';
 import ProtoFaceScriptPanel from './ProtoFaceScriptPanel';
@@ -17,20 +18,25 @@ const SUB_TABS = [
 ];
 
 export default function ProtoFaceTab() {
+  const { sessionUserId, sessionToken } = useDebtCoachAuth();
   const [sub, setSub] = useState('assistants');
   const [config, setConfig] = useState(null);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const res = await base44.entities.VideoQualifyConfig.filter({ configName: 'default' }, { limit: 1 });
-      setConfig((res?.items || [])[0] || null);
-    } catch {
+      const response = await base44.functions.invoke('protofaceAdmin', { sessionUserId, sessionToken });
+      if (response.data?.error) throw new Error(response.data.error);
+      setConfig(response.data?.config || null);
+      setError('');
+    } catch (err) {
       setConfig(null);
+      setError(err?.response?.data?.error || err?.message || '');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sessionUserId, sessionToken]);
 
   useEffect(() => {
     void load();
@@ -38,11 +44,11 @@ export default function ProtoFaceTab() {
 
   const save = useCallback(
     async (patch) => {
-      if (!config?.id) return;
-      await base44.entities.VideoQualifyConfig.update(config.id, { ...patch, updatedAt: new Date().toISOString() });
-      setConfig((current) => ({ ...current, ...patch }));
+      const response = await base44.functions.invoke('protofaceAdmin', { action: 'save', sessionUserId, sessionToken, ...patch });
+      if (response.data?.error) throw new Error(response.data.error);
+      setConfig(response.data?.config || null);
     },
-    [config?.id],
+    [sessionUserId, sessionToken],
   );
 
   if (loading) {
@@ -54,7 +60,12 @@ export default function ProtoFaceTab() {
   }
 
   if (!config) {
-    return <div className="p-8 text-sm text-[#8a9ab8]">The video qualification settings could not be loaded.</div>;
+    return (
+      <div className="p-8 text-sm text-[#8a9ab8]">
+        The video qualification settings could not be loaded.
+        {error && <div className="mt-1 text-xs text-[#6b7a99]">{error}</div>}
+      </div>
+    );
   }
 
   return (
