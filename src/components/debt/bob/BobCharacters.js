@@ -220,17 +220,19 @@ export function getTransferVoice(id) {
 
 // Deepgram Voice Agent "think" model options. Higher = smarter but slower/costlier.
 export const BOB_THINK_MODELS = [
-  { id: 'gpt-4.1', label: 'GPT-4.1 (balanced — default)', description: 'Strong reasoning, good speed. The standard for BOB.' },
+  { id: 'gpt-4.1', label: 'GPT-4.1 (balanced)', description: 'Strong reasoning, good speed.' },
   { id: 'gpt-4o', label: 'GPT-4o (fast)', description: 'Faster responses, slightly less depth. Good for snappy calls.' },
   { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini (lightweight)', description: 'Cheapest and fastest. Less nuanced — not recommended for hard sells.' },
-  { id: 'gemini-2.5-flash', provider: 'google', label: 'Gemini 2.5 Flash (smart, low cost)', description: 'Strong reasoning without the premium price. Good all-round pick.' },
+  { id: 'gemini-2.5-flash', provider: 'google', label: 'Gemini 2.5 Flash (smart, low cost — default)', description: 'Strong reasoning without the premium price. Good all-round pick.' },
 ];
 
-export const DEFAULT_THINK_MODEL = 'gpt-4.1';
+export const DEFAULT_THINK_MODEL = 'gemini-2.5-flash';
 
 // Each brain runs under its own provider on the voice service, so the model id above
 // alone is not enough — resolve both from the list the dropdown is built from.
 export function getThinkProvider(thinkModel) {
-  const found = BOB_THINK_MODELS.find(m => m.id === thinkModel);
-  return { type: found?.provider || 'open_ai', model: found?.id || DEFAULT_THINK_MODEL };
+  const found = BOB_THINK_MODELS.find(m => m.id === thinkModel)
+    || BOB_THINK_MODELS.find(m => m.id === DEFAULT_THINK_MODEL)
+    || BOB_THINK_MODELS[0];
+  return { type: found.provider || 'open_ai', model: found.id };
 }
