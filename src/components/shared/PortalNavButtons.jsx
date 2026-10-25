@@ -11,6 +11,7 @@ const ITEMS = [
   { key: 'assistant', label: 'Assistant Portal', icon: '🗂', path: '/assistant-portal', accent: '#60a5fa', adminOnly: true },
   { key: 'coach', label: 'Debt Call Coach', icon: '🎧', path: '/debt-call-coach', accent: '#a78bfa', adminOnly: false },
   { key: 'automations', label: 'Automations & Scoring', icon: '⚙️', path: '/automations', accent: '#38bdf8', adminOnly: true },
+  { key: 'evidence', label: 'Evidence Review', icon: '📄', path: '/evidence-review', accent: '#e879f9', adminOnly: true },
 ];
 
 export default function PortalNavButtons({ current, isAdmin = false }) {
