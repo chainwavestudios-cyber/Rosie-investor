@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { DEBT_DUCK, DEBT_COW, DEBT_OWL } from '@/components/admin/bob/DebtPersonas';
 import BobKBTraining from '@/components/admin/bob/BobKBTraining';
+import { resolveDeepgramKey } from '@/lib/deepgramKey';
 
 const GOLD = '#b8933a';
 const DARK = '#0a0f1e';
@@ -1276,8 +1277,8 @@ ${prevCtx}
 
     ring.play(async()=>{
       setRingPhase(false);setPhase('connecting');
-      const apiKey=dgApiKey||'44294c0c2f0ebbcc81b853151056111226b853e9';
-      console.log('[BOB] Ring done — connecting to Deepgram. Key prefix:', apiKey.slice(0,8)+'...');
+      const apiKey=dgApiKey||await resolveDeepgramKey();
+      console.log('[BOB] Ring done — connecting to Deepgram.');
       let stream;
       try{
         stream=await navigator.mediaDevices.getUserMedia({audio: micDeviceId ? {deviceId:{exact:micDeviceId}} : true});

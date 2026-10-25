@@ -14,6 +14,7 @@ import DebtBobKB from '@/components/debt/DebtBobKB';
 import BobBrainTab from '@/components/debt/bob/BobBrainTab';
 import FloatingScriptBox from '@/components/debt/FloatingScriptBox';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
+import { resolveDeepgramKey } from '@/lib/deepgramKey';
 import DebtScriptEditor from '@/components/debt/DebtScriptEditor';
 import DebtCreditReport from '@/components/debt/DebtCreditReport';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
@@ -668,9 +669,9 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
     // Build the smarter brain digest before the call so BOB has synthesized knowledge
     await ensureBrainDigest();
 
-    // Use the same key as the admin BobTab — the hardcoded Voice Agent key works there
-    const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
-    console.log('[BOB] Using Deepgram key prefix:', apiKey.slice(0, 8) + '...', 'Voice:', character.voiceModel, 'Think:', thinkModel);
+    // Server-held key — reads the live secret, so a rotated key works here immediately
+    const apiKey = dgApiKey || await resolveDeepgramKey();
+    console.log('[BOB] Key resolved ✓ Voice:', character.voiceModel, 'Think:', thinkModel);
     const greetings = ['Hello.', 'Hello?', 'Yeah?', 'Hello, go ahead.', 'Hi?'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
 

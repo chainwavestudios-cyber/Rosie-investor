@@ -14,6 +14,7 @@ import useSuperAdminConfig from '@/hooks/useSuperAdminConfig';
 import FronterBobScenarioBuilder from './FronterBobScenarioBuilder';
 import FronterBobOpeningScenarios from './FronterBobOpeningScenarios';
 import FronterBobMailerSim from './FronterBobMailerSim';
+import { resolveDeepgramKey } from '@/lib/deepgramKey';
 import FronterBobObjectionsPopup from './FronterBobObjectionsPopup';
 import FronterBobScriptPanel from './FronterBobScriptPanel';
 import FronterBobTransferSim from './FronterBobTransferSim';
@@ -420,7 +421,7 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
     sessionRecIdRef.current = null; callStartRef.current = null;
     setVoiceModel(character.voiceModel);
 
-    const apiKey = dgApiKey || '44294c0c2f0ebbcc81b853151056111226b853e9';
+    const apiKey = dgApiKey || await resolveDeepgramKey();
     const customerName = scenario.customerName || 'Bob';
     const greetings = [`Hello?`, `This is ${customerName}.`, `Hello?`, `Yeah, this is ${customerName}.`];
     const greeting = scenario.openingLine || greetings[Math.floor(Math.random() * greetings.length)];
