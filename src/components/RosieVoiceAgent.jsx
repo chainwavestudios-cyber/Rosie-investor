@@ -4,16 +4,16 @@
  * 1. Intro Gating: Added 'isListening' ref to ignore mic input until intro is done.
  * 2. Event Handling: Listens for 'AgentAudioDone' to open the mic for the user.
  * 3. Script: Maintained the Investor Platform greeting.
- * 4. Key: 44294c0c2f0ebbcc81b853151056111226b853e9
+ * 4. Key: resolved live from the server (see resolveDeepgramKey)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortalSettings, refreshPortalSettings } from '@/lib/portalSettings';
 import { base44 } from '@/api/base44Client';
+import { resolveDeepgramKey } from '@/lib/deepgramKey';
 
 const GOLD = '#b8933a';
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
-const TEMP_KEY = '44294c0c2f0ebbcc81b853151056111226b853e9';
 
 function buildDGSettings(cfg, userName) {
   const name = (userName || 'there').split(' ')[0];
@@ -114,7 +114,8 @@ export default function RosieVoiceAgent({ userName = 'Steph', investorId = null,
     audioCtxRef.current = ctx;
     nextStartTimeRef.current = 0;
 
-    const ws = new WebSocket(DG_WS_URL, ['token', TEMP_KEY]);
+    const dgKey = await resolveDeepgramKey();
+    const ws = new WebSocket(DG_WS_URL, ['token', dgKey]);
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
