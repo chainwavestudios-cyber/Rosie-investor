@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { getThinkProvider } from '@/components/debt/bob/BobCharacters';
 
 const DG_WS_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
@@ -320,7 +321,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
                 audio: { input: { encoding: 'linear16', sample_rate: 24000 }, output: { encoding: 'linear16', sample_rate: 24000, container: 'none' } },
                 agent: {
                   listen: { provider: { type: 'deepgram', version: 'v2', model: 'flux-general-en' } },
-                  think: { provider: { type: 'open_ai', model: thinkModel || 'gpt-4.1' }, prompt: systemPrompt },
+                  think: { provider: getThinkProvider(thinkModel), prompt: systemPrompt },
                   speak: { provider: { type: 'deepgram', version: 'v2', model: voiceModel, speed: 1.0, expressivity: 0 } },
                   greeting,
                 },
