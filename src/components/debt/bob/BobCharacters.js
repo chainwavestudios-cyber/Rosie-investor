@@ -222,7 +222,7 @@ export function getTransferVoice(id) {
 export const BOB_THINK_MODELS = [
   { id: 'gpt-4.1', label: 'GPT-4.1 (balanced — default)', description: 'Strong reasoning, good speed. The standard for BOB.' },
   { id: 'gpt-4o', label: 'GPT-4o (fast)', description: 'Faster responses, slightly less depth. Good for snappy calls.' },
-  { id: 'o3-mini', label: 'o3-mini (deep reasoning)', description: 'Thinks harder before speaking. Smarter answers, slower turn-taking.' },
+  { id: 'gpt-5', label: 'GPT-5 (deep reasoning)', description: 'Thinks harder before speaking. Smarter answers, slower turn-taking.' },
   { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini (lightweight)', description: 'Cheapest and fastest. Less nuanced — not recommended for hard sells.' },
 ];
 

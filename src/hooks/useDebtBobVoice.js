@@ -297,6 +297,9 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
       if (outputDeviceId) { try { outputAudio.setSinkId(outputDeviceId); } catch {} }
       outputAudioRef.current = outputAudio;
 
+      // Remember exactly what the service complained about, if anything, so the close
+      // handler can report the real reason instead of guessing from the close code.
+      let serverError = '';
       const ws = new WebSocket(DG_WS_URL, ['token', apiKey]);
       ws.binaryType = 'arraybuffer'; wsRef.current = ws;
       console.log('[BOB] Connecting to Deepgram Voice Agent, key prefix:', apiKey.slice(0, 8) + '...');
@@ -373,6 +376,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
               break;
             case 'Error':
               console.error('[BOB] Deepgram Error:', msg.code, msg.description);
+              serverError = `${msg.code} — ${msg.description}`;
               setError(`Deepgram: ${msg.code} — ${msg.description}`);
               onLogRef.current?.('session_end', `❌ Deepgram error: ${msg.code} — ${msg.description}`);
               break;
@@ -402,8 +406,11 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
           4001: 'Unauthorized',
           4002: 'Insufficient credits',
         }[e.code] || `Close code ${e.code}`;
+        // If the service told us exactly what was wrong, say that — a close code guess
+        // ("network or bad API key") sends everyone hunting for the wrong cause.
+        if (serverError) setError(`Disconnected: ${serverError}`);
         // 1005 (no status) and 1000 (normal) are not errors — the call just ended
-        setError((e.code !== 1000 && e.code !== 1005) ? `Disconnected: ${codeMsg}` : '');
+        else setError((e.code !== 1000 && e.code !== 1005) ? `Disconnected: ${codeMsg}` : '');
         setPhase('idle'); ring.stop(); cleanup(false);
         onLogRef.current?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
