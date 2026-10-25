@@ -160,12 +160,14 @@ export default function ScriptAssistant({ lead, user, onExpandCard, isCardExpand
       try {
         // 1. Deepgram token
         if (!pw.dgKey) {
-          pw.dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-          if (!pw.dgKey) {
+          // Server-held key first — the compiled VITE fallback goes stale after a key swap.
+          let fresh = '';
+          try {
             const tokenRes = await base44.functions.invoke('deepgramToken', {});
             if (cancelled) return;
-            pw.dgKey = tokenRes?.key || tokenRes?.data?.key || '';
-          }
+            fresh = tokenRes?.key || tokenRes?.data?.key || '';
+          } catch { fresh = ''; }
+          pw.dgKey = fresh || import.meta.env.VITE_DEEPGRAM_API_KEY || '';
         }
 
         // 2. AudioContext + stereo stream (ch0=remote/prospect, ch1=local/agent)

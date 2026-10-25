@@ -1393,9 +1393,11 @@ ${recentText}`,
       }
     } catch { setError('Microphone/audio access denied.'); setPhase('idle'); setDgStatus('error'); return; }
 
-    let dgKey = '';
-    try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; }
-    catch { dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || ''; }
+    // Server-held key first (its secret is always the current one); the compiled
+    // value is only a last resort, so a failed lookup can't fall back onto a dead key.
+    const fetchDgKey = async (fn) => { try { const r = await base44.functions.invoke(fn, {}); return r?.key || r?.data?.key || ''; } catch { return ''; } };
+    let dgKey = (await fetchDgKey('deepgramToken2')) || (await fetchDgKey('deepgramToken'));
+    if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
     if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
     // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.

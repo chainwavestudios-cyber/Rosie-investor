@@ -126,8 +126,11 @@ export default function DebtAIPanel({
       }
     } catch (e) { setError(`Audio access denied: ${e.message}`); setStreamStatus('error'); return; }
 
-    let dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-    if (!dgKey) { try { const tokenRes = await base44.functions.invoke('deepgramToken2', {}); dgKey = tokenRes?.key || tokenRes?.data?.key || ''; } catch {} }
+    // Ask the server for the key it holds RIGHT NOW. A value compiled into the page
+    // keeps serving whichever key existed at build time, so a swapped secret never takes effect.
+    const fetchDgKey = async (fn) => { try { const r = await base44.functions.invoke(fn, {}); return r?.key || r?.data?.key || ''; } catch { return ''; } };
+    let dgKey = (await fetchDgKey('deepgramToken2')) || (await fetchDgKey('deepgramToken'));
+    if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
     if (!dgKey) { setError('No Deepgram API key'); setStreamStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
     // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
