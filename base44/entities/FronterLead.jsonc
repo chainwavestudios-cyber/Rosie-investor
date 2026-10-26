@@ -326,6 +326,16 @@
       "type": "string",
       "title": "Follow-Up Email Send ID (for matching open tracking events)"
     },
+    "followUpQueued": {
+      "type": "boolean",
+      "title": "Follow-Up Email Waiting In The Queue (held back until the 8 business hours have passed)",
+      "default": false
+    },
+    "followUpDueAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Follow-Up Email Queued For (the moment the follow-up may go out \u2014 at least 8 business hours after the credentials email)"
+    },
     "followUpCallEventId": {
       "type": "string",
       "title": "Follow-Up Call Calendar Event ID (Google Calendar)"

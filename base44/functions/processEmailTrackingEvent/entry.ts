@@ -12,8 +12,8 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.53';
 import { getCalendarAuth, listEvents, hasConflict } from '../../shared/googleCalendarHelpers.ts';
-import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
-import { fillMergeTags } from '../../shared/mergeTags.ts';
+import { addBusinessHours, formatEastern, FOLLOW_UP_DELAY_BUSINESS_HOURS } from '../../shared/businessHours.ts';
+import { sendFollowUpEmail } from '../../shared/followUpEmail.ts';
 import { readScoringRules } from '../../shared/scoringConfig.ts';
 
 const TRACKED_DOMAINS = ['trustpilot.com', 'bbb.org', 'debtadvisorsofamerica.com'];
@@ -31,7 +31,7 @@ export default async function (req: Request): Promise<Response> {
     catch { return Response.json({ skipped: true, reason: 'lead not found' }); }
     if (!lead) return Response.json({ skipped: true, reason: 'lead not found' });
 
-    const results = { followUpSent: false, calendarEventCreated: false };
+    const results = { followUpSent: false, followUpQueued: false, calendarEventCreated: false };
 
     // ── PART 2: Follow-up email opened → create 15-min call event ──
     if (eventType === 'open' && lead.followUpSendId && sendId === lead.followUpSendId && !lead.followUpCallEventId) {
@@ -73,11 +73,23 @@ export default async function (req: Request): Promise<Response> {
       );
 
       if (hasOpen && clickedDomains.length >= requiredLinks) {
-        try {
-          await sendFollowUpEmail(base44, lead);
-          results.followUpSent = true;
-        } catch (e) {
-          console.error('[processEmailTrackingEvent] Follow-up email failed:', (e as Error).message);
+        // The follow-up never chases a lead who has only just been sent their
+        // credentials: eight BUSINESS hours have to pass first (Mon–Fri, 9–5 ET).
+        // Too early → it is queued for the moment it is allowed and the
+        // "Queued Follow-Up Release" tick sends it then.
+        const receivedAt = lead.credsSentAt || lead.emailOpenedAt || earliestOpenAt(confirmed);
+        const dueAt = addBusinessHours(receivedAt, FOLLOW_UP_DELAY_BUSINESS_HOURS);
+
+        if (Date.now() >= new Date(dueAt).getTime()) {
+          try {
+            await sendFollowUpEmail(base44, lead);
+            results.followUpSent = true;
+          } catch (e) {
+            console.error('[processEmailTrackingEvent] Follow-up email failed:', (e as Error).message);
+          }
+        } else if (!lead.followUpQueued) {
+          await queueFollowUp(base44, lead, dueAt);
+          results.followUpQueued = true;
         }
       }
     }
@@ -89,63 +101,29 @@ export default async function (req: Request): Promise<Response> {
   }
 }
 
-// ── Send the follow-up email via Gmail with tracking injected ──
-async function sendFollowUpEmail(base44: any, lead: any) {
-  const raw = await base44.asServiceRole.entities.FronterEmailTemplate.filter(
-    { label: { $regex: 'follow', $options: 'i' } },
-    'sortOrder',
-    10
-  );
-  const templates = Array.isArray(raw) ? raw : (raw?.items || []);
-  const template = templates[0];
-  if (!template) throw new Error('No follow-up email template found');
-  if (template.enabled === false) throw new Error('Follow-up template is disabled');
-
-  // {{FirstName}} and {{firstName}} both resolve.
-  const vars = { firstName: lead.firstName || '', email: lead.email || '' };
-  const subject = fillMergeTags(template.subject || '', vars);
-  const html = fillMergeTags(template.body || '', vars);
-
-  // One tracked send through the shared engine — the follow-up's opens and clicks
-  // land on this contact's Email Activity timeline like every other email.
-  const sent = await sendTrackedEmail(base44, {
-    to: lead.email,
-    subject,
-    html,
-    contactId: lead.id,
-    contactKind: 'fronter_lead',
-    contactName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
-    templateId: template.id,
-    templateName: template.name,
-    sentBy: 'auto_followup',
-    source: 'automation',
-  });
-  const followUpSendId = sent.sendId;
-
-  const now = new Date().toISOString();
-  await base44.asServiceRole.entities.FronterLead.update(lead.id, {
-    followUpEmailSentAt: now,
-    followUpSendId,
-  });
-
-  // Add to notes log
+// ── Hold the follow-up until its eight business hours have passed ──
+async function queueFollowUp(base44: any, lead: any, dueAt: string) {
+  await base44.asServiceRole.entities.FronterLead.update(lead.id, { followUpQueued: true, followUpDueAt: dueAt });
   try {
     const log = JSON.parse(lead.notesLogJson || '[]');
-    log.push({ text: `📨 Auto follow-up email sent to ${lead.email} (opened email + clicked 2/3 links)`, timestamp: now, author: 'auto_followup', type: 'followup' });
+    log.push({
+      text: `⏳ Auto follow-up email queued for ${formatEastern(dueAt)} — the 8 business hours after the credentials email have to pass first`,
+      timestamp: new Date().toISOString(),
+      author: 'auto_followup',
+      type: 'followup_queued',
+    });
     await base44.asServiceRole.entities.FronterLead.update(lead.id, { notesLogJson: JSON.stringify(log) });
   } catch {}
+}
 
-  await base44.asServiceRole.entities.EmailLog.create({
-    leadId: lead.id,
-    toEmail: lead.email,
-    subject,
-    templateId: 'follow_up',
-    status: 'sent',
-    sentAt: now,
-    sentBy: 'auto_followup',
-    isCustomEmail: true,
-    fromEmail: 'gmail',
-  }).catch(() => {});
+// The open that qualifies the lead also proves when the email landed.
+function earliestOpenAt(events: any[]): string {
+  const opens = events
+    .filter((e: any) => e.eventType === 'open' && e.trackedAt)
+    .map((e: any) => new Date(e.trackedAt).getTime())
+    .filter((t: number) => !Number.isNaN(t));
+  if (!opens.length) return new Date().toISOString();
+  return new Date(Math.min(...opens)).toISOString();
 }
 
 // ── Create a 15-min Google Calendar call event within the hour ──

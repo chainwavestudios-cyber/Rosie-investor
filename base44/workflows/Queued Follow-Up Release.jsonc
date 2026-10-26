@@ -1,0 +1,44 @@
+{
+  "name": "Queued Follow-Up Release",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "queued_followup_release",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "release_queued": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendQueuedFollowUps"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Release queued follow-ups",
+            "description": "Send every follow-up whose 8 business hours have passed"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Sends the auto follow-up emails that were held back because the lead qualified before the eight business hours after their credentials email had passed.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/5 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}
