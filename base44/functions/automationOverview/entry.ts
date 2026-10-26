@@ -59,6 +59,12 @@ const AUTOMATIONS = [
     then: 'Fires that batch', cadence: 'Every 5 minutes', where: 'Workflow “NB Tech Campaign Runner”',
   },
   {
+    key: 'campaign_queue', group: 'Email & engagement', name: 'CSV campaign queue',
+    when: 'Every 5 minutes, for each campaign whose queue is running and whose random wait has passed',
+    then: 'Sends the next email of the queue drawn for that send, inside the daily window and under the daily limit',
+    cadence: 'Every 5 minutes', where: 'Workflow “Email Campaign Scheduler”',
+  },
+  {
     key: 'bot_filter', group: 'Email & engagement', name: 'Crawler filter on tracking events',
     when: 'A tracked open or click arrives in the first 30 seconds after a send',
     then: 'It is ignored everywhere — scoring, the follow-up email, the hot-lead cue — so mail preview crawlers can never fake engagement',

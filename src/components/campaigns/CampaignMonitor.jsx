@@ -12,6 +12,7 @@ import { Btn, Card, DIM, GOLD, MUTED, STATUS_TONE, Stat, BORDER } from './kit';
 import CampaignRecipientsTable from './CampaignRecipientsTable';
 import { downloadCsv } from '@/lib/csvCampaign';
 import { fmt12Range } from '@/lib/time12';
+import { parseQueues, queueSummary } from '@/lib/campaignQueues';
 
 const when = (value) => (value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 
@@ -26,11 +27,14 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
   const [exporting, setExporting] = useState(false);
   const inFlight = useRef(false);
   const intervalRef = useRef(60);
+  const queuesRef = useRef([]);
 
   const load = useCallback(async () => {
     const row = await base44.entities.EmailCampaignJob.get(campaignId).catch(() => null);
     setCampaign(row);
-    intervalRef.current = Math.max(10, Number(row?.intervalSeconds || 60));
+    const activeQueues = row ? parseQueues(row).filter((queue) => queue.enabled !== false) : [];
+    queuesRef.current = activeQueues;
+    intervalRef.current = Math.max(10, Number(activeQueues[0]?.gapMinSeconds || 60));
     if (row?.templateId) {
       // Every event these emails produced points at the template and the send ID.
       const page = await base44.entities.EmailTrackingEvent
@@ -55,16 +59,18 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
 
   useEffect(() => { load(); }, [load]);
 
-  const tick = useCallback(async () => {
+  const tick = useCallback(async (force = false) => {
     if (inFlight.current) return;
     inFlight.current = true;
     setTicking(true);
     try {
-      const res = await base44.functions.invoke('emailCampaignSend', { mode: 'send', campaignId })
+      const res = await base44.functions.invoke('emailCampaignSend', { mode: 'send', campaignId, force })
         .catch((e) => ({ data: { error: e?.response?.data?.error || e?.message || 'The queue could not run.' } }));
       const data = res?.data || res;
       setLast(data);
       setError(data?.error || '');
+      // The wait this send drew is what paces the next one.
+      if (Number(data?.nextInSeconds) > 0) intervalRef.current = Math.max(5, Number(data.nextInSeconds));
       await load();
       onChanged?.();
     } catch (e) {
@@ -129,6 +135,10 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
   const clicks = engagement.reduce((acc, row) => acc + (row.clicks ? 1 : 0), 0);
   const visits = engagement.filter((row) => row.visited).length;
   const running = campaign.status === 'running';
+  const queues = queuesRef.current;
+  const pace = queues.length
+    ? queues.map((queue) => (queues.length > 1 ? `${queue.label}: ${queueSummary(queue)}` : queueSummary(queue))).join(' · ')
+    : 'One email at a time';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -144,7 +154,7 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
         {running
           ? <Btn tone="ghost" onClick={() => setStatus('paused')}>⏸ Pause</Btn>
           : <Btn tone={campaign.status === 'paused' ? 'gold' : 'ghost'} onClick={() => setStatus('running')} disabled={campaign.status === 'completed' || campaign.status === 'cancelled'}>▶ Resume</Btn>}
-        <Btn tone="ghost" onClick={() => tick()} disabled={ticking || !running}>{ticking ? 'Sending…' : '⚡ Run next batch'}</Btn>
+        <Btn tone="ghost" onClick={() => tick(true)} disabled={ticking || !running} title="Send now, without waiting for the random gap">{ticking ? 'Sending…' : '⚡ Send now'}</Btn>
         <Btn tone="ghost" onClick={exportResults} disabled={exporting}>{exporting ? 'Exporting…' : '⬇ Export results'}</Btn>
         {!['completed', 'cancelled'].includes(campaign.status) && <Btn tone="danger" onClick={() => setStatus('cancelled')}>✕ Cancel</Btn>}
         {embedded && <Btn tone="ghost" onClick={onBack}>Done</Btn>}
@@ -166,7 +176,7 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
       <Card
         title="Queue"
         hint={running
-          ? `Running an email batch every ${intervalRef.current}s inside ${fmt12Range(campaign.windowStart, campaign.windowEnd)} ${campaign.timezone}, up to ${campaign.dailyLimit} a day.`
+          ? `${pace} inside ${fmt12Range(campaign.windowStart, campaign.windowEnd)} ${campaign.timezone}, up to ${campaign.dailyLimit} a day${campaign.nextSendAt ? ` · next send ${when(campaign.nextSendAt)}` : ''}. The scheduler keeps it going while this screen is closed.`
           : 'The queue is not running. Resume it to continue sending the remaining recipients.'}
         actions={
           <label style={{ display: 'flex', gap: '7px', alignItems: 'center', color: MUTED, fontSize: '11px', cursor: 'pointer' }}>
@@ -176,10 +186,15 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
         }
       >
         {error && <div style={{ color: '#ef4444', fontSize: '11px', marginBottom: '10px' }}>{error}</div>}
-        {last?.reason && <div style={{ color: '#f59e0b', fontSize: '11px', marginBottom: '10px' }}>{last.reason}</div>}
+        {last?.reason && !last?.pacing && <div style={{ color: '#f59e0b', fontSize: '11px', marginBottom: '10px' }}>{last.reason}</div>}
+        {last?.pacing && (
+          <div style={{ color: DIM, fontSize: '11px', marginBottom: '10px' }}>
+            Pacing — waiting out the random gap this queue drew{campaign.nextSendAt ? `, next send ${when(campaign.nextSendAt)}` : ''}.
+          </div>
+        )}
         {last?.ok && (
           <div style={{ color: GOLD, fontSize: '11px', marginBottom: '10px' }}>
-            Last batch: {last.sent} sent{last.failed ? `, ${last.failed} failed` : ''}{last.skipped ? `, ${last.skipped} skipped` : ''}{last.done ? ' — the queue is finished.' : ''}
+            Last send{last.queue ? ` from ${last.queue}` : ''}: {last.sent} sent{last.failed ? `, ${last.failed} failed` : ''}{last.skipped ? `, ${last.skipped} skipped` : ''}{last.nextInSeconds && !last.done ? ` — the next one is due in about ${Math.max(1, Math.round(Number(last.nextInSeconds) / 60))} min.` : ''}{last.done ? ' — the queue is finished.' : ''}
           </div>
         )}
         {last?.errors?.length > 0 && (

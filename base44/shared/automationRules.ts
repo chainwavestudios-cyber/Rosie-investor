@@ -43,6 +43,7 @@ export const AUTOMATION_SWITCHES: AutomationSwitch[] = [
   { key: 'nightly_marketing', kind: 'timed', enforcedBy: 'debtMarketingReport' },
   { key: 'rate_drop', kind: 'timed', enforcedBy: 'rateDropCampaignRun' },
   { key: 'nbtech_campaign', kind: 'timed', enforcedBy: 'runEmailCampaigns' },
+  { key: 'campaign_queue', kind: 'timed', enforcedBy: 'emailCampaignSend' },
   { key: 'bot_filter', kind: 'rule' },
   { key: 'migration_floor', kind: 'rule' },
   { key: 'appointment_reminders', kind: 'timed', enforcedBy: 'sendAppointmentReminders' },

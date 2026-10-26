@@ -3,18 +3,19 @@
  *
  * A CSV upload never sends anything. This is the one screen where sends begin,
  * and only after the operator has looked at the recipients and ticked that they
- * reviewed them.
+ * reviewed them. The queues set here are what paces every later send, all day.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, Stat, inputStyle } from './kit';
 import CampaignRecipientsTable from './CampaignRecipientsTable';
+import CampaignQueues from './CampaignQueues';
 import Time12Picker from '@/components/shared/Time12Picker';
+import { mirrorPatch, parseQueues } from '@/lib/campaignQueues';
+import { fmt12Range } from '@/lib/time12';
 
-const defaultQueue = (campaign) => ({
-  batchSize: Number(campaign?.batchSize || 25),
-  intervalSeconds: Number(campaign?.intervalSeconds || 60),
-  dailyLimit: Number(campaign?.dailyLimit || 500),
+const defaultForm = (campaign) => ({
+  dailyLimit: Number(campaign?.dailyLimit || 25),
   windowStart: campaign?.windowStart || '08:00',
   windowEnd: campaign?.windowEnd || '20:00',
   timezone: campaign?.timezone || 'America/New_York',
@@ -23,7 +24,8 @@ const defaultQueue = (campaign) => ({
 export default function CampaignLaunchStep({ campaign, save, username, onStarted }) {
   const [excluded, setExcluded] = useState(new Set());
   const [reviewed, setReviewed] = useState(false);
-  const [form, setForm] = useState(defaultQueue(campaign));
+  const [form, setForm] = useState(defaultForm(campaign));
+  const [queues, setQueues] = useState(() => parseQueues(campaign));
   const [counts, setCounts] = useState({ pending: 0, sent: 0, skipped: 0, failed: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -59,6 +61,8 @@ export default function CampaignLaunchStep({ campaign, save, username, onStarted
       const now = new Date().toISOString();
       await save({
         ...form,
+        queuesJson: JSON.stringify(queues),
+        ...mirrorPatch(queues),
         status: 'running',
         approvedAt: now,
         approvedBy: username || 'admin',
@@ -71,9 +75,11 @@ export default function CampaignLaunchStep({ campaign, save, username, onStarted
     setBusy(false);
   };
 
+  const activeQueues = queues.filter((queue) => queue.enabled);
   const missing = [];
   if (!campaign.templateId) missing.push('an email template (step 3)');
   if (!counts.pending) missing.push('at least one approved recipient');
+  if (!activeQueues.length) missing.push('at least one queue switched on');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -84,15 +90,13 @@ export default function CampaignLaunchStep({ campaign, save, username, onStarted
         <Stat label="Failed" value={counts.failed} color={counts.failed ? '#ef4444' : MUTED} />
       </div>
 
-      <Card title="Queue settings" hint="Sends go out one email at a time through the connected Gmail account, inside the daily window and under the daily limit.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: '10px' }}>
-          <Field label="Emails per batch">
-            <input type="number" min="1" max="100" style={inputStyle} value={form.batchSize} onChange={(e) => setForm({ ...form, batchSize: Number(e.target.value) })} />
-          </Field>
-          <Field label="Seconds between batches">
-            <input type="number" min="10" style={inputStyle} value={form.intervalSeconds} onChange={(e) => setForm({ ...form, intervalSeconds: Number(e.target.value) })} />
-          </Field>
-          <Field label="Daily send limit">
+      <Card
+        title="Sending queues"
+        hint="Each queue sends its own number of emails and then waits a random time between its shortest and longest gap. With more than one queue, one is picked at random for every send — so the pace keeps changing."
+      >
+        <CampaignQueues queues={queues} onChange={setQueues} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: '10px', marginTop: '14px', borderTop: '1px solid rgba(255,255,255,0.09)', paddingTop: '14px' }}>
+          <Field label="Emails per day">
             <input type="number" min="1" style={inputStyle} value={form.dailyLimit} onChange={(e) => setForm({ ...form, dailyLimit: Number(e.target.value) })} />
           </Field>
           <Field label="Window start">
@@ -106,6 +110,9 @@ export default function CampaignLaunchStep({ campaign, save, username, onStarted
               {['America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Pacific/Honolulu'].map((zone) => <option key={zone} value={zone}>{zone}</option>)}
             </select>
           </Field>
+        </div>
+        <div style={{ color: DIM, fontSize: '10px', marginTop: '10px' }}>
+          Up to {form.dailyLimit} emails a day, sent one queue at a time inside {fmt12Range(form.windowStart, form.windowEnd)} {form.timezone}, until the whole list is done.
         </div>
       </Card>
 
