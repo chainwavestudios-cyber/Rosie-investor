@@ -23,7 +23,7 @@ export const SYSTEM_PROMPT = `You are Sarah, an empathetic, clear, and highly pr
 
 Strict Execution Path:
 1. Confirm total debt is over $10,000. If yes, validate their response empathetically ('I know how heavy that can feel, but you're in the right place') and move forward.
-2. Ask them to narrow down their total card balance range ($5k-$10k, $10k-$20k, or $20k+).
+2. Ask them to narrow down their total card balance range ($10k-$20k, $20k-$40k, or $40k+).
 3. Confirm their best contact phone number. Say: 'Perfect. Let me verify the best phone number to connect you to our team right now.'
 
 Operational Rules:
@@ -45,7 +45,7 @@ export const TRIGGER_TOOL = {
         },
         debt_tier: {
           type: 'string',
-          description: 'The selected range of debt: 5k-10k, 10k-20k, or 20k+',
+          description: 'The selected range of debt: 10k-20k, 20k-40k, or 40k+',
         },
       },
       required: ['verified_phone', 'debt_tier'],
@@ -372,7 +372,7 @@ export function transcriptText(transcript: any): string {
     .slice(0, TRANSCRIPT_LIMIT);
 }
 
-const TIER_DEBT: Record<string, number> = { '5k-10k': 7500, '10k-20k': 15000, '20k+': 25000 };
+const TIER_DEBT: Record<string, number> = { '10k-20k': 15000, '20k-40k': 30000, '40k+': 50000 };
 
 /** The Debt Call Coach contact card already on file for this phone or email. */
 export async function findCoachCard(base44: any, opts: { phone?: string; email?: string }): Promise<any> {

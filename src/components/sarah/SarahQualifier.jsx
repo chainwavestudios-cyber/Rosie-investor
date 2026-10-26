@@ -7,7 +7,7 @@ import StephaniAgentStage from './StephaniAgentStage';
 import SarahVideoPanel from './SarahVideoPanel';
 import SarahChatPanel from './SarahChatPanel';
 
-const TIERS = ['$5k–$10k', '$10k–$20k', '$20k+'];
+const TIERS = ['$10k–$20k', '$20k–$40k', '$40k+'];
 const YES_RE = /\b(yes|yeah|yep|yup|sure|correct|more|over|above)\b/i;
 const NO_RE = /\b(no|nope|not|never|under|less|below|none|don'?t|can'?t)\b/i;
 
@@ -25,13 +25,13 @@ function tierFromText(text) {
     .replace(/\b([a-z]+)\s+thousand\b/g, (match, word) => (SPOKEN_NUMBERS[word] ? `${SPOKEN_NUMBERS[word]} 000` : match))
     .replace(/[^a-z0-9+]+/g, ' ')
     .trim();
-  if (/20k ?\+|20 ?000 ?\+|over 20|more than 20/.test(value)) return '20k+';
+  if (/40k ?\+|40 ?000 ?\+|over 40|more than 40/.test(value)) return '40k+';
+  if (/20k ?40k|between 20|20 000|20k to 40k/.test(value)) return '20k-40k';
   if (/10k ?20k|between 10|10 000|10k to 20k/.test(value)) return '10k-20k';
-  if (/5k ?10k|between 5|5 000|5k to 10k/.test(value)) return '5k-10k';
   const amount = Number((value.match(/\b(\d{1,3}) 000\b/) || [])[1] || 0) * 1000 || Number((value.match(/\b(\d{4,6})\b/) || [])[1] || 0);
-  if (amount >= 20000) return '20k+';
+  if (amount >= 40000) return '40k+';
+  if (amount >= 20000) return '20k-40k';
   if (amount >= 10000) return '10k-20k';
-  if (amount >= 5000) return '5k-10k';
   return '';
 }
 
@@ -109,9 +109,9 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
     tierRef.current = '';
     setAwaitingPhone(false);
     setPhase('text');
-    setQuickReplies(['Yes, more than $5,000', 'Not right now']);
+    setQuickReplies(['Yes, more than $10,000', 'Not right now']);
     say(
-      `Hey ${name}! I'm ${agentName}. I was just reviewing your profile inside the system — I noticed you're navigating some tough credit card balances over in ${stateName}, and I wanted to see if we can help you wipe them out. To make sure you qualify, do you currently owe more than $5,000 across your accounts?`,
+      `Hey ${name}! I'm ${agentName}. I was just reviewing your profile inside the system — I noticed you're navigating some tough credit card balances over in ${stateName}, and I wanted to see if we can help you wipe them out. To make sure you qualify, do you currently owe more than $10,000 across your accounts?`,
     );
   }, [agentName, name, say, stateName]);
 
@@ -216,7 +216,7 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
     if (stepRef.current === 'tier') {
       const tier = tierFromText(value);
       if (!tier) {
-        say('Just so I get this exactly right — is it $5k–$10k, $10k–$20k, or $20k+?');
+        say('Just so I get this exactly right — is it $10k–$20k, $20k–$40k, or $40k+?');
         setQuickReplies(TIERS);
         return;
       }
@@ -241,8 +241,8 @@ export default function SarahQualifier({ token = '', source = 'landing_page', vi
       return;
     }
 
-    setQuickReplies(['Yes, more than $5,000', 'Not right now']);
-    say('No problem at all — do you currently owe more than $5,000 across your accounts?');
+    setQuickReplies(['Yes, more than $10,000', 'Not right now']);
+    say('No problem at all — do you currently owe more than $10,000 across your accounts?');
   };
 
   if (phase === 'loading') {

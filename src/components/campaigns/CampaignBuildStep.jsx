@@ -4,7 +4,7 @@
  * The design lives in the template library; this step only picks it and copies an
  * existing mailer in when the library does not have it yet.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
 
@@ -13,6 +13,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
   const [account, setAccount] = useState({ loading: true, emailAddress: '', note: '' });
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -32,27 +33,56 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
     })();
   }, []);
 
+  // A campaign always sends the library copy, so a mailer counts as available once
+  // its source has been brought across (matched by the source it came from).
+  const copiedIds = useMemo(() => new Set(templates.map((t) => t.sourceTemplateId).filter(Boolean)), [templates]);
+
+  const copyIntoLibrary = (source) => base44.entities.EmailCampaignTemplate.create({
+    name: source.name || 'Imported mailer',
+    category: source.kind === 'debt_coach' ? 'intro' : 'other',
+    subject: source.subject || '',
+    bodyHtml: source.html,
+    bodyText: source.text || '',
+    source: source.kind,
+    sourceTemplateId: source.id,
+    version: 1,
+    updatedBy: campaign?.createdBy || '',
+  });
+
   const copyIn = async (source) => {
     if (!source.html) { setError(`“${source.name}” has no HTML body to copy.`); return; }
     setBusy(source.id);
     setError('');
+    setNotice('');
     try {
-      const created = await base44.entities.EmailCampaignTemplate.create({
-        name: source.name || 'Imported mailer',
-        category: source.kind === 'debt_coach' ? 'intro' : 'other',
-        subject: source.subject || '',
-        bodyHtml: source.html,
-        bodyText: source.text || '',
-        source: source.kind,
-        sourceTemplateId: source.id,
-        version: 1,
-        updatedBy: campaign?.createdBy || '',
-      });
+      const created = await copyIntoLibrary(source);
       await loadTemplates();
       await save({ templateId: created.id, templateName: created.name });
+      setNotice(`“${created.name}” is now in the library — pick it above.`);
     } catch (e) {
       setError(e?.message || 'That mailer could not be copied into the library.');
     }
+    setBusy('');
+  };
+
+  const copyAll = async () => {
+    const pending = sourceTemplates.filter((s) => s.html && !copiedIds.has(s.id));
+    setError('');
+    setNotice('');
+    if (!pending.length) { setNotice('Every existing mailer is already in the library.'); return; }
+    setBusy('all');
+    let added = 0;
+    let failed = 0;
+    for (const source of pending) {
+      try {
+        await copyIntoLibrary(source);
+        added += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadTemplates();
+    setNotice(`${added} mailer${added === 1 ? '' : 's'} copied into the library${failed ? `, ${failed} could not be copied` : ''} — all of them are in the list above now.`);
     setBusy('');
   };
 
@@ -60,7 +90,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <Card title="Step 3 — Choose the email" hint="Copied templates stay in your library, so you can edit the design without touching this campaign engine.">
+      <Card title="Step 3 — Choose the email" hint="This list is your template library — copy your Debt Call Coach and Fronter mailers in below and they appear here. A campaign always sends the library copy, so editing a design never touches a running campaign.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '10px' }}>
           <Field label="Email template">
             <select
@@ -101,7 +131,15 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
         )}
       </Card>
 
-      <Card title="Copy one of your existing mailers into the library" hint="Your Debt Call Coach mailers and Fronter templates, brought across with their subject and body so the campaign can personalize them.">
+      <Card
+        title="Copy your existing mailers into the library"
+        hint={`Your Debt Call Coach mailers and Fronter templates, brought across with their subject and body so the campaign can personalize them — ${sourceTemplates.length} found, ${sourceTemplates.filter((source) => copiedIds.has(source.id)).length} already in the library.`}
+        actions={
+          <Btn tone="gold" onClick={copyAll} disabled={busy === 'all' || !sourceTemplates.length}>
+            {busy === 'all' ? 'Copying…' : '⤵ Copy all into library'}
+          </Btn>
+        }
+      >
         {!sourceTemplates.length && <div style={{ color: DIM, fontSize: '12px' }}>No existing mailers were found.</div>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: '8px' }}>
           {sourceTemplates.map((source) => (
@@ -111,11 +149,16 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
                 {source.kind === 'debt_coach' ? 'Debt Call Coach mailer' : 'Fronter template'} · {(source.html || '').length.toLocaleString()} characters
               </div>
               <div style={{ marginTop: '8px' }}>
-                <Btn tone="ghost" onClick={() => copyIn(source)} disabled={busy === source.id}>{busy === source.id ? 'Copying…' : '⤵ Copy into library'}</Btn>
+                {copiedIds.has(source.id) ? (
+                  <span style={{ color: '#10b981', fontSize: '10px' }}>✓ Already in the library</span>
+                ) : (
+                  <Btn tone="ghost" onClick={() => copyIn(source)} disabled={busy === source.id || busy === 'all'}>{busy === source.id ? 'Copying…' : '⤵ Copy into library'}</Btn>
+                )}
               </div>
             </div>
           ))}
         </div>
+        {notice && <div style={{ color: GOLD, fontSize: '11px', marginTop: '10px' }}>{notice}</div>}
         {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '10px' }}>{error}</div>}
       </Card>
     </div>

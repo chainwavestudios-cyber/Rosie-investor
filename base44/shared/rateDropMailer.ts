@@ -38,7 +38,7 @@ export const DEFAULT_BENEFITS = [
 
 export const DEFAULT_ELIGIBILITY = [
   { label: 'Identified Account Type', value: 'Unsecured Credit Cards (3 Active Accounts)' },
-  { label: 'Minimum Required Debt', value: '$5,000+ ($10,000+ Preferred for Optimal Restructuring)' },
+  { label: 'Minimum Required Debt', value: '$10,000+' },
   { label: 'Estimated Balance Range', value: '~{{debt_amount}}' },
   { label: 'Upfront Fee Obligation', value: '$0.00 (Zero Out-of-Pocket)' },
   { label: 'Eligibility Window', value: 'Active until {{respond_by_date}}' },

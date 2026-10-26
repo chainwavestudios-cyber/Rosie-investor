@@ -28,7 +28,7 @@ const TOP_MATCHES = 6;
 const MAX_SESSION_SECONDS = 900;
 const IDLE_SECONDS = 120;
 const HISTORY_TURNS = 10;
-const TIERS = ['5k-10k', '10k-20k', '20k+'];
+const TIERS = ['10k-20k', '20k-40k', '40k+'];
 
 function clean(value: any, max: number): string {
   return String(value || '').trim().slice(0, max);
@@ -89,7 +89,7 @@ HARD RULES
 - Never promise a specific reduction, approval or savings amount.
 - Never ask for a Social Security number, a bank login, a card number or a date of birth.
 - Never invent programme details. If the knowledge base below does not cover something, say a specialist will go over it with them.
-- Say amounts as words, never symbols: "five to ten thousand dollars", "ten to twenty thousand", "more than twenty thousand".
+- Say amounts as words, never symbols: "ten to twenty thousand dollars", "twenty to forty thousand", "more than forty thousand".
 - Ask for at most one thing in a reply, and never repeat a question they have already answered.
 
 KNOWLEDGE BASE EXCERPTS
@@ -102,7 +102,7 @@ PROSPECT JUST SAID: ${args.text}
 
 Return JSON:
 - say: exactly the words you speak next, in your own voice.
-- debtTier: one of "5k-10k", "10k-20k", "20k+" once they have told you their range, otherwise an empty string.
+- debtTier: one of "10k-20k", "20k-40k", "40k+" once they have told you their range, otherwise an empty string.
 - phone: the 10-digit phone number they just gave you, otherwise an empty string.`;
 }
 

@@ -63,7 +63,7 @@ Return JSON:
 - headline: one plain sentence on where this prospect stands right now.
 - summary: a full narrative of the conversation, 4 to 8 sentences, ending with how it finished.
 - situation: what they said about their debts, payments, income, hardship or circumstances. Empty string if they said nothing about it.
-- debtRange: the range they gave as "5k-10k", "10k-20k" or "20k+", otherwise "not established".
+- debtRange: the range they gave as "10k-20k", "20k-40k" or "40k+", otherwise "not established".
 - phoneGiven: true only if they gave a phone number during this conversation.
 - questions: every question THEY asked, as {question, answer} — their words or a close paraphrase, and what they were told. Empty array if they asked none.
 - concerns: short strings for every worry, hesitation or objection they raised. Empty array if none.
