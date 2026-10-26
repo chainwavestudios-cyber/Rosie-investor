@@ -24,6 +24,7 @@ import HotLeadBanner from '@/components/engagement/HotLeadBanner';
 import HotLeadRecord from '@/components/engagement/HotLeadRecord';
 import HotLeadToast from '@/components/engagement/HotLeadToast';
 import EngagementContactCard from '@/components/engagement/EngagementContactCard';
+import PortalNavButtons from '@/components/shared/PortalNavButtons';
 import { C } from '@/components/superadmin/kit';
 import { SYSTEM_META } from '@/lib/engagementTiers';
 
@@ -31,8 +32,10 @@ const WINDOWS = [7, 30, 90];
 const SYSTEMS = ['coach', 'fronter'];
 const SOUND_KEY = 'engagement_hot_alert_sound';
 
-export default function EmailEngagementPage() {
-  const { user } = useDebtCoachAuth();
+// `standalone` is set only by the /email-engagement route — the three portals that
+// embed this page already show the cross-portal switcher above it.
+export default function EmailEngagementPage({ standalone = false }) {
+  const { user, isAdmin } = useDebtCoachAuth();
   const [days, setDays] = useState(30);
   const [system, setSystem] = useState('coach');
   const { report, loading, error, refresh, markHandled, handlingId } = useEngagementReport(days);
@@ -81,6 +84,7 @@ export default function EmailEngagementPage() {
 
   return (
     <div style={{ fontFamily: 'Georgia, serif', background: C.bg, color: C.ink, minHeight: '100vh', padding: '4px 0 40px' }}>
+      {standalone && <PortalNavButtons current="engagement" isAdmin={isAdmin} />}
       <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
         <div>
           <div style={{ color: C.fronter, fontSize: '17px', fontWeight: 'bold' }}>📈 Email Engagement</div>

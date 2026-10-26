@@ -10,6 +10,7 @@ const ITEMS = [
   { key: 'fronter', label: 'Fronter', icon: '🎯', path: '/fronter', accent: '#10b981', adminOnly: false },
   { key: 'assistant', label: 'Assistant Portal', icon: '🗂', path: '/assistant-portal', accent: '#60a5fa', adminOnly: true },
   { key: 'coach', label: 'Debt Call Coach', icon: '🎧', path: '/debt-call-coach', accent: '#a78bfa', adminOnly: false },
+  { key: 'engagement', label: 'Email Engagement', icon: '📈', path: '/email-engagement', accent: '#2dd4bf', adminOnly: true },
   { key: 'automations', label: 'Automations & Scoring', icon: '⚙️', path: '/automations', accent: '#38bdf8', adminOnly: true },
   { key: 'evidence', label: 'Evidence Review', icon: '📄', path: '/evidence-review', accent: '#e879f9', adminOnly: true },
 ];

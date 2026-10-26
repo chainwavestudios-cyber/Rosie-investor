@@ -127,7 +127,7 @@ function App() {
               <Route path="/assistant-portal" element={<DebtCoachAuthProvider><AssistantPortal /></DebtCoachAuthProvider>} />
               <Route path="/superadmin-portal" element={<DebtCoachAuthProvider><SuperAdminPortal /></DebtCoachAuthProvider>} />
               <Route path="/adminfrontpage" element={<DebtCoachAuthProvider><AdminFrontPage /></DebtCoachAuthProvider>} />
-              <Route path="/email-engagement" element={<DebtCoachAuthProvider><EmailEngagementPage /></DebtCoachAuthProvider>} />
+              <Route path="/email-engagement" element={<DebtCoachAuthProvider><EmailEngagementPage standalone /></DebtCoachAuthProvider>} />
               <Route path="/automations" element={<DebtCoachAuthProvider><AutomationCenter /></DebtCoachAuthProvider>} />
               <Route path="/evidence-review" element={<DebtCoachAuthProvider><EvidenceReview /></DebtCoachAuthProvider>} />
               <Route path="*" element={<PageNotFound />} />
