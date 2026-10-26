@@ -159,6 +159,15 @@
       "type": "string",
       "title": "Bounce Reason",
       "format": "textarea"
+    },
+    "unsentAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Unsent At (pulled back out of the sending Gmail account)"
+    },
+    "unsentBy": {
+      "type": "string",
+      "title": "Unsent By (username)"
     }
   },
   "required": [

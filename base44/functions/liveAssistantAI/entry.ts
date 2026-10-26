@@ -977,7 +977,7 @@ ${fullText}`,
         const base44 = createClientFromRequest(req);
         const research: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt: `Research the year ${birthYear} — the year this person was born. Find fun, conversation-worthy facts a sales agent could use to build rapport:
-1. Notable inventions or breakthroughs from ${birthYear}
+1. Exactly 3 notable inventions or breakthroughs from ${birthYear}, each written as "Invention (inventor)". Example: "The telephone (Alexander Graham Bell)". The inventor must be the person who created it that year
 2. Major world events that happened in ${birthYear}
 3. Who was the US President in ${birthYear}
 4. Was ${birthYear} a US presidential election year?
@@ -1010,7 +1010,7 @@ ${fullText}`,
         const base44 = createClientFromRequest(req);
         const research: any = await base44.asServiceRole.integrations.Core.InvokeLLM({
           prompt: `Research the year ${birthYear} — the year this person was born. Find fun, conversation-worthy facts a sales agent could use to build rapport:
-1. Notable inventions or breakthroughs from ${birthYear}
+1. Exactly 3 notable inventions or breakthroughs from ${birthYear}, each written as "Invention (inventor)". Example: "The telephone (Alexander Graham Bell)". The inventor must be the person who created it that year
 2. Major world events that happened in ${birthYear}
 3. Who was the US President in ${birthYear}
 4. Was ${birthYear} a US presidential election year?

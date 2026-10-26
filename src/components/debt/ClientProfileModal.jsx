@@ -481,7 +481,18 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
                   {locationResearching ? '⏳' : '🔍 More Info'}
                 </button>
               </div>
-              <div><label style={ls}>Date of Birth</label><input type="date" value={local.dateOfBirth || ''} onChange={e => update('dateOfBirth', e.target.value)} style={inp} /></div>
+              <div>
+                <label style={ls}>Date of Birth</label>
+                <input type="date" value={local.dateOfBirth || ''} onChange={e => update('dateOfBirth', e.target.value)} style={inp} />
+                {/* Their birth year's inventions sit right beside the birthday, with the inventor. */}
+                {local.dateOfBirth && (dobResearching || Array.isArray(dobResearch?.inventions)) && (
+                  <div style={{ marginTop: '6px', color: '#a78bfa', fontSize: '10px', lineHeight: 1.5 }}>
+                    {dobResearching
+                      ? <span style={{ color: '#6b7280' }}>⏳ Researching {new Date(local.dateOfBirth).getFullYear()}…</span>
+                      : <>🎂 {new Date(local.dateOfBirth).getFullYear()} — {dobResearch.inventions.slice(0, 3).join(' · ')}</>}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Location Research Results */}
@@ -492,13 +503,19 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
 
-            {/* DOB Research Results */}
-            {(dobResearch || dobResearching) && local.dateOfBirth && (
-              <div style={{ marginBottom: '16px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '4px', padding: '12px' }}>
-                <div style={{ color: '#a78bfa', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>🎂 Born in {new Date(local.dateOfBirth).getFullYear()} — Birth Year Research</div>
-                {dobResearching ? <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Searching the internet for {new Date(local.dateOfBirth).getFullYear()} facts…</div> : <ResearchDisplay research={dobResearch} />}
-              </div>
-            )}
+            {/* AI Notes — the biggest block on the overview: what the client's calls
+                added up to, written from the calls and editable here. */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>🤖 AI Notes</div>
+              <textarea
+                value={local.notes || ''}
+                onChange={e => update('notes', e.target.value)}
+                rows={12}
+                style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }}
+                placeholder="AI fills this from the client's calls — where they stand, what matters to them, what to cover next. Edit freely."
+              />
+              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>Written from the calls by AI, and editable here.</div>
+            </div>
 
             {/* Quick Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
@@ -508,9 +525,6 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               <StatBox label="DTI Ratio" value={monthlyIncome > 0 ? `${dti.toFixed(1)}%` : '—'} color={dti > 43 ? '#ef4444' : dti > 36 ? '#f59e0b' : '#4ade80'} />
             </div>
 
-            {/* Notes */}
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Notes</div>
-            <textarea value={local.notes || ''} onChange={e => update('notes', e.target.value)} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Add notes about this client..." />
           </div>
         )}
 

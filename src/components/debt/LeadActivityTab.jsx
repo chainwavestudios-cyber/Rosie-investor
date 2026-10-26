@@ -46,7 +46,7 @@ function formatGoogleCalendarDate(dateStr, timeStr) {
   return dt.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-export default function LeadActivityTab({ lead, onLeadPatch }) {
+export default function LeadActivityTab({ lead, onLeadPatch, leadType = 'debt' }) {
   const { user: coachUser } = useDebtCoachAuth();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +60,7 @@ export default function LeadActivityTab({ lead, onLeadPatch }) {
   const [calSaving, setCalSaving] = useState(false);
   const [loggingNoAnswer, setLoggingNoAnswer] = useState(false);
   const [loggedNoAnswer, setLoggedNoAnswer] = useState('');
+  const [draftingNotes, setDraftingNotes] = useState(false);
 
   const loadActivities = useCallback(async () => {
     if (!lead.id) { setActivities([]); setLoading(false); return; }
@@ -148,6 +149,9 @@ export default function LeadActivityTab({ lead, onLeadPatch }) {
           title: appt.appointmentTitle || 'Follow-up call',
           date,
           time,
+          // The intent engine's own notes for that call fill the Description, so
+          // the whole form is ready and only the event has to be confirmed.
+          description: appt.appointmentNotes || prev.description,
         }));
         setShowCalendar(true);
       }
@@ -270,6 +274,25 @@ export default function LeadActivityTab({ lead, onLeadPatch }) {
     setCalSaving(false);
   };
 
+  // The AI button beside Description — reviews the client's last call and writes
+  // the notes the agent should walk into the appointment with.
+  const draftNotes = async () => {
+    if (!lead.id || draftingNotes) return;
+    setDraftingNotes(true);
+    try {
+      const res = await base44.functions.invoke('draftAppointmentNotes', {
+        leadId: lead.id,
+        leadType,
+        appointmentTitle: calEvent.title,
+        appointmentDate: calEvent.date ? new Date(`${calEvent.date}T${calEvent.time || '09:00'}:00`).toISOString() : '',
+      });
+      const data = res?.data || res;
+      if (data?.error) throw new Error(data.error);
+      if (data?.notes) setCalEvent(prev => ({ ...prev, description: data.notes }));
+    } catch (e) { alert('Could not draft the notes: ' + (e?.message || String(e))); }
+    setDraftingNotes(false);
+  };
+
   const sendTestEmail = async (type) => {
     if (!lead.id || !lead.email) { alert('Lead needs an email address to send a test email'); return; }
     setTestSending(type);
@@ -326,7 +349,20 @@ export default function LeadActivityTab({ lead, onLeadPatch }) {
               <div><label style={ls}>Date</label><input type="date" value={calEvent.date} onChange={e => setCalEvent(p => ({ ...p, date: e.target.value }))} style={inp} /></div>
               <div><label style={ls}>Time</label><input type="time" value={calEvent.time} onChange={e => setCalEvent(p => ({ ...p, time: e.target.value }))} style={inp} /></div>
               <div><label style={ls}>Duration (min)</label><input type="number" value={calEvent.duration} onChange={e => setCalEvent(p => ({ ...p, duration: Number(e.target.value) || 30 }))} style={inp} /></div>
-              <div style={{ gridColumn: '1 / -1' }}><label style={ls}>Description</label><textarea value={calEvent.description} onChange={e => setCalEvent(p => ({ ...p, description: e.target.value }))} rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Agenda, notes…" /></div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ ...ls, marginBottom: 0 }}>Description</label>
+                  <button
+                    onClick={draftNotes}
+                    disabled={draftingNotes || !lead.id}
+                    title="Review the client's last call and write the appointment notes"
+                    style={{ background: `${PURPLE}18`, color: PURPLE, border: `1px solid ${PURPLE}44`, borderRadius: '4px', padding: '3px 10px', cursor: draftingNotes || !lead.id ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: draftingNotes || !lead.id ? 0.6 : 1 }}
+                  >
+                    {draftingNotes ? '⏳ Reading the call…' : '🤖 AI Notes'}
+                  </button>
+                </div>
+                <textarea value={calEvent.description} onChange={e => setCalEvent(p => ({ ...p, description: e.target.value }))} rows={4} style={{ ...inp, resize: 'vertical' }} placeholder="Agenda, notes…" />
+              </div>
             </div>
             {/* Reminder checkboxes */}
             <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

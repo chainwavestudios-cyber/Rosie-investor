@@ -176,7 +176,10 @@ function validateAppointment(appt: any, now: Date): any | null {
   const title = typeof appt.appointmentTitle === 'string' && appt.appointmentTitle.trim()
     ? appt.appointmentTitle.trim()
     : 'Follow-up call';
-  return { appointmentDate: parsed.toISOString(), appointmentTitle: title };
+  // The notes ride along so the Schedule Event form fills its Description too and
+  // the agent only has to confirm the event.
+  const notes = typeof appt.appointmentNotes === 'string' ? appt.appointmentNotes.trim().slice(0, 1500) : '';
+  return { appointmentDate: parsed.toISOString(), appointmentTitle: title, appointmentNotes: notes };
 }
 
 function calculateMissingFields(schema: Record<string, FieldDef>, currentLeadData: any, validatedUpdates: Record<string, any>): string[] {
@@ -259,6 +262,7 @@ APPOINTMENT EXTRACTION (only for debt leads):
 - If the customer EXPLICITLY agreed to a specific date AND time for a follow-up/consultation call, extract it.
 - appointmentDate: ISO 8601 date-time string (e.g. "2026-01-15T14:00:00"). Convert relative dates to absolute using the CURRENT SERVER DATE/TIME above. Assume timezone is America/New_York if not specified.
 - appointmentTitle: A short title (e.g. "Follow-up call", "Consultation call").
+- appointmentNotes: 3 to 5 short lines the agent should have in front of them on that call — the client's situation, the numbers they gave, what they want to cover, and the next step. Only what the customer said.
 - Only extract if the customer EXPLICITLY agreed to a specific date AND time. Do not extract vague statements like "call me next week" without a specific day and time.
 ` : ''}
 
@@ -293,7 +297,7 @@ Return ONLY this JSON (no markdown fences):
   "overwrites": [
     { "fieldName": "email", "oldValue": "old@email.com", "newValue": "new@email.com" }
   ],
-  "appointment": { "appointmentDate": "2026-01-15T14:00:00", "appointmentTitle": "Follow-up call" } | null
+  "appointment": { "appointmentDate": "2026-01-15T14:00:00", "appointmentTitle": "Follow-up call", "appointmentNotes": "Where the client stands, the numbers they gave, what to cover, the next step" } | null
 }
 
 If no appointment was discussed or agreed upon, set "appointment" to null.`;

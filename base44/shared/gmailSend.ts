@@ -84,6 +84,42 @@ export async function sendViaGmail(base44, to, rawMime) {
 }
 
 /**
+ * Moves one already-sent message to Trash in the sending account. Used by
+ * "Unsend" on a contact card's email activity: Gmail keeps the message, the
+ * account stops carrying it, and the send's own record is flagged as unsent.
+ */
+export async function trashViaGmail(base44, messageId) {
+  const id = String(messageId || '').trim();
+  if (!id) throw new Error('This send has no Gmail message id, so it cannot be pulled back.');
+
+  const accessToken = await gmailAccessToken(base44);
+
+  let response;
+  try {
+    response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}/trash`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (e) {
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+      throw new Error('Gmail did not answer within 15 seconds — the email was not pulled back.');
+    }
+    throw new Error(`Could not reach Gmail: ${e?.message || String(e)}`);
+  }
+
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => '')).slice(0, 200);
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Gmail refused (connection expired or permission missing) — reconnect Gmail in Integrations.');
+    }
+    if (response.status === 404) throw new Error('Gmail no longer has this message.');
+    throw new Error(`Gmail could not pull the email back (${response.status}): ${detail || 'no details returned'}`);
+  }
+  return true;
+}
+
+/**
  * The address of the Gmail account actually doing the sending (so every recorded
  * send can name it). Resolved once per running function instance.
  */
