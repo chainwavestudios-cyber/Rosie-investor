@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, GOLD, MUTED, STATUS_TONE, Stat, BORDER } from './kit';
 import CampaignRecipientsTable from './CampaignRecipientsTable';
 import { downloadCsv } from '@/lib/csvCampaign';
+import { fmt12Range } from '@/lib/time12';
 
 const when = (value) => (value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 
@@ -165,7 +166,7 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
       <Card
         title="Queue"
         hint={running
-          ? `Running an email batch every ${intervalRef.current}s inside ${campaign.windowStart}–${campaign.windowEnd} ${campaign.timezone}, up to ${campaign.dailyLimit} a day.`
+          ? `Running an email batch every ${intervalRef.current}s inside ${fmt12Range(campaign.windowStart, campaign.windowEnd)} ${campaign.timezone}, up to ${campaign.dailyLimit} a day.`
           : 'The queue is not running. Resume it to continue sending the remaining recipients.'}
         actions={
           <label style={{ display: 'flex', gap: '7px', alignItems: 'center', color: MUTED, fontSize: '11px', cursor: 'pointer' }}>

@@ -10,6 +10,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeSendTimes, toLocalIso } from '@/lib/rateDropSchedule';
+import { fmt12, fmtDateTime } from '@/lib/time12';
+import Time12Picker from '@/components/shared/Time12Picker';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -145,7 +147,7 @@ export default function RateDropMailersTab({ username }) {
       });
       await base44.entities.RateDropSend.bulkCreate(rows);
 
-      setMsg(`Campaign created — ${rows.length} mailers scheduled${times[0] ? `, first at ${times[0].toLocaleString()}` : ''}. The engine sends them on its 5-minute tick.`);
+      setMsg(`Campaign created — ${rows.length} mailers scheduled${times[0] ? `, first at ${fmtDateTime(times[0])}` : ''}. The engine sends them on its 5-minute tick.`);
       setForm(prev => ({ ...prev, name: '', leadIds: [] }));
       await load();
     } catch (e) {
@@ -272,11 +274,11 @@ export default function RateDropMailersTab({ username }) {
               </div>
               <div>
                 <div style={labelStyle}>Daily Window Start</div>
-                <input type="time" value={form.windowStart} onChange={e => set('windowStart', e.target.value)} style={inputStyle} />
+                <Time12Picker value={form.windowStart} onChange={v => set('windowStart', v)} inputStyle={inputStyle} />
               </div>
               <div>
                 <div style={labelStyle}>Daily Window End</div>
-                <input type="time" value={form.windowEnd} onChange={e => set('windowEnd', e.target.value)} style={inputStyle} />
+                <Time12Picker value={form.windowEnd} onChange={v => set('windowEnd', v)} inputStyle={inputStyle} />
               </div>
             </>
           )}
@@ -284,8 +286,8 @@ export default function RateDropMailersTab({ username }) {
 
         <div style={{ color: '#6b7280', fontSize: '10px' }}>
           {form.scheduleMode === 'all_at_once' && `All ${form.leadIds.length} selected mailers go out on the next engine tick after the start time.`}
-          {form.scheduleMode === 'stagger' && `${form.batchSize} every ${Math.max(5, Number(form.intervalMinutes) || 5)} minutes — first batch ${preview_schedule[0]?.toLocaleString() || '—'}.`}
-          {form.scheduleMode === 'repetitive' && `${form.dailyLimit}/day, one every ${Math.max(5, Number(form.intervalMinutes) || 5)} min, ${form.windowStart}–${form.windowEnd} ET — first ${preview_schedule[0]?.toLocaleString() || '—'}, day two starts ${preview_schedule[Number(form.dailyLimit)]?.toLocaleString() || 'n/a'}.`}
+          {form.scheduleMode === 'stagger' && `${form.batchSize} every ${Math.max(5, Number(form.intervalMinutes) || 5)} minutes — first batch ${fmtDateTime(preview_schedule[0])}.`}
+          {form.scheduleMode === 'repetitive' && `${form.dailyLimit}/day, one every ${Math.max(5, Number(form.intervalMinutes) || 5)} min, ${fmt12(form.windowStart)} – ${fmt12(form.windowEnd)} ET — first ${fmtDateTime(preview_schedule[0])}, day two starts ${preview_schedule[Number(form.dailyLimit)] ? fmtDateTime(preview_schedule[Number(form.dailyLimit)]) : 'n/a'}.`}
         </div>
 
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -338,7 +340,7 @@ export default function RateDropMailersTab({ username }) {
                     <tbody>
                       {sends.map(s => (
                         <tr key={s.id} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{s.sendAt ? new Date(s.sendAt).toLocaleString() : '—'}</td>
+                          <td style={{ padding: '4px 6px', whiteSpace: 'nowrap' }}>{fmtDateTime(s.sendAt)}</td>
                           <td style={{ padding: '4px 6px' }}>{s.leadName || '—'}</td>
                           <td style={{ padding: '4px 6px' }}>{s.noticeId || '—'}</td>
                           <td style={{ padding: '4px 6px', color: BLUE }}>{s.email || '—'}</td>

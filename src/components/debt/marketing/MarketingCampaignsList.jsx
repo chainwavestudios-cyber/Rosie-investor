@@ -3,6 +3,7 @@
  * their progress, with pause / resume / cancel controls.
  */
 import { base44 } from '@/api/base44Client';
+import { fmt12 } from '@/lib/time12';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -49,7 +50,7 @@ export default function MarketingCampaignsList({ campaigns, onChanged }) {
                     </td>
                     <td style={td}>
                       {(c.startAt || '').slice(0, 10)} → {(c.endAt || '').slice(0, 10)}
-                      <div style={{ color: '#8a9ab8', fontSize: '10px' }}>{c.windowStart}–{c.windowEnd} · every {c.intervalMinutes}m · {c.emailsPerSend}/send</div>
+                      <div style={{ color: '#8a9ab8', fontSize: '10px' }}>{fmt12(c.windowStart)} – {fmt12(c.windowEnd)} · every {c.intervalMinutes}m · {c.emailsPerSend}/send</div>
                     </td>
                     <td style={td}>
                       {c.sentCount || 0}/{total}

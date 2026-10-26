@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { buildSchedule, scheduleSummary, slotsPerDay } from '@/lib/debtMarketingSchedule';
 import { detectWelcomeLink } from '@/lib/welcomeLink';
+import Time12Picker from '@/components/shared/Time12Picker';
 
 const GOLD = '#10b981';
 const BLUE = '#60a5fa';
@@ -139,7 +140,7 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
         </div>
         <div>
           <label style={ls}>Start time</label>
-          <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} style={inp} />
+          <Time12Picker value={form.startTime} onChange={(v) => set('startTime', v)} inputStyle={inp} />
         </div>
         <div>
           <label style={ls}>Finish date</label>
@@ -147,15 +148,15 @@ export default function MarketingCampaignBuilder({ availableLeads, templates, us
         </div>
         <div>
           <label style={ls}>Finish time</label>
-          <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} style={inp} />
+          <Time12Picker value={form.endTime} onChange={(v) => set('endTime', v)} inputStyle={inp} />
         </div>
         <div>
           <label style={ls}>Window start (daily)</label>
-          <input type="time" value={form.windowStart} onChange={(e) => set('windowStart', e.target.value)} style={inp} />
+          <Time12Picker value={form.windowStart} onChange={(v) => set('windowStart', v)} inputStyle={inp} />
         </div>
         <div>
           <label style={ls}>Window stop (daily)</label>
-          <input type="time" value={form.windowEnd} onChange={(e) => set('windowEnd', e.target.value)} style={inp} />
+          <Time12Picker value={form.windowEnd} onChange={(v) => set('windowEnd', v)} inputStyle={inp} />
         </div>
         <div>
           <label style={ls}>Minutes between sends</label>

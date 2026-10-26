@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, Stat, inputStyle } from './kit';
 import CampaignRecipientsTable from './CampaignRecipientsTable';
+import Time12Picker from '@/components/shared/Time12Picker';
 
 const defaultQueue = (campaign) => ({
   batchSize: Number(campaign?.batchSize || 25),
@@ -94,11 +95,11 @@ export default function CampaignLaunchStep({ campaign, save, username, onStarted
           <Field label="Daily send limit">
             <input type="number" min="1" style={inputStyle} value={form.dailyLimit} onChange={(e) => setForm({ ...form, dailyLimit: Number(e.target.value) })} />
           </Field>
-          <Field label="Window start (HH:MM)">
-            <input style={inputStyle} value={form.windowStart} onChange={(e) => setForm({ ...form, windowStart: e.target.value })} />
+          <Field label="Window start">
+            <Time12Picker value={form.windowStart} onChange={(v) => setForm({ ...form, windowStart: v })} inputStyle={inputStyle} />
           </Field>
-          <Field label="Window end (HH:MM)">
-            <input style={inputStyle} value={form.windowEnd} onChange={(e) => setForm({ ...form, windowEnd: e.target.value })} />
+          <Field label="Window end">
+            <Time12Picker value={form.windowEnd} onChange={(v) => setForm({ ...form, windowEnd: v })} inputStyle={inputStyle} />
           </Field>
           <Field label="Timezone">
             <select style={inputStyle} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })}>
