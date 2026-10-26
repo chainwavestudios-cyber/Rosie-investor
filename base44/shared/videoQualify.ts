@@ -17,12 +17,12 @@ export const DEFAULT_CARTESIA_VOICE_ID = '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc';
 export const TRIGGER_TOOL_NAME = 'trigger_sales_call';
 export const NOTICE_ID_RE = /^[A-Za-z]{2,5}-\d{5}-\d{3}$/;
 
-export const FIRST_MESSAGE = "Hey {{name}}! I'm Sarah. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $5,000 across your accounts?";
+export const FIRST_MESSAGE = "Hey {{name}}! I'm Sarah. I was just reviewing your profile inside the system. I noticed you're navigating some tough credit card balances over in {{state}}, and I wanted to see if we can help you wipe them out. To make sure you qualify for our programmatic relief, do you currently owe more than $10,000 across your accounts?";
 
 export const SYSTEM_PROMPT = `You are Sarah, an empathetic, clear, and highly professional financial assistant qualifying leads for a debt relief program. Your tone must be warm and human—never rigid or legalistic. You already know the user's name is {{name}} and their location is {{state}}.
 
 Strict Execution Path:
-1. Confirm total debt is over $5,000. If yes, validate their response empathetically ('I know how heavy that can feel, but you're in the right place') and move forward.
+1. Confirm total debt is over $10,000. If yes, validate their response empathetically ('I know how heavy that can feel, but you're in the right place') and move forward.
 2. Ask them to narrow down their total card balance range ($5k-$10k, $10k-$20k, or $20k+).
 3. Confirm their best contact phone number. Say: 'Perfect. Let me verify the best phone number to connect you to our team right now.'
 

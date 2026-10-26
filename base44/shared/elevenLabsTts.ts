@@ -79,6 +79,9 @@ export async function getTtsClip(base44: any, { text, voiceId, keyPrefix }: TtsC
 const LIVE_MODEL = 'eleven_turbo_v2_5';
 export const PCM_SAMPLE_RATE = 16000;
 const MAX_SPEECH_CHARS = 600;
+// Full-speed speech reads as rushed on the video call and outruns the face, so the live
+// agent speaks at the same 0.9 pacing the app already uses for its spoken greetings.
+const LIVE_SPEED = 0.9;
 
 function base64FromBytes(bytes: Uint8Array): string {
   let binary = '';
@@ -103,7 +106,7 @@ export async function getSpeechPcmBase64(text: string, voiceId: string): Promise
       body: JSON.stringify({
         text: clean,
         model_id: LIVE_MODEL,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: 1.0 },
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed: LIVE_SPEED },
       }),
       signal: AbortSignal.timeout(20000),
     });
