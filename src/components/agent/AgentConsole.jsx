@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, Sparkles, Trash2, X } from 'lucide-react';
 import useAppAgent from '@/hooks/useAppAgent';
+import useVoiceInput from '@/hooks/useVoiceInput';
+import { ACE_OPEN_EVENT } from '@/lib/aceConsole';
 import AgentMessage from './AgentMessage';
+import AceVoiceButton from './AceVoiceButton';
 
 // The app-wide AI command console. ⌘A / Ctrl+A opens it on any screen; ask in
 // plain English and ACE answers from live data and drives the app for you.
@@ -27,10 +30,24 @@ function hasSession() {
 export default function AgentConsole() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const { messages, busy, send, reset } = useAppAgent();
+  const [focus, setFocus] = useState(null);
+  const { messages, busy, send, reset } = useAppAgent(focus);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const submitRef = useRef(null);
   const available = useMemo(hasSession, []);
+
+  // Contact cards launch the console scoped to the person they are working.
+  useEffect(() => {
+    const onOpen = (event) => {
+      setFocus(event.detail || null);
+      setOpen(true);
+    };
+    window.addEventListener(ACE_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(ACE_OPEN_EVENT, onOpen);
+  }, []);
+
+  const voice = useVoiceInput({ onFinal: (text) => submitRef.current?.(text) });
 
   // ⌘A / Ctrl+A toggles the console anywhere; Escape closes it.
   useEffect(() => {
@@ -59,9 +76,11 @@ export default function AgentConsole() {
   const submit = (value) => {
     const text = String(value ?? input).trim();
     if (!text || busy) return;
+    voice.stop();
     send(text);
     setInput('');
   };
+  submitRef.current = submit;
 
   if (!available) return null;
 
@@ -118,7 +137,11 @@ export default function AgentConsole() {
                 <Sparkles size={16} color="#10b981" />
                 <div>
                   <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 700, letterSpacing: '0.5px' }}>ACE — Command Console</div>
-                  <div style={{ color: '#6b7280', fontSize: '10.5px' }}>Knows the whole Debt Call Coach system · answers from live data · jumps you anywhere</div>
+                  <div style={{ color: focus?.leadName ? '#10b981' : '#6b7280', fontSize: '10.5px' }}>
+                    {focus?.leadName
+                      ? `Working on ${focus.leadName} — talk or type: "book an appointment Friday at 2pm"`
+                      : 'Knows the whole Debt Call Coach system · answers from live data · jumps you anywhere'}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -164,6 +187,11 @@ export default function AgentConsole() {
             </div>
 
             {/* Composer */}
+            {voice.listening && voice.interim && (
+              <div style={{ padding: '6px 16px 0', color: '#10b981', fontSize: '11.5px', fontStyle: 'italic' }}>
+                “{voice.interim}”
+              </div>
+            )}
             <div style={{ borderTop: '1px solid #1f2937', padding: '10px 12px', display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
               <textarea
                 ref={inputRef}
@@ -173,12 +201,17 @@ export default function AgentConsole() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
                 }}
-                placeholder="Ask anything, or tell me where to go…"
+                placeholder={voice.listening ? 'Listening — say your command…' : 'Ask anything, tell me where to go, or hit the mic…'}
                 style={{
                   flex: 1, resize: 'none', background: '#111925', color: '#e8e0d0',
                   border: '1px solid #1f2937', borderRadius: '6px', padding: '9px 11px',
                   fontSize: '13px', fontFamily: 'inherit', outline: 'none',
                 }}
+              />
+              <AceVoiceButton
+                listening={voice.listening}
+                supported={voice.supported}
+                onClick={voice.toggle}
               />
               <button
                 type="button"

@@ -29,7 +29,7 @@ function readPortalSession() {
   }
 }
 
-export default function useAppAgent() {
+export default function useAppAgent(focus = null) {
   const navigate = useNavigate();
   const [messages, setMessages] = useState(loadHistory);
   const [busy, setBusy] = useState(false);
@@ -63,6 +63,9 @@ export default function useAppAgent() {
           path: window.location.pathname,
           tab: new URLSearchParams(window.location.search).get('tab') || '',
           now: new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour12: true }),
+          leadId: focus?.leadId || '',
+          leadName: focus?.leadName || '',
+          leadKind: focus?.kind || '',
         },
       });
       const data = res?.data || res || {};
@@ -91,7 +94,7 @@ export default function useAppAgent() {
     } finally {
       setBusy(false);
     }
-  }, [messages, busy, navigate]);
+  }, [messages, busy, navigate, focus]);
 
   return { messages, busy, send, reset };
 }
