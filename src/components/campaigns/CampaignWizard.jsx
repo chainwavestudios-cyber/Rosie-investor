@@ -48,7 +48,8 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
       await loadTemplates();
       if (Number(row?.eligibleCount || 0) > 0) {
         const at = row.templateId ? 3 : 2;
-        setFurthest(at);
+        // A cancelled or finished campaign is looked at end to end, so every step stays reachable.
+        setFurthest(['cancelled', 'completed'].includes(row.status) ? WIZARD_STEPS.length - 1 : at);
         setStep(WIZARD_STEPS[at].id);
       }
     })();
@@ -96,7 +97,7 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
   if (!campaign) return <div style={{ color: MUTED, fontSize: '12px', padding: '20px 0' }}>Loading campaign…</div>;
 
   const tone = STATUS_TONE[campaign.status] || MUTED;
-  const isSendStep = ['running', 'paused'].includes(campaign.status) && step === 'monitor';
+  const isSendStep = step === 'monitor';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
@@ -130,7 +131,13 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
               setMapping={setMapping}
               report={report}
               setReport={setReport}
-              onCommitted={async () => { await save({ mappingJson: JSON.stringify(mapping) }); }}
+              onCommitted={async () => {
+                await save({
+                  mappingJson: JSON.stringify(mapping),
+                  sourceFile: csv?.fileName || campaign.sourceFile || '',
+                  listName: campaign.listName || (csv?.fileName || '').replace(/\.csv$/i, ''),
+                });
+              }}
             />
           )}
           {step === 'build' && (

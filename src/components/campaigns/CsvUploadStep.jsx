@@ -6,14 +6,35 @@
  * its own.
  */
 import { useRef, useState } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
-import { readCsv } from '@/lib/csvCampaign';
+import { readCsv, importedListCsv, downloadCsv } from '@/lib/csvCampaign';
 
 export default function CsvUploadStep({ campaign, csv, setCsv, save, username }) {
   const inputRef = useRef(null);
   const [listName, setListName] = useState(campaign?.listName || '');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  // The rows live on the campaign itself, so the list survives a cancel or a finished run.
+  const importedRows = Number(campaign?.importedCount || 0);
+
+  const downloadList = async () => {
+    setDownloading(true);
+    const rows = [];
+    let cursor = null;
+    for (let page = 0; page < 10; page += 1) {
+      const result = await base44.entities.EmailCampaignRecipient
+        .filter({ campaignId: campaign.id }, { sort: 'created_date', limit: 1000, ...(cursor ? { cursor } : {}) })
+        .catch(() => null);
+      rows.push(...(result?.items || []));
+      cursor = result?.next_cursor || null;
+      if (!result?.has_more || !cursor) break;
+    }
+    downloadCsv(`list-${(campaign.name || 'campaign').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.csv`, importedListCsv(rows));
+    setDownloading(false);
+  };
 
   const pick = async (file) => {
     setError('');
@@ -36,14 +57,28 @@ export default function CsvUploadStep({ campaign, csv, setCsv, save, username })
   const saveDraft = async () => {
     await save({
       listName: listName || csv?.fileName || 'Uploaded list',
-      sourceFile: csv?.fileName || '',
-      importedCount: 0,
+      sourceFile: csv?.fileName || campaign?.sourceFile || '',
     });
     setSaved('Saved to this draft.');
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {importedRows > 0 && (
+        <Card
+          title="📄 This campaign already has its list"
+          hint="Every imported row is held on the campaign, so cancelling or finishing it never takes the list away. Download it again, or upload a different file below."
+          actions={<Btn tone="ghost" onClick={downloadList} disabled={downloading}>{downloading ? 'Building…' : '⬇ Download the list'}</Btn>}
+        >
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', color: MUTED, fontSize: '12px' }}>
+            <span style={{ color: GOLD, fontWeight: 'bold' }}>{campaign.sourceFile || 'Imported list'}</span>
+            <span>{importedRows.toLocaleString()} rows imported</span>
+            <span>{Number(campaign.eligibleCount || 0).toLocaleString()} eligible</span>
+            {Number(campaign.excludedCount || 0) ? <span>{Number(campaign.excludedCount).toLocaleString()} excluded</span> : null}
+            {campaign.listName ? <span>· {campaign.listName}</span> : null}
+          </div>
+        </Card>
+      )}
       <Card
         title="Step 1 — Upload the contacts file"
         hint="CSV exported from Excel, Google Sheets, a CRM or a lead vendor. Quoted commas, blank cells and a UTF-8 BOM are all handled."

@@ -7,7 +7,7 @@ import { Btn, Card, DIM, MUTED, STATUS_TONE, SURFACE, BORDER } from './kit';
 
 const when = (value) => (value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 
-export default function CampaignsList({ campaigns, onOpen, onChanged }) {
+export default function CampaignsList({ campaigns, onOpen, onEdit, onChanged }) {
   const [busyId, setBusyId] = useState('');
 
   const remove = async (campaign) => {
@@ -61,6 +61,9 @@ export default function CampaignsList({ campaigns, onOpen, onChanged }) {
                 <Btn tone={['running', 'paused', 'completed'].includes(campaign.status) ? 'blue' : 'gold'} onClick={() => onOpen(campaign)}>
                   {['running', 'paused', 'completed'].includes(campaign.status) ? '📊 Monitor' : '✎ Open builder'}
                 </Btn>
+                {onEdit && ['completed', 'cancelled'].includes(campaign.status) && (
+                  <Btn tone="ghost" onClick={() => onEdit(campaign)}>✎ Edit</Btn>
+                )}
                 {campaign.status === 'draft' && !Number(campaign.sentCount || 0) && (
                   <Btn tone="danger" onClick={() => remove(campaign)} disabled={busyId === campaign.id}>{busyId === campaign.id ? '…' : 'Delete'}</Btn>
                 )}

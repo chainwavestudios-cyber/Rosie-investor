@@ -275,6 +275,18 @@ export function rejectionCsv(rows) {
   return lines.join('\r\n');
 }
 
+/** The campaign's own imported list, back as CSV — what a cancelled or finished campaign still holds. */
+export function importedListCsv(rows) {
+  const header = ['Email', 'FirstName', 'LastName', 'Phone', 'Company', 'City', 'State', 'Source', 'DebtAmount', 'LeadDate'];
+  const lines = [header.join(',')];
+  for (const row of rows) {
+    const cells = [row.email, row.firstName, row.lastName, row.phone, row.company, row.city, row.state, row.source, row.debtAmount, row.leadDate]
+      .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`);
+    lines.push(cells.join(','));
+  }
+  return lines.join('\r\n');
+}
+
 /** Triggers a browser download for generated CSV text. */
 export function downloadCsv(filename, csv) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

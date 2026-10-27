@@ -51,6 +51,12 @@ export default function EmailCampaignManagerTab({ username }) {
     setView(['running', 'paused', 'completed'].includes(campaign.status) ? 'monitor' : 'wizard');
   };
 
+  // The builder stays the place a past campaign is edited — its list and settings are still there.
+  const openBuilder = (campaign) => {
+    setCampaignId(campaign.id);
+    setView('wizard');
+  };
+
   const active = campaigns.filter((c) => ['running', 'paused'].includes(c.status)).length;
   const totals = campaigns.reduce((acc, c) => ({
     sent: acc.sent + Number(c.sentCount || 0),
@@ -110,6 +116,7 @@ export default function EmailCampaignManagerTab({ username }) {
         <CampaignsList
           campaigns={campaigns}
           onOpen={open}
+          onEdit={openBuilder}
           onChanged={load}
         />
       )}
