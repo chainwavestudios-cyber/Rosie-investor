@@ -460,27 +460,31 @@ Agent line: "${firstAgentLines}"`,
   }, []);
 
   // Load mic devices — auto-detect Rodecaster for customer audio (wait for saved defaults)
+  // Re-scannable device list — Windows "Stereo Mix" (or a Rodecaster) fills the customer feed.
+  const loadDevices = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+    if (!stream) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    // Release the mic immediately — we only grabbed it to populate device labels.
+    // Keeping it open leaves Chrome showing "using mic" and can cause the later
+    // call-start getUserMedia to be denied.
+    stream.getTracks().forEach(t => t.stop());
+    const mics = devices.filter(d => d.kind === 'audioinput');
+    setMicDevices(mics);
+    // Stereo Mix carries whatever the computer plays — which is how a phone call on
+    // Bluetooth reaches the app — so it fills the slot the Rodecaster used to.
+    const customerSource = mics.find(m => /rode|rodecaster|røde|stereo mix|what u hear|loopback/i.test(m.label || ''));
+    if (customerSource) setCustomerMicId(prev => prev || customerSource.deviceId);
+    if (mics.length > 0) setMicDeviceId(prev => prev || mics[0].deviceId);
+    const outputs = devices.filter(d => d.kind === 'audiooutput');
+    setOutputDevices(outputs);
+    if (outputs.length > 0) setOutputDeviceId(prev => prev || outputs[0].deviceId);
+  }, []);
+
   useEffect(() => {
     if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => navigator.mediaDevices.enumerateDevices()
-        .then(devices => {
-          // Release the mic immediately — we only grabbed it to populate device labels.
-          // Keeping it open leaves Chrome showing "using mic" and can cause the later
-          // call-start getUserMedia to be denied.
-          stream.getTracks().forEach(t => t.stop());
-          const mics = devices.filter(d => d.kind === 'audioinput');
-          setMicDevices(mics);
-          if (mics.length > 0 && !micDeviceId) setMicDeviceId(mics[0].deviceId);
-          const rodecaster = mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
-          if (rodecaster && !customerMicId) setCustomerMicId(rodecaster.deviceId);
-          const outputs = devices.filter(d => d.kind === 'audiooutput');
-          setOutputDevices(outputs);
-          if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
-        })
-      )
-      .catch(() => {});
-  }, [micLoaded, customerMicLoaded, outputLoaded]);
+    loadDevices();
+  }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
 
   // Load existing leads
   const loadLeads = useCallback(async () => {
@@ -1959,7 +1963,10 @@ ${recentText}`,
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
+            <button onClick={loadDevices} disabled={phase === 'live'} title="Re-scan the inputs — click after enabling Stereo Mix in Windows" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
+          </div>
           <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
             <option value="">— None (use diarization) —</option>
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
