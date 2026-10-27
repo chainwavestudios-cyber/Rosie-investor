@@ -18,6 +18,7 @@ import { buildIntentReport } from '@/components/debt/intentReport';
 import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import { createBleedSuppressor } from '@/lib/audioBleedSuppressor';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
@@ -1486,10 +1487,15 @@ ${recentText}`,
         customerGainNode.connect(merger, 0, 1);
         const processor = ctx.createScriptProcessor(4096, 2, 2);
         processorRef.current = processor;
+        // Speaker bleed: the caller's voice plays out of the speakers and the mic
+        // hears it, so the clean Stereo Mix channel is used as the reference and
+        // the bleed is stripped off the agent channel before it goes to Deepgram.
+        const suppressBleed = createBleedSuppressor();
         processor.onaudioprocess = (ev) => {
           if (ws.readyState !== WebSocket.OPEN) return;
           const left = ev.inputBuffer.getChannelData(0);
           const right = ev.inputBuffer.getChannelData(1);
+          suppressBleed(left, right);
           const int16 = new Int16Array(left.length * 2);
           for (let i = 0; i < left.length; i++) {
             int16[i * 2] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
