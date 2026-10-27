@@ -1973,6 +1973,9 @@ ${recentText}`,
             <option value="">— None (use diarization) —</option>
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
+          {customerMicId && !/stereo mix|what u hear|loopback/i.test(micDevices.find(m => m.deviceId === customerMicId)?.label || '') && (
+            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ This is a microphone — it records the whole room. Pick Stereo Mix so only the caller lands on this channel.</span>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
             <input type="range" min="0" max="3" step="0.1" value={customerGain} onChange={e => setCustomerGain(Number(e.target.value))} disabled={phase === 'live' || !customerMicId} style={{ flex: 1, cursor: 'pointer', accentColor: '#f59e0b', opacity: !customerMicId ? 0.4 : 1 }} />
