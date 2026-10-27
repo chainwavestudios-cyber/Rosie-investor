@@ -462,15 +462,27 @@ Agent line: "${firstAgentLines}"`,
   // Load mic devices — auto-detect Rodecaster for customer audio (wait for saved defaults)
   // Re-scannable device list — Windows "Stereo Mix" (or a Rodecaster) fills the customer feed.
   const loadDevices = useCallback(async () => {
+    // List what Windows reports FIRST — before any permission grab — so a denied
+    // or busy mic can never leave the dropdowns completely empty.
+    const scan = async () => {
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      const ins = devices.filter(d => d.kind === 'audioinput');
+      const outs = devices.filter(d => d.kind === 'audiooutput');
+      setMicDevices(ins);
+      setOutputDevices(outs);
+      return { mics: ins, outputs: outs };
+    };
+    let { mics, outputs } = await scan();
+    // Labels (and some loopback/virtual inputs) only appear after a permission
+    // grant — grab the mic once, release it, then list again for the full set.
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
-    if (!stream) return;
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    // Release the mic immediately — we only grabbed it to populate device labels.
-    // Keeping it open leaves Chrome showing "using mic" and can cause the later
-    // call-start getUserMedia to be denied.
-    stream.getTracks().forEach(t => t.stop());
-    const mics = devices.filter(d => d.kind === 'audioinput');
-    setMicDevices(mics);
+    if (stream) {
+      // Release the mic immediately — we only grabbed it to populate device labels.
+      // Keeping it open leaves Chrome showing "using mic" and can cause the later
+      // call-start getUserMedia to be denied.
+      stream.getTracks().forEach(t => t.stop());
+      ({ mics, outputs } = await scan());
+    }
     // Fixed mapping: the Rodecaster Pro Multichannel carries the agent's voice,
     // Stereo Mix carries whatever the computer plays (the customer). The two never
     // swap — a saved microphone on the customer slot is moved to Stereo Mix.
@@ -484,8 +496,6 @@ Agent line: "${firstAgentLines}"`,
         return /stereo mix|what u hear|loopback/i.test(savedLabel) ? prev : loop.deviceId;
       });
     }
-    const outputs = devices.filter(d => d.kind === 'audiooutput');
-    setOutputDevices(outputs);
     if (outputs.length > 0) setOutputDeviceId(prev => prev || outputs[0].deviceId);
   }, []);
 
@@ -493,6 +503,17 @@ Agent line: "${firstAgentLines}"`,
     if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
     loadDevices();
   }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
+
+  // Windows devices that are enabled/plugged in after the page loaded (Stereo
+  // Mix turned on, speaker connected) show up immediately instead of needing
+  // a manual re-scan.
+  useEffect(() => {
+    const md = navigator.mediaDevices;
+    if (!md?.addEventListener) return;
+    const onDeviceChange = () => loadDevices();
+    md.addEventListener('devicechange', onDeviceChange);
+    return () => md.removeEventListener('devicechange', onDeviceChange);
+  }, [loadDevices]);
 
   // Load existing leads
   const loadLeads = useCallback(async () => {
@@ -1974,6 +1995,7 @@ ${recentText}`,
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
             <button onClick={loadDevices} disabled={phase === 'live'} title="Re-scan the inputs — click after enabling Stereo Mix in Windows" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
+            {micDevices.length > 0 && <span style={{ color: '#4a5568', fontSize: '9px', whiteSpace: 'nowrap' }}>{micDevices.length} input{micDevices.length === 1 ? '' : 's'}</span>}
           </div>
           <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
             <option value="">— None (use diarization) —</option>
