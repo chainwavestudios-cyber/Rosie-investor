@@ -471,13 +471,19 @@ Agent line: "${firstAgentLines}"`,
     stream.getTracks().forEach(t => t.stop());
     const mics = devices.filter(d => d.kind === 'audioinput');
     setMicDevices(mics);
-    // Stereo Mix carries whatever the computer plays — which is how a phone call on
-    // Bluetooth reaches the app — so it wins the customer slot over the Rodecaster,
-    // which stays on the agent mic.
-    const customerSource = mics.find(m => /stereo mix|what u hear|loopback/i.test(m.label || ''))
-      || mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
-    if (customerSource) setCustomerMicId(prev => prev || customerSource.deviceId);
-    if (mics.length > 0) setMicDeviceId(prev => prev || mics[0].deviceId);
+    // Fixed mapping: the Rodecaster Pro Multichannel carries the agent's voice,
+    // Stereo Mix carries whatever the computer plays (the customer). The two never
+    // swap — a saved microphone on the customer slot is moved to Stereo Mix.
+    const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
+    const loop = mics.find(m => /stereo mix/i.test(m.label || ''))
+      || mics.find(m => /what u hear|loopback/i.test(m.label || ''));
+    if (mics.length > 0) setMicDeviceId(prev => prev || (rode || mics[0]).deviceId);
+    if (loop) {
+      setCustomerMicId(prev => {
+        const savedLabel = mics.find(m => m.deviceId === prev)?.label || '';
+        return /stereo mix|what u hear|loopback/i.test(savedLabel) ? prev : loop.deviceId;
+      });
+    }
     const outputs = devices.filter(d => d.kind === 'audiooutput');
     setOutputDevices(outputs);
     if (outputs.length > 0) setOutputDeviceId(prev => prev || outputs[0].deviceId);
