@@ -11,6 +11,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { waitUntil } from 'base44:runtime';
 import { computeCostUsd } from '../../shared/aiCost.ts';
 import { fillMergeTags } from '../../shared/mergeTags.ts';
+import { contactScore, normalizeName } from '../../shared/fuzzyName.ts';
 import {
   buildAppAgentSystemPrompt,
   READABLE_ENTITIES,
@@ -67,6 +68,36 @@ const TOOLS = [
         args: { type: 'object', description: 'Arguments object' },
       },
       required: ['function_name'],
+    },
+  },
+  {
+    name: 'find_contacts',
+    description:
+      'Look a person up by name, phone or email across DebtLead, FronterLead and LeadVaultEntry. Tolerates spelling mistakes, nicknames and partial names — "Tanya Morris" still finds "Tonya Morris", and "Moris" finds "Morris". Use this before scheduling anything for a person, updating a record, or telling the user someone does not exist. Never guess an id from the user spelling.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Name, phone, or email as the user said it' },
+        limit: { type: 'number', description: 'Max matches (default 8)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'schedule_event',
+    description:
+      'Create a real event on the business Google Calendar, with reminders. Use it whenever the user asks to schedule, book, set up or be reminded about anything — appointments, call-backs, meetings, follow-ups. Times are ISO 8601 (e.g. 2026-11-03T14:30:00-05:00); resolve "tomorrow at 2pm" against the LOCAL TIME in the system prompt. Pass lead_id (from find_contacts) when the event belongs to a client, so it lands on their contact card and the night-before and 1-hour reminder emails run.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'What the event is called' },
+        start_iso: { type: 'string', description: 'Start, ISO 8601 with offset' },
+        duration_minutes: { type: 'number', description: 'Length in minutes (default 30)' },
+        description: { type: 'string', description: 'Agenda / notes on the event' },
+        reminders_minutes: { type: 'array', items: { type: 'number' }, description: 'Minutes before the start to alert, e.g. [1440, 60]' },
+        lead_id: { type: 'string', description: 'DebtLead id when the event is for a client (optional)' },
+      },
+      required: ['title', 'start_iso'],
     },
   },
   {
@@ -209,6 +240,82 @@ async function sendWelcomeEmails(base44: any, who: any, input: any) {
   };
 }
 
+const CONTACT_SOURCES = [
+  { entity: 'DebtLead', kind: 'coach' },
+  { entity: 'FronterLead', kind: 'fronter' },
+  { entity: 'LeadVaultEntry', kind: 'vault' },
+];
+
+function escapeRegex(text: string) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Spelling-tolerant contact lookup. Widens the net with cheap prefix probes, then
+// ranks everything by how close the name really is, so "Tanya Morris" answers with
+// Tonya Morris instead of "no such person".
+async function findContacts(base44: any, query: string, limit: number) {
+  const q = normalizeName(query);
+  const tokens = q.split(' ').filter((t: string) => t.length >= 2);
+  const digits = String(query || '').replace(/\D/g, '');
+  const emailish = /@/.test(String(query || '')) ? String(query).trim().toLowerCase() : '';
+  if (!tokens.length && digits.length < 4 && !emailish) return [];
+
+  const probes: any[] = [];
+  const prefixes = new Set<string>();
+  if (tokens[0]) prefixes.add(tokens[0].slice(0, 2));
+  const lastToken = tokens[tokens.length - 1];
+  if (lastToken) prefixes.add(lastToken.slice(0, 2));
+  for (const prefix of prefixes) {
+    probes.push({ firstName: { $regex: `^${escapeRegex(prefix)}`, $options: 'i' } });
+    probes.push({ lastName: { $regex: `^${escapeRegex(prefix)}`, $options: 'i' } });
+  }
+  if (digits.length >= 4) {
+    probes.push({ phone: { $regex: escapeRegex(digits.slice(-4)) } });
+    probes.push({ phone2: { $regex: escapeRegex(digits.slice(-4)) } });
+  }
+  if (emailish) probes.push({ email: { $regex: `^${escapeRegex(emailish.slice(0, 4))}`, $options: 'i' } });
+
+  const seen = new Set<string>();
+  const hits: any[] = [];
+
+  for (const source of CONTACT_SOURCES) {
+    const api = base44.asServiceRole.entities[source.entity];
+    const pages = await Promise.all(probes.map((p) => api.filter(p, '-created_date', 200).catch(() => [])));
+    const rows: any[] = [];
+    for (const page of pages) rows.push(...(Array.isArray(page) ? page : (page?.items || [])));
+    for (const row of rows) {
+      if (!row?.id) continue;
+      const key = `${source.entity}:${row.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const phoneHit = digits.length >= 4 && [row.phone, row.phone2].some((p) => String(p || '').replace(/\D/g, '').includes(digits));
+      const emailHit = !!emailish && String(row.email || '').toLowerCase() === emailish;
+      const nameScore = contactScore(q, row);
+      const score = emailHit || phoneHit ? 1 : nameScore;
+      if (score < 0.7) continue;
+
+      hits.push({
+        entity: source.entity,
+        kind: source.kind,
+        id: row.id,
+        name: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+        match: score,
+        phone: row.phone || row.phone2 || '',
+        email: row.email || '',
+        status: row.status || row.pipelineStatus || '',
+        leadNumber: row.leadNumber || '',
+        owner: row.assignedTo || row.debtCoachOwner || '',
+        appointmentDate: row.appointmentDate || '',
+        lastCalledAt: row.lastCalledAt || '',
+      });
+    }
+  }
+
+  hits.sort((a, b) => b.match - a.match || a.name.localeCompare(b.name));
+  return hits.slice(0, limit);
+}
+
 function slim(rows: any[]) {
   return rows.map((row) => {
     const out: Record<string, any> = {};
@@ -323,6 +430,69 @@ async function runTool(base44: any, toolUse: any, who: any) {
       }
       const res = await base44.asServiceRole.functions.invoke(input.function_name, input.args || {});
       return { ok: true, text: JSON.stringify(res?.data ?? res).slice(0, MAX_TOOL_CHARS) };
+    }
+
+    if (toolUse.name === 'find_contacts') {
+      const query = String(input.query || '').trim();
+      if (!query) return { ok: false, text: 'Give me a name, phone or email to look for.' };
+      const matches = await findContacts(base44, query, Math.min(Number(input.limit) || 8, 20));
+      if (!matches.length) return { ok: true, text: `Nothing in DebtLead, FronterLead or LeadVaultEntry resembles "${query}".` };
+      return { ok: true, text: JSON.stringify(matches).slice(0, MAX_TOOL_CHARS) };
+    }
+
+    if (toolUse.name === 'schedule_event') {
+      const title = String(input.title || '').trim();
+      const start = new Date(String(input.start_iso || ''));
+      if (!title) return { ok: false, text: 'The event needs a title.' };
+      if (!Number.isFinite(start.getTime())) return { ok: false, text: 'start_iso was not a real date-time — send it as ISO 8601 with an offset.' };
+      const past = start.getTime() < Date.now() - 60000;
+      if (past) {
+        return { ok: false, text: `That start (${start.toLocaleString('en-US', { timeZone: 'America/New_York' })} ET) is in the past — confirm the date with the user first.` };
+      }
+
+      const minutes = Math.min(Math.max(Number(input.duration_minutes) || 30, 5), 480);
+      const reminders = Array.isArray(input.reminders_minutes)
+        ? input.reminders_minutes.map((m: any) => Number(m)).filter((m: number) => Number.isFinite(m) && m >= 0).slice(0, 5)
+        : [];
+
+      const res = await base44.asServiceRole.functions.invoke('googleCalendarSync', {
+        action: 'createEvent',
+        title,
+        startISO: start.toISOString(),
+        durationMinutes: minutes,
+        description: input.description || '',
+        reminders,
+        timeZone: 'America/New_York',
+      });
+      const data = res?.data ?? res;
+      if (!data?.eventId || data?.error) {
+        return { ok: false, text: `The calendar refused the event: ${data?.error || 'no event came back'}` };
+      }
+
+      const when = start.toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' });
+      const reminderText = reminders.length
+        ? reminders.map((m: number) => (m >= 1440 ? `${Math.round(m / 1440)} day(s)` : m >= 60 ? `${Math.round(m / 60)} hour(s)` : `${m} min`)).join(', ') + ' before'
+        : 'calendar defaults';
+
+      let linked = '';
+      if (input.lead_id) {
+        try {
+          await base44.asServiceRole.entities.DebtLead.update(input.lead_id, {
+            appointmentDate: start.toISOString(),
+            appointmentTitle: title,
+            appointmentEventId: data.eventId,
+            appointmentEventHtmlLink: data.htmlLink || '',
+          });
+          linked = ` — saved on that client so the reminder emails run`;
+        } catch (e: any) {
+          linked = ` — the event exists, but it could not be saved on that lead (${e?.message || String(e)})`;
+        }
+      }
+
+      return {
+        ok: true,
+        text: `Scheduled "${title}" for ${when} ET, ${minutes} min${linked}. Reminders: ${reminderText}. Event id ${data.eventId}${data.htmlLink ? ` · ${data.htmlLink}` : ''}`,
+      };
     }
 
     if (toolUse.name === 'send_welcome_emails') {

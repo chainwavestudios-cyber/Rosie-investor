@@ -27,15 +27,29 @@ export default async function(req) {
     const authHeader = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
 
     if (action === 'createEvent') {
-      const { title, startISO, endISO, description } = body;
+      const { title, startISO, description, timeZone } = body;
+      const start = new Date(startISO);
+      if (!title?.trim() || !Number.isFinite(start.getTime())) {
+        return Response.json({ error: 'An event needs a title and a real start date-time.' }, { status: 400 });
+      }
+      const minutes = Math.min(Math.max(Number(body.durationMinutes) || 30, 5), 480);
+      const endISO = body.endISO || new Date(start.getTime() + minutes * 60000).toISOString();
+      // Reminders: plain numbers mean a popup that many minutes before the start;
+      // {method:'email'|'popup', minutes} is passed through. Google allows five.
+      const overrides = (Array.isArray(body.reminders) ? body.reminders : [])
+        .map((r: any) => (typeof r === 'number' ? { method: 'popup', minutes: r } : r))
+        .filter((r: any) => r && Number.isFinite(Number(r.minutes)) && Number(r.minutes) >= 0)
+        .map((r: any) => ({ method: r.method === 'email' ? 'email' : 'popup', minutes: Math.round(Number(r.minutes)) }))
+        .slice(0, 5);
       const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
         headers: authHeader,
         body: JSON.stringify({
-          summary: title,
-          start: { dateTime: startISO },
-          end: { dateTime: endISO },
+          summary: title.trim(),
+          start: { dateTime: startISO, ...(timeZone ? { timeZone } : {}) },
+          end: { dateTime: endISO, ...(timeZone ? { timeZone } : {}) },
           description: description || '',
+          ...(overrides.length ? { reminders: { useDefault: false, overrides } } : {}),
         }),
       });
       const data = await res.json();
