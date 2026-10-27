@@ -423,8 +423,8 @@ export default async function(req) {
       if (!conferenceName) return Response.json({ error: 'conferenceName required' }, { status: 400 });
       if (!adminUsername) return Response.json({ error: 'adminUsername required' }, { status: 400 });
 
-      const fromNumber = lineNumber(lineKey);
-      const adminIdentity = `client:${adminUsername.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      const fromNumber = lineNumber(lineKey) || lineNumber('TWILIO_FROM_NUMBER');
+      const safeUser = adminUsername.replace(/[^a-zA-Z0-9_]/g, '_');
 
       let confSid: string | null = null;
       for (let i = 0; i < 10; i++) {
@@ -434,9 +434,11 @@ export default async function(req) {
       }
       if (!confSid) return Response.json({ error: 'Conference not found — the customer may have hung up' }, { status: 404 });
 
-      // Unhold any held participants in the conference (legacy Hold API flow)
       const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
-      for (const p of participants.participants || []) {
+      const confParticipants = participants.participants || [];
+
+      // Unhold any held participants in the conference (legacy Hold API flow)
+      for (const p of confParticipants) {
         if (p.hold) {
           try {
             await twilioFetch(`/Conferences/${confSid}/Participants/${p.call_sid}.json`, {
@@ -446,30 +448,64 @@ export default async function(req) {
           } catch (e) { console.warn('Unhold failed:', e.message); }
         }
       }
-      // Redirect customer from appointmentVoiceHandler back into the conference
-      // (new flow — customer was redirected to hold, not held in the conference)
+
+      // Where is the customer? In an AI handoff they are already waiting inside
+      // the queue conference — redirecting them there restarts the queue hold
+      // music and nobody ever reaches them. Only pull the customer back when
+      // they were parked outside on the hold flow (the fronter merge path).
+      let customerCallSid = '';
       try {
         const b44 = createClientFromRequest(req).asServiceRole;
-        const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
-        const customerCallSid = headsUps?.[0]?.customerCallSid;
-        if (customerCallSid) {
+        const record = await findQueueRecord(b44.entities, conferenceName, leadId);
+        customerCallSid = body.customerCallSid || record?.customerCallSid || '';
+        if (!customerCallSid) {
+          const headsUps = await b44.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+          customerCallSid = headsUps?.[0]?.customerCallSid || '';
+        }
+      } catch (e) { console.warn('Customer leg lookup failed:', e.message); }
+
+      const customerAlreadyWaiting = !!customerCallSid && confParticipants.some((p: any) => p.call_sid === customerCallSid);
+      if (customerCallSid && !customerAlreadyWaiting) {
+        try {
           await twilioFetch(`/Calls/${customerCallSid}.json`, {
             method: 'POST',
             body: new URLSearchParams({ Twiml: confTwiML(conferenceName, false, '') }),
           });
-        }
-      } catch (e) { console.warn('Redirect customer from hold failed:', e.message); }
+        } catch (e) { console.warn('Redirect customer from hold failed:', e.message); }
+      }
 
-      // Add Chris/admin to the conference unmuted
-      await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
-        method: 'POST',
-        body: new URLSearchParams({
-          To: adminIdentity,
-          From: fromNumber,
-          Muted: 'false',
-          Beep: 'false',
-        }),
-      });
+      // Ring the admin's browser handset. The /fronter page registers its device
+      // as `<username>_inbound` (plain `<username>` on older sessions), so the
+      // grab has to call one of those — a made-up identity rings nothing.
+      const identities = [...new Set([`${safeUser}_inbound`, safeUser, 'agent'])];
+      let rungIdentity = '';
+      let ringError = '';
+      for (const identity of identities) {
+        try {
+          await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
+            method: 'POST',
+            body: new URLSearchParams({
+              To: `client:${identity}`,
+              From: fromNumber,
+              Muted: 'false',
+              Beep: 'false',
+              StartConferenceOnEnter: 'true',
+              EndConferenceOnExit: 'true',
+            }),
+          });
+          rungIdentity = identity;
+          break;
+        } catch (e: any) {
+          ringError = e?.message || 'ring failed';
+        }
+      }
+      if (!rungIdentity) {
+        console.warn('[fronterCall] grab could not ring a dialer:', ringError);
+        return Response.json({
+          error: `Could not ring your dialer (${ringError}). Keep the Fronter page open so the inbound handset is online, then grab again.`,
+        }, { status: 409 });
+      }
+      console.log('[fronterCall] grab ringing', rungIdentity, 'into', conferenceName);
 
       // Update the lead's disposition from 'queued_no_connect' to 'transferred'
       if (leadId) {

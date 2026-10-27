@@ -530,27 +530,31 @@ export default function FronterPage() {
       {isAdmin && (
         <FronterHeadsUpPopup
           adminUsername={user?.username}
-          onListen={async (alert) => {
+          onListen={async (item) => {
             try {
               await base44.functions.invoke('fronterCall', {
                 action: 'listen',
-                conferenceName: alert.conferenceName,
+                conferenceName: item.conferenceName,
                 adminUsername: user.username,
-                lineKey: alert.lineKey || 'TWILIO_FROM_NUMBER',
+                lineKey: item.lineKey || 'TWILIO_FROM_NUMBER',
               });
-            } catch (e) { alert('Listen failed: ' + (e?.message || String(e))); }
+            } catch (e) { window.alert('Listen failed: ' + (e?.message || String(e))); }
           }}
           onOpenLead={(leadId) => { setTab('leads'); }}
-          onGrab={async (alert) => {
+          onGrab={async (item) => {
             try {
-              await base44.functions.invoke('fronterCall', {
+              const res = await base44.functions.invoke('fronterCall', {
                 action: 'grabQueuedCall',
-                conferenceName: alert.conferenceName,
+                conferenceName: item.conferenceName,
                 adminUsername: user.username,
-                lineKey: alert.lineKey || 'TWILIO_FROM_NUMBER',
-                leadId: alert.leadId,
+                lineKey: item.lineKey || 'TWILIO_FROM_NUMBER',
+                leadId: item.leadId,
               });
-            } catch (e) { alert('Grab failed: ' + (e?.message || String(e))); }
+              if (res?.data?.error) window.alert('Grab failed: ' + res.data.error);
+            } catch (e) {
+              const msg = e?.response?.data?.error || e?.message || String(e);
+              window.alert('Grab failed: ' + msg);
+            }
           }}
         />
       )}

@@ -303,10 +303,13 @@ export default async function(req) {
           ? await pickTransferLineKey(service, config.twilioLineKey || 'TWILIO_FROM_NUMBER')
           : (lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '');
         if (/^\+[1-9]\d{7,14}$/.test(mergeNumber) && mergeFrom) {
-          const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief` +
-            `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}` +
-            `&QueuedAt=${encodeURIComponent(new Date().toISOString())}` +
+          const queuedAtIso = new Date().toISOString();
+          const briefTail = `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}` +
+            `&QueuedAt=${encodeURIComponent(queuedAtIso)}` +
             (customerCallSid ? `&CallerCallSid=${encodeURIComponent(customerCallSid)}` : '');
+          const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief${briefTail}`;
+          // If line 1 never picks up, roll the same brief onto the second merge line.
+          const fallbackUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueFallback${briefTail}`;
           try {
             await twilioFetch('/Calls.json', {
               method: 'POST',
@@ -316,6 +319,9 @@ export default async function(req) {
                 Url: briefUrl,
                 Method: 'GET',
                 Timeout: '25',
+                StatusCallback: fallbackUrl,
+                StatusCallbackEvent: 'completed',
+                StatusCallbackMethod: 'POST',
               }),
             });
             console.log('[dialerVoiceHandler] → AI transfer: advisor dialed', toE164(mergeNumber), 'conf:', conferenceName);
