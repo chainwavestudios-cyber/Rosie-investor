@@ -455,18 +455,24 @@ async function runTool(base44: any, toolUse: any, who: any) {
         ? input.reminders_minutes.map((m: any) => Number(m)).filter((m: number) => Number.isFinite(m) && m >= 0).slice(0, 5)
         : [];
 
-      const res = await base44.asServiceRole.functions.invoke('googleCalendarSync', {
-        action: 'createEvent',
-        title,
-        startISO: start.toISOString(),
-        durationMinutes: minutes,
-        description: input.description || '',
-        reminders,
-        timeZone: 'America/New_York',
+      // Written straight to the business calendar so the reminders always apply —
+      // a hop through another function dropped them.
+      const endISO = new Date(start.getTime() + minutes * 60000).toISOString();
+      const { accessToken } = await base44.asServiceRole.connectors.getConnection('googlecalendar');
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: title,
+          start: { dateTime: start.toISOString(), timeZone: 'America/New_York' },
+          end: { dateTime: endISO, timeZone: 'America/New_York' },
+          description: input.description || '',
+          ...(reminders.length ? { reminders: { useDefault: false, overrides: reminders.map((m: number) => ({ method: 'popup', minutes: m })) } } : {}),
+        }),
       });
-      const data = res?.data ?? res;
-      if (!data?.eventId || data?.error) {
-        return { ok: false, text: `The calendar refused the event: ${data?.error || 'no event came back'}` };
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.id) {
+        return { ok: false, text: `The calendar refused the event: ${data?.error?.message || `HTTP ${res.status}`}` };
       }
 
       const when = start.toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' });
@@ -480,7 +486,7 @@ async function runTool(base44: any, toolUse: any, who: any) {
           await base44.asServiceRole.entities.DebtLead.update(input.lead_id, {
             appointmentDate: start.toISOString(),
             appointmentTitle: title,
-            appointmentEventId: data.eventId,
+            appointmentEventId: data.id,
             appointmentEventHtmlLink: data.htmlLink || '',
           });
           linked = ` — saved on that client so the reminder emails run`;
@@ -491,7 +497,7 @@ async function runTool(base44: any, toolUse: any, who: any) {
 
       return {
         ok: true,
-        text: `Scheduled "${title}" for ${when} ET, ${minutes} min${linked}. Reminders: ${reminderText}. Event id ${data.eventId}${data.htmlLink ? ` · ${data.htmlLink}` : ''}`,
+        text: `Scheduled "${title}" for ${when} ET, ${minutes} min${linked}. Reminders: ${reminderText}. Event id ${data.id}${data.htmlLink ? ` · ${data.htmlLink}` : ''}`,
       };
     }
 
