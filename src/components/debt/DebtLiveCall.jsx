@@ -12,6 +12,7 @@ import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
+import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import { buildIntentReport } from '@/components/debt/intentReport';
@@ -1392,7 +1393,11 @@ ${recentText}`,
 
     // Test mode forces single-mic diarization — one feed, no dual-channel duplicates.
     // Used when playing pre-recorded calls through speakers for testing.
-    const dualMode = !!customerMicId && !!micDeviceId && !testModeArg;
+    // The customer slot only counts when it really is a loopback: a microphone there
+    // would put the agent's own voice (and the room) on the customer channel.
+    const customerLabel = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
+    const customerSlotUsable = !!customerMicId && (!customerLabel || isLoopbackSource(customerLabel));
+    const dualMode = !!customerMicId && !!micDeviceId && !testModeArg && customerSlotUsable;
 
     let agentStream, customerStream;
     let feedDual = dualMode;
@@ -1477,7 +1482,7 @@ ${recentText}`,
     });
     feedRef.current = feed;
     ctxRef.current = feed.ctx;
-  }, [micDeviceId, customerMicId, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, micDevices, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
@@ -1799,6 +1804,14 @@ ${recentText}`,
 
   const startCustomerTest = useCallback(async () => {
     if (!customerMicId) return;
+    // Never open a microphone here. Testing through a mic only proves the mic hears
+    // the room — the agent's own voice included — which is the bug this split exists
+    // to prevent. Only a loopback input can be tested as the customer channel.
+    const label = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
+    if (label && !isLoopbackSource(label)) {
+      setError(`That input is a microphone (${label}), not the customer line. Pick Stereo Mix / What U Hear — a mic would capture your own voice on the customer channel.`);
+      return;
+    }
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
@@ -1825,7 +1838,7 @@ ${recentText}`,
       tick();
       setTestingCustomer(true);
     } catch (e) { setError('Customer input test failed: ' + (e?.message || String(e))); }
-  }, [customerMicId, customerGain]);
+  }, [customerMicId, customerGain, micDevices]);
 
   const stopCustomerTest = useCallback(() => {
     if (testCustomerAnimRef.current) cancelAnimationFrame(testCustomerAnimRef.current);
@@ -1837,6 +1850,11 @@ ${recentText}`,
   }, []);
 
   useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
+
+  // Only loopback-style inputs can be the customer channel — microphones are kept
+  // out of this list entirely so the room can never end up labelled "customer".
+  const customerInputs = micDevices.filter(m => isLoopbackSource(m.label || ''));
+  const customerLabelSelected = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
@@ -1869,10 +1887,13 @@ ${recentText}`,
           </div>
           <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
             <option value="">— None (use diarization) —</option>
-            {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
+            {customerInputs.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
-          {customerMicId && !/stereo mix|what u hear|loopback/i.test(micDevices.find(m => m.deviceId === customerMicId)?.label || '') && (
-            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ This is a microphone — it records the whole room. Pick Stereo Mix so only the caller lands on this channel.</span>
+          {micDevices.length > 0 && customerInputs.length === 0 && (
+            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ No loopback input found. Enable “Stereo Mix” (or your virtual cable) in Windows sound settings, then 🔄 re-scan. Microphones are not allowed on this channel.</span>
+          )}
+          {customerMicId && customerLabelSelected && !isLoopbackSource(customerLabelSelected) && (
+            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ “{customerLabelSelected}” is a microphone — it would record your own voice on the customer channel. Pick Stereo Mix.</span>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
