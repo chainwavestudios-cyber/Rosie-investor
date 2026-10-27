@@ -472,8 +472,10 @@ Agent line: "${firstAgentLines}"`,
     const mics = devices.filter(d => d.kind === 'audioinput');
     setMicDevices(mics);
     // Stereo Mix carries whatever the computer plays — which is how a phone call on
-    // Bluetooth reaches the app — so it fills the slot the Rodecaster used to.
-    const customerSource = mics.find(m => /rode|rodecaster|røde|stereo mix|what u hear|loopback/i.test(m.label || ''));
+    // Bluetooth reaches the app — so it wins the customer slot over the Rodecaster,
+    // which stays on the agent mic.
+    const customerSource = mics.find(m => /stereo mix|what u hear|loopback/i.test(m.label || ''))
+      || mics.find(m => /rode|rodecaster|røde/i.test(m.label || ''));
     if (customerSource) setCustomerMicId(prev => prev || customerSource.deviceId);
     if (mics.length > 0) setMicDeviceId(prev => prev || mics[0].deviceId);
     const outputs = devices.filter(d => d.kind === 'audiooutput');
