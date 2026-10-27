@@ -30,7 +30,13 @@ export function createBleedSuppressor() {
       const micRms = rms(agent, start, n);
 
       let target = 1;
-      if (refRms > FLOOR) {
+      // When the learned bleed coupling is high, the agent's own microphone is
+      // being played back into the system output, so the loopback channel
+      // carries the agent too and mic level can no longer prove "this is only
+      // bleed". Ducking there would erase real agent speech and hand it to the
+      // customer channel — so never duck in that case.
+      const loopbackPolluted = bleedGain > 0.55;
+      if (refRms > FLOOR && !loopbackPolluted) {
         const expected = refRms * bleedGain;
         if (micRms <= expected * 2) target = DUCK_HARD;
         else if (micRms <= expected * KEEP_ABOVE) target = DUCK_SOFT;
@@ -39,6 +45,7 @@ export function createBleedSuppressor() {
           bleedGain = bleedGain * 0.995 + (micRms / refRms) * 0.005;
           if (bleedGain < 0.02) bleedGain = 0.02;
           if (bleedGain > 1) bleedGain = 1;
+          if (bleedGain > 0.55) bleedGain = 1; // latch: loopback polluted, stay off
         }
       }
 

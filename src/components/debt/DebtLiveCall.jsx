@@ -1104,6 +1104,18 @@ ${recentText}`,
         entry = { ...entry, text: remaining };
       }
     }
+    // Same rule in reverse: when the agent's own microphone is played back into
+    // the system output, his words come back on the loopback channel too. If the
+    // mic already carried that statement in full, the customer-channel copy is
+    // his own voice returning — drop it. A mic-side fragment is not proof, so a
+    // complete customer line is always kept.
+    if (entry.speaker === 1) {
+      const ownVoice = recentBleedRef.current.find(r =>
+        r.speaker === 0 && echoNow - r.ts <= ECHO_WINDOW_MS &&
+        r.text.trim().length >= entry.text.trim().length &&
+        (r.text.trim() === entry.text.trim() || textSimilarity(entry.text, r.text) > 0.6));
+      if (ownVoice) return;
+    }
     recentBleedRef.current = [...recentBleedRef.current, { speaker: entry.speaker, text: entry.text, ts: Date.now() }].slice(-20);
 
     // ── Transfer Agent Detection (inbound calls only) ──────────────────
