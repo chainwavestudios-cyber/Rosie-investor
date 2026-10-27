@@ -18,7 +18,7 @@ import { buildIntentReport } from '@/components/debt/intentReport';
 import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
-import { createBleedSuppressor } from '@/lib/audioBleedSuppressor';
+import { startLiveFeed } from '@/lib/debtLiveFeed';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
@@ -39,46 +39,7 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 
 const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints', 'debt_common_qa', 'debt_objections', 'debt_disqualify', 'debt_open_scenario', 'debt_close_scenario'];
 
-// Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
-// that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
-// Extracted from real Drew call transcripts — creditor names, financial terms, phrases.
-const DEBT_KEYTERMS = [
-  // ── Core financial terms (trimmed: removed 'pay','paid','debt','debts' — too common, caused 'pay'→'training' mishearing) ──
-  'payment', 'paying', 'payments',
-  'settle', 'settlement', 'settling', 'settled',
-  'enroll', 'enrollment', 'enrolling', 'enrolled',
-  'debtor', 'creditor', 'creditors',
-  'bankruptcy', 'hardship', 'cosigner', 'cosigners',
-  'garnishment', 'consolidation', 'escrow', 'forbearance', 'repossession',
-  'collector', 'collectors', 'collection', 'balance', 'balances',
-  'delinquent', 'delinquency', 'utilization', 'negotiate', 'negotiation',
-  // ── Financial phrases ──
-  'minimum+payment', 'charge+off', 'charged+off', 'monthly+payment',
-  'credit+score', 'credit+report', 'credit+card', 'debit+card',
-  'lump+sum', 'social+security', 'account+number', 'interest+rate',
-  'unsecured+debt', 'soft+credit+check', 'fixed+income',
-  'debt+settlement', 'debt+consolidation', 'debt+management',
-  'authorized+user', 'past+due', 'escrow+account', 'trust+account',
-  'tax+write-off', 'checking+account', 'savings+account', 'routing+number',
-  'minimum+payment+warning', 'debt+to+income+ratio',
-  // ── Creditor names ──
-  'Chase', 'Discover', 'Amex', 'American+Express', 'Citi', 'Citibank',
-  'Synchrony', 'Synchrony+Bank', 'Comenity', 'Comenity+Capital',
-  'Barclaycard', 'Wells+Fargo', 'Capital+One', 'Bank+of+America',
-  'Best+Egg', 'Venmo', 'One+Main', 'Home+Depot', 'Best+Buy',
-  'Credit+One', 'Credit+One+Bank', 'First+Premier', 'Milestone',
-  'Indigo', 'PayPal', 'Samsung', 'Amazon', 'Chevron',
-  'Rooms+to+Go', 'Care+Credit', 'Farm+Bureau', 'First+Savings+Bank',
-  'Goldman+Sachs', 'Navy+Federal', 'Pentagon', 'Vistar', 'Greenwood',
-  'Bank+of+Missouri', 'Alfion', 'Alfion+Dental', 'Tampa+Bay',
-  // ── Company / program names ──
-  'Start+New+Financial', 'Global+Holdings', 'Evergreen+Legal',
-  'Debt+Advisors', 'Better+Business+Bureau', 'Trustpilot',
-  'DocuSign', 'LinkedIn', 'Torch+Award',
-  // ── Bankruptcy / legal terms ──
-  'Chapter+7', 'Chapter+13', 'means+test', 'liquidation',
-  'APR',
-].map(k => `keyterm=${k}`).join('&');
+// Deepgram keyterms live in src/lib/debtLiveFeed.js, next to the audio transport.
 
 // Wrapper for liveAssistantAI calls — detects credit exhaustion in responses/errors
 // and triggers the CreditAlertPopup automatically.
@@ -350,7 +311,7 @@ Agent line: "${firstAgentLines}"`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callType, coachUser]);
 
-  const wsRef = useRef(null);
+  const feedRef = useRef(null);
   const streamRef = useRef(null);
   const customerStreamRef = useRef(null);
   const ctxRef = useRef(null);
@@ -1460,169 +1421,35 @@ ${recentText}`,
     if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
     if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
 
-    // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
-    // Browser default (48kHz) wastes 3x bandwidth and doesn't match the model.
-    // The browser resamples all input (mic + Twilio stream) to this rate automatically.
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    if (ctx.state === 'suspended') await ctx.resume();
-    ctxRef.current = ctx;
-    const sr = ctx.sampleRate;
+    // The 16kHz AudioContext lives in the feed module, next to the socket.
 
-    const dgParams = dualMode
-      ? `model=nova-3&multichannel=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&channels=2&sample_rate=${sr}&encoding=linear16&endpointing=400&${DEBT_KEYTERMS}`
-      : `model=nova-3&diarize=true&smart_format=true&punctuate=true&numerals=true&sentiment=true&utterances=true&interim_results=true&sample_rate=${sr}&encoding=linear16&endpointing=400&${DEBT_KEYTERMS}`;
-    let wsEverOpen = false;
-    const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${dgParams}`, ['token', dgKey]);
-    ws.binaryType = 'arraybuffer';
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      wsEverOpen = true;
-      setDgStatus('connected');
-      // Update DialerSession to on_call
-      if (coachUser?.username) {
+    const feed = await startLiveFeed({
+      agentStream, customerStream, dualMode, dgKey, agentGain, customerGain,
+      onStatus: setDgStatus,
+      onError: setError,
+      onLine: processNewEntry,
+      onInterim: updateInterimLine,
+      onCreditExhaustion: notifyCreditExhaustion,
+      onOpen: () => {
+        // Update DialerSession to on_call
+        if (!coachUser?.username) return;
         base44.entities.DialerSession.filter({ username: coachUser.username }).then(sessions => {
           const active = (sessions || []).find(s => s.status === 'logged_in' || s.status === 'on_call');
-          if (active) {
-            base44.entities.DialerSession.update(active.id, {
-              status: 'on_call',
-              currentCallLeadId: leadRef.current?.id || '',
-              currentCallLeadName: `${leadRef.current?.firstName || ''} ${leadRef.current?.lastName || ''}`.trim(),
-              currentCallPhone: leadRef.current?.phone || '',
-              currentCallStartedAt: new Date().toISOString(),
-              currentCallMode: callMode,
-            }).catch(() => {});
-          }
+          if (!active) return;
+          base44.entities.DialerSession.update(active.id, {
+            status: 'on_call',
+            currentCallLeadId: leadRef.current?.id || '',
+            currentCallLeadName: `${leadRef.current?.firstName || ''} ${leadRef.current?.lastName || ''}`.trim(),
+            currentCallPhone: leadRef.current?.phone || '',
+            currentCallStartedAt: new Date().toISOString(),
+            currentCallMode: callMode,
+          }).catch(() => {});
         }).catch(() => {});
-      }
-      if (dualMode) {
-        // Multichannel: channel 0 = agent (left), channel 1 = customer (right).
-        // Agent mic captures with echoCancellation enabled to reduce speaker
-        // bleed; the agent channel stays live at all times so the agent can
-        // speak over the customer when needed (no auto-muting gate).
-        const agentSrc = ctx.createMediaStreamSource(agentStream);
-        const customerSrc = ctx.createMediaStreamSource(customerStream);
-        const agentGainNode = ctx.createGain();
-        agentGainNode.gain.value = agentGain;
-        const customerGainNode = ctx.createGain();
-        customerGainNode.gain.value = customerGain;
-        const merger = ctx.createChannelMerger(2);
-        agentSrc.connect(agentGainNode);
-        agentGainNode.connect(merger, 0, 0);
-        customerSrc.connect(customerGainNode);
-        customerGainNode.connect(merger, 0, 1);
-        const processor = ctx.createScriptProcessor(4096, 2, 2);
-        processorRef.current = processor;
-        // Speaker bleed: the caller's voice plays out of the speakers and the mic
-        // hears it, so the clean Stereo Mix channel is used as the reference and
-        // the bleed is stripped off the agent channel before it goes to Deepgram.
-        const suppressBleed = createBleedSuppressor();
-        processor.onaudioprocess = (ev) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const left = ev.inputBuffer.getChannelData(0);
-          const right = ev.inputBuffer.getChannelData(1);
-          suppressBleed(left, right);
-          const int16 = new Int16Array(left.length * 2);
-          for (let i = 0; i < left.length; i++) {
-            int16[i * 2] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
-            int16[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
-          }
-          ws.send(int16.buffer);
-        };
-        merger.connect(processor);
-        const silence = ctx.createGain(); silence.gain.value = 0;
-        processor.connect(silence); silence.connect(ctx.destination);
-      } else {
-        // Single mic with diarization
-        const source = ctx.createMediaStreamSource(agentStream);
-        const agentGainNode = ctx.createGain();
-        agentGainNode.gain.value = agentGain;
-        const processor = ctx.createScriptProcessor(4096, 1, 1);
-        processorRef.current = processor;
-        processor.onaudioprocess = (ev) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          const input = ev.inputBuffer.getChannelData(0);
-          const int16 = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
-          ws.send(int16.buffer);
-        };
-        source.connect(agentGainNode);
-        agentGainNode.connect(processor);
-        const silence = ctx.createGain(); silence.gain.value = 0;
-        processor.connect(silence); silence.connect(ctx.destination);
-      }
-    };
-
-    // Collect is_final chunks until speech_final, then emit one complete line.
-    // Deepgram sends is_final mid-sentence; speech_final marks a real pause.
-    // endpointing=700 gives 700ms of silence before Deepgram fires speech_final.
-    const segBuf = {}; // per speaker: { text, sentiment, timer }
-    const emitSegment = (speaker) => {
-      const b = segBuf[speaker];
-      if (!b || !b.text.trim()) { delete segBuf[speaker]; return; }
-      clearTimeout(b.timer);
-      processNewEntry({ speaker, text: b.text.trim(), sentiment: b.sentiment, time: new Date().toISOString() });
-      delete segBuf[speaker];
-    };
-
-    ws.onmessage = (e) => {
-      if (e.data instanceof ArrayBuffer) return;
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type !== 'Results') return;
-        const alt = msg.channel?.alternatives?.[0];
-        // speech_final with empty transcript = natural pause → flush all pending segments
-        if (!alt || !alt.transcript?.trim()) {
-          if (msg.is_final && msg.speech_final) Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
-          return;
-        }
-        const channelNum = Array.isArray(msg.channel_index) ? msg.channel_index[0] : 0;
-        const speaker = dualMode ? (channelNum === 0 ? 0 : 1) : (alt.words?.[0]?.speaker ?? 0);
-
-        // Speaker changed mid-buffer (single-mic mode): flush the other speaker first
-        Object.keys(segBuf).forEach(k => { if (Number(k) !== speaker) emitSegment(Number(k)); });
-
-        if (msg.is_final) {
-          // Finalized chunk — accumulate in segBuf
-          const b = segBuf[speaker] || (segBuf[speaker] = { text: '', sentiment: null, timer: null });
-          const chunk = alt.transcript.trim();
-          if (chunk) {
-            const acc = b.text.trim();
-            if (!acc) {
-              b.text = chunk;
-            } else if (chunk.startsWith(acc)) {
-              // Deepgram re-sent the full accumulated text — replace, don't append
-              b.text = chunk;
-            } else if (acc.endsWith(chunk)) {
-              // Exact duplicate chunk — skip
-            } else {
-              b.text += ' ' + chunk;
-            }
-          }
-          b.sentiment = msg.sentiment || alt.sentiment || b.sentiment;
-          clearTimeout(b.timer);
-          if (msg.speech_final) {
-            emitSegment(speaker);
-          } else {
-            // Show the accumulated text so far as a live preview
-            updateInterimLine(speaker, b.text.trim());
-            b.timer = setTimeout(() => emitSegment(speaker), 1500); // safety flush
-          }
-        } else {
-          // Interim result — show live partial text (accumulated + current partial)
-          const b = segBuf[speaker];
-          const accumulated = b ? b.text.trim() : '';
-          updateInterimLine(speaker, (accumulated + ' ' + alt.transcript).trim());
-        }
-      } catch {}
-    };
-
-    ws.onclose = (e) => {
-      // Flush any pending speech segments before final save
-      Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
-      setDgStatus('idle');
-      // Final save of transcript when connection closes — captures lines since the last 15s auto-save
-      if (transcriptRef.current.length > 0 && leadRef.current?.id) {
+      },
+      // Final save of transcript when the connection closes — captures lines
+      // since the last 15s auto-save.
+      onSocketClosed: () => {
+        if (transcriptRef.current.length === 0 || !leadRef.current?.id) return;
         base44.entities.DebtLead.update(leadRef.current.id, {
           transcriptJson: JSON.stringify(transcriptRef.current),
           lastCallAt: new Date().toISOString(),
@@ -1633,14 +1460,10 @@ ${recentText}`,
             transcriptLineCount: transcriptRef.current.length,
           }).catch(() => {});
         }
-      }
-      if (e.code !== 1000 && e.code !== 1005) setError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
-    };
-    ws.onerror = () => {
-      setDgStatus('error');
-      setError('Deepgram connection error — check API key.');
-      if (!wsEverOpen) notifyCreditExhaustion('deepgram', 'WebSocket failed to connect — credits may be exhausted or API key invalid.');
-    };
+      },
+    });
+    feedRef.current = feed;
+    ctxRef.current = feed.ctx;
   }, [micDeviceId, customerMicId, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
@@ -1672,8 +1495,7 @@ ${recentText}`,
     if (recorder.isRecording) {
       try { recordingUri = await recorder.stop(); } catch {}
     }
-    if (wsRef.current) { try { wsRef.current.close(); } catch {} wsRef.current = null; }
-    if (processorRef.current) { try { processorRef.current.disconnect(); } catch {} processorRef.current = null; }
+    if (feedRef.current) { feedRef.current.close(); feedRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
