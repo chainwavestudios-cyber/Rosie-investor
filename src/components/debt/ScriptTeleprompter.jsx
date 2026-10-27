@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { renderFormatted, stripFormatTags } from '@/components/debt/ScriptRichText';
 import { stripAiTags } from '@/lib/fronterContactFields';
 import { substituteScriptVars } from '@/lib/scriptSubstitute';
+import DebtInlineField from '@/components/debt/DebtInlineField';
 
 const GOLD = '#10b981';
 
@@ -35,10 +36,13 @@ export const CUE_CATEGORIES = {
   tone:      { label: 'Tone',     icon: '🎯', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.35)' },
 };
 
+export const FIELD_MARKER_REGEX = /@@FIELD:[A-Za-z0-9_]+@@/i;
+
 /**
  * Parse raw script content into an ordered array of elements.
  * Cue blocks (lines matching @@CUE:category:content@@) become cue_block elements.
  * Blank lines are skipped. Everything else is a script line.
+ * @@FIELD:email@@ & co. become editable contact-card fields.
  */
 export function parseScriptElements(content) {
   if (!content) return [];
@@ -59,7 +63,20 @@ export function parseScriptElements(content) {
       continue;
     } else {
       // AI field tags are cues for the AI only — never shown while viewing or using the script
-      elements.push({ id: `script-${i}`, type: 'script', content: stripAiTags(line), origLine: i });
+      const clean = stripAiTags(line);
+      if (FIELD_MARKER_REGEX.test(clean)) {
+        // A line may mix text and editable card fields — split them apart
+        clean.split(/(@@FIELD:[A-Za-z0-9_]+@@)/i).forEach((part, p) => {
+          const marker = part.match(/^@@FIELD:([A-Za-z0-9_]+)@@$/i);
+          if (marker) {
+            elements.push({ id: `field-${i}-${p}`, type: 'field', field: marker[1], origLine: i });
+          } else if (stripFormatTags(part).trim() !== '') {
+            elements.push({ id: `script-${i}-${p}`, type: 'script', content: part, origLine: i });
+          }
+        });
+      } else {
+        elements.push({ id: `script-${i}`, type: 'script', content: clean, origLine: i });
+      }
     }
   }
   return elements;
@@ -403,6 +420,10 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
             const button = renderActionButton(el.action);
             if (!button) return null;
             return <div key={el.id} style={{ margin: '10px 0', display: 'flex', justifyContent: 'center' }}>{button}</div>;
+          }
+          if (el.type === 'field') {
+            // Editable contact-card field, live inside the script
+            return <DebtInlineField key={el.id} field={el.field} lead={lead} />;
           }
           const scriptIdx = scriptLines.indexOf(el);
           const isActive = scriptIdx === activeIdx;

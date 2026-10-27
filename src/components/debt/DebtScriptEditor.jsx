@@ -447,6 +447,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
                 <span style={{ marginLeft: '12px' }}>Format: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>[b]..[/b] [i]..[/i] [c=#hex]..[/c] [bg=#hex]..[/bg] [s=18]..[/s] [f=Arial]..[/f]</span></span>
                 <span style={{ marginLeft: '12px' }}>Cue: <span style={{ color: '#60a5fa', fontFamily: 'monospace' }}>@@CUE:reminder:text@@</span></span>
                 <span style={{ marginLeft: '12px' }}>AI: <span style={{ color: GOLD, fontFamily: 'monospace' }}>[[AI:fieldName]]</span> — capture into that field · <span style={{ color: GOLD, fontFamily: 'monospace' }}>@@AI_INPUT@@</span> — add call summary to notes</span>
+                <span style={{ marginLeft: '12px' }}>Contact Field: <span style={{ color: '#22d3ee', fontFamily: 'monospace' }}>@@FIELD:email@@ · @@FIELD:phone@@ · @@FIELD:debtAmount@@</span> — edit and update the contact card inside the script</span>
               </div>
             </>
           ) : (
