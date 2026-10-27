@@ -13,6 +13,23 @@ import { getDebtCoachValue, setDebtCoachValue, getCachedDebtCoachValue } from '@
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
 
+/** Same timer as the contact card's ⏰, but safe when the cache isn't loaded yet (used by the AI console). */
+export async function addProfileTimerAsync(username, lead, minutes) {
+  if (!lead?.id || !username) return false;
+  const ms = (Number(minutes) || 0) * 60000;
+  if (ms < 60000) return false;
+  const timer = {
+    leadId: lead.id,
+    leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
+    fireAt: Date.now() + ms,
+    label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
+  };
+  const timers = (await getDebtCoachValue(username, 'profile_timers', [])) || [];
+  await setDebtCoachValue(username, 'profile_timers', [...timers.filter(t => t.leadId !== lead.id), timer]);
+  window.dispatchEvent(new CustomEvent('profile_timer_set', { detail: timer }));
+  return true;
+}
+
 export function setProfileTimer(username, lead, hours, minutes) {
   if (!lead?.id || !username) return false;
   const ms = (Number(hours) || 0) * 3600000 + (Number(minutes) || 0) * 60000;

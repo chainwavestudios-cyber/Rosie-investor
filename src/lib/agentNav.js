@@ -61,3 +61,28 @@ export function navigationUrl(action) {
   if (!action) return null;
   return action.tab ? `${action.path}?tab=${action.tab}` : action.path;
 }
+
+// [[TIMER:<username>|<leadId>|<minutes>|<first>|<last>|<phone>]] — the agent asked
+// for a countdown on a contact card. Pulled out here, applied by the console.
+export function extractAgentTimers(text) {
+  const timers = [];
+  const clean = String(text || '')
+    .replace(/\[\[\s*TIMER:\s*([^\]]+?)\s*\]\]/gi, (_match, payload) => {
+      const [username, leadId, minutes, first, last, phone] = String(payload).split('|');
+      const mins = Number(minutes);
+      if (!username || !leadId || !Number.isFinite(mins) || mins < 1) return '';
+      const decode = (v) => { try { return decodeURIComponent(v || ''); } catch { return v || ''; } };
+      timers.push({
+        username,
+        leadId,
+        minutes: mins,
+        firstName: decode(first),
+        lastName: decode(last),
+        phone: decode(phone),
+      });
+      return '';
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { clean, timers };
+}

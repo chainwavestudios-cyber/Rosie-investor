@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { extractAgentNavigation, navigationUrl } from '@/lib/agentNav';
+import { extractAgentNavigation, extractAgentTimers, navigationUrl } from '@/lib/agentNav';
+import { addProfileTimerAsync } from '@/components/debt/ProfileTimerWatcher';
 
 // Drives the ⌘A command console: keeps the running conversation (so it survives
 // page changes and reloads), sends each turn to the appAgent function, and turns
@@ -69,7 +70,18 @@ export default function useAppAgent(focus = null) {
         },
       });
       const data = res?.data || res || {};
-      const { clean, actions } = extractAgentNavigation(data.reply || '');
+      const nav = extractAgentNavigation(data.reply || '');
+      const { actions } = nav;
+      const { clean, timers } = extractAgentTimers(nav.clean);
+
+      // A timer the agent set shows up on the contact card straight away
+      timers.forEach((t) => {
+        addProfileTimerAsync(
+          t.username,
+          { id: t.leadId, firstName: t.firstName, lastName: t.lastName, phone: t.phone },
+          t.minutes,
+        ).catch(() => {});
+      });
 
       let landed = null;
       if (actions.length) {

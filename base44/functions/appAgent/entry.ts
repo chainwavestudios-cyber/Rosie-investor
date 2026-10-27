@@ -84,9 +84,23 @@ const TOOLS = [
     },
   },
   {
+    name: 'set_timer',
+    description:
+      'Set a countdown timer on a client\'s contact card (the ⏰ timer there). Use this when the user says "set a timer", "remind me in 20 minutes", "give me 30 minutes" — a short countdown for the person working the lead. It does NOT touch the calendar and never creates or moves an appointment. Needs the DebtLead id from find_contacts (or a lead_name to look up) plus minutes (1 to 1440).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        lead_id: { type: 'string', description: 'DebtLead id from find_contacts' },
+        lead_name: { type: 'string', description: 'Name to look up when the id is unknown' },
+        minutes: { type: 'number', description: 'Timer length in minutes (1 to 1440)' },
+      },
+      required: ['minutes'],
+    },
+  },
+  {
     name: 'schedule_event',
     description:
-      'Create a real event on the business Google Calendar, with reminders. Use it whenever the user asks to schedule, book, set up or be reminded about anything — appointments, call-backs, meetings, follow-ups. Times are ISO 8601 (e.g. 2026-11-03T14:30:00-05:00); resolve "tomorrow at 2pm" against the LOCAL TIME in the system prompt. Pass lead_id (from find_contacts) when the event belongs to a client, so it lands on their contact card and the night-before and 1-hour reminder emails run.',
+      'Create or move a real event on the business Google Calendar, with reminders. Use it when the user asks to schedule, book or set an appointment, call-back, meeting or follow-up at a date and time — NOT for a timer. If the client already has an appointment, this moves that same event instead of booking a second one. Times are ISO 8601 (e.g. 2026-11-03T14:30:00-05:00); resolve "tomorrow at 2pm" against the LOCAL TIME in the system prompt. Always pass lead_id (from find_contacts) when the event belongs to a client, so it lands on their contact card and the night-before and 1-hour reminder emails run.',
     input_schema: {
       type: 'object',
       properties: {
@@ -458,18 +472,43 @@ async function runTool(base44: any, toolUse: any, who: any) {
       // Written straight to the business calendar so the reminders always apply —
       // a hop through another function dropped them.
       const endISO = new Date(start.getTime() + minutes * 60000).toISOString();
+      const eventBody = {
+        summary: title,
+        start: { dateTime: start.toISOString(), timeZone: 'America/New_York' },
+        end: { dateTime: endISO, timeZone: 'America/New_York' },
+        description: input.description || '',
+        ...(reminders.length ? { reminders: { useDefault: false, overrides: reminders.map((m: number) => ({ method: 'popup', minutes: m })) } } : {}),
+      };
       const { accessToken } = await base44.asServiceRole.connectors.getConnection('googlecalendar');
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: title,
-          start: { dateTime: start.toISOString(), timeZone: 'America/New_York' },
-          end: { dateTime: endISO, timeZone: 'America/New_York' },
-          description: input.description || '',
-          ...(reminders.length ? { reminders: { useDefault: false, overrides: reminders.map((m: number) => ({ method: 'popup', minutes: m })) } } : {}),
-        }),
-      });
+      const authHeaders = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+
+      // If this client already has an appointment on the calendar, MOVE that event
+      // instead of booking a second one on top of it.
+      const existingLead = input.lead_id
+        ? await base44.asServiceRole.entities.DebtLead.get(input.lead_id).catch(() => null)
+        : null;
+      const existingEventId = existingLead?.appointmentEventId || '';
+      let movedExisting = false;
+      let res: any = null;
+
+      if (existingEventId) {
+        res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(existingEventId)}`, {
+          method: 'PATCH',
+          headers: authHeaders,
+          body: JSON.stringify(eventBody),
+        });
+        if (res.ok) movedExisting = true;
+        else if (res.status === 404 || res.status === 410) res = null; // old event was deleted — book a fresh one
+      }
+      if (!res || !res.ok) {
+        const retry = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify(eventBody),
+        });
+        if (!movedExisting) res = retry;
+      }
+
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.id) {
         return { ok: false, text: `The calendar refused the event: ${data?.error?.message || `HTTP ${res.status}`}` };
@@ -497,7 +536,30 @@ async function runTool(base44: any, toolUse: any, who: any) {
 
       return {
         ok: true,
-        text: `Scheduled "${title}" for ${when} ET, ${minutes} min${linked}. Reminders: ${reminderText}. Event id ${data.id}${data.htmlLink ? ` · ${data.htmlLink}` : ''}`,
+        text: `${movedExisting ? 'Moved the appointment that already existed' : 'Scheduled'} "${title}" for ${when} ET, ${minutes} min${linked}. Reminders: ${reminderText}. Event id ${data.id}${data.htmlLink ? ` · ${data.htmlLink}` : ''}${movedExisting ? '. No second event was created.' : ''}`,
+      };
+    }
+
+    if (toolUse.name === 'set_timer') {
+      const minutes = Math.round(Number(input.minutes));
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 1440) {
+        return { ok: false, text: 'Give the timer length in minutes (1 to 1440).' };
+      }
+      let leadId = String(input.lead_id || '').trim();
+      if (!leadId && input.lead_name) {
+        const matches = await findContacts(base44, String(input.lead_name), 5);
+        const hit = matches.find((m: any) => m.entity === 'DebtLead' && !m.appointmentDate) || matches.find((m: any) => m.entity === 'DebtLead');
+        if (hit) leadId = hit.id;
+      }
+      const lead = leadId ? await base44.asServiceRole.entities.DebtLead.get(leadId).catch(() => null) : null;
+      if (!lead) return { ok: false, text: 'I need the client this timer is for — find them with find_contacts first.' };
+
+      const label = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client';
+      const directive = `[[TIMER:${who.username}|${lead.id}|${minutes}|${encodeURIComponent(lead.firstName || '')}|${encodeURIComponent(lead.lastName || '')}|${encodeURIComponent(lead.phone || '')}]]`;
+      return {
+        ok: true,
+        directive,
+        text: `Timer set on ${label}'s contact card for ${minutes} minute(s) — it counts down there and a popup reopens their card when it fires. Nothing was added to the calendar.`,
       };
     }
 
@@ -537,6 +599,7 @@ Deno.serve(async (req) => {
     }];
     const messages: any[] = [...history];
     const toolLog: any[] = [];
+    const directives: string[] = [];
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const response = await callAnthropic(apiKey, {
@@ -563,19 +626,26 @@ Deno.serve(async (req) => {
       const toolUses = content.filter((c: any) => c?.type === 'tool_use');
       const text = content.filter((c: any) => c?.type === 'text').map((c: any) => c.text).join('\n').trim();
 
-      if (!toolUses.length) return Response.json({ reply: text || 'Done.', toolLog });
+      if (!toolUses.length) {
+        const withDirectives = [text || 'Done.', ...directives].filter(Boolean).join('\n');
+        return Response.json({ reply: withDirectives, toolLog });
+      }
 
       messages.push({ role: 'assistant', content });
       const results: any[] = [];
       for (const toolUse of toolUses) {
         const result = await runTool(base44, toolUse, who);
+        if (result?.directive && !directives.includes(result.directive)) directives.push(result.directive);
         toolLog.push({ name: toolUse.name, input: toolUse.input, ok: result.ok });
         results.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.text });
       }
       messages.push({ role: 'user', content: results });
     }
 
-    return Response.json({ reply: 'That needed more digging than I can do in one pass — try narrowing the question.', toolLog });
+    return Response.json({
+      reply: ['That needed more digging than I can do in one pass — try narrowing the question.', ...directives].join('\n'),
+      toolLog,
+    });
   } catch (e: any) {
     console.error('[appAgent] failed:', e?.message || String(e));
     return Response.json({ reply: 'The console hit an error. Try again in a moment.', error: e?.message || String(e) });
