@@ -17,6 +17,7 @@ import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import LiveProfileAgent from '@/components/debt/LiveProfileAgent';
 import AIPopulateTab from '@/components/shared/AIPopulateTab';
 import ApptTrackingBadges from '@/components/debt/ApptTrackingBadges';
+import AppointmentCountdown from '@/components/debt/AppointmentCountdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { HOT_LEADS_KEY } from '@/lib/hotLeads';
 import AiInviteLinksButton from '@/components/debt/AiInviteLinksButton';
@@ -339,6 +340,9 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px', lineHeight: 1 }}>×</button>
         </div>
       </div>
+
+      {/* Appointment countdown — ticks live whenever a time is set */}
+      {local.appointmentDate && <AppointmentCountdown date={local.appointmentDate} />}
 
       {/* Timer + Call bar — compact single row */}
       <div style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>

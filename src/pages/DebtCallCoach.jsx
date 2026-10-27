@@ -47,6 +47,7 @@ import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
+import AppointmentTimersBar from '@/components/debt/AppointmentTimersBar';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -138,6 +139,9 @@ export default function DebtCallCoach() {
           <button onClick={logout} style={{ background: 'rgba(255,255,255,0.08)', color: '#a8b8d0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px' }}>Logout</button>
         </div>
       </div>
+
+      {/* Every upcoming appointment, counting down live */}
+      <AppointmentTimersBar onOpenLead={(lead) => setPipelineLead(lead)} />
 
       {/* Cross-portal switcher */}
       <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} />
