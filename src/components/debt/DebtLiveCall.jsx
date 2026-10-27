@@ -1395,23 +1395,36 @@ ${recentText}`,
     const dualMode = !!customerMicId && !!micDeviceId && !testModeArg;
 
     let agentStream, customerStream;
+    let feedDual = dualMode;
     try {
       agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
         // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
         // browser silently hand back the DEFAULT MICROPHONE, so the customer channel
-        // ends up recording the agent's own voice — two voices on one channel. Failing
-        // loudly is better than quietly mis-routing the feed.
-        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } })
-          .catch(() => { throw new Error('CUSTOMER_DEVICE_UNAVAILABLE'); });
-        customerStreamRef.current = customerStream;
+        // ends up recording the agent's own voice — two voices on one channel.
+        const grab = (id) => navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id } } });
+        customerStream = await grab(customerMicId).catch(async () => {
+          // Plugging in headphones re-numbers the Realtek inputs, so the saved id
+          // goes stale. Re-find the loopback by name before giving up on it.
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+          const ins = devices.filter(d => d.kind === 'audioinput');
+          const loop = ins.find(d => /stereo mix/i.test(d.label || ''))
+            || ins.find(d => /what u hear|loopback/i.test(d.label || ''));
+          if (!loop) return null;
+          const s = await grab(loop.deviceId).catch(() => null);
+          if (s) setCustomerMicId(loop.deviceId);
+          return s;
+        });
+        if (customerStream) customerStreamRef.current = customerStream;
+        else feedDual = false; // customer slot really is gone — keep transcribing the mic
       }
     } catch (e) {
-      setError(e?.message === 'CUSTOMER_DEVICE_UNAVAILABLE'
-        ? 'Customer audio device is not available — click the 🔄 re-scan button and pick it again (the browser would otherwise record your microphone on that channel).'
-        : 'Microphone/audio access denied.');
+      setError('Microphone/audio access denied.');
       setPhase('idle'); setDgStatus('error'); return;
+    }
+    if (dualMode && !feedDual) {
+      setError('Customer audio device is not available — transcribing your microphone only and separating the two voices by speaker. Re-scan and pick the device again to restore the split.');
     }
 
     // Server-held key first (its secret is always the current one); the compiled
@@ -1424,7 +1437,7 @@ ${recentText}`,
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
     const feed = await startLiveFeed({
-      agentStream, customerStream, dualMode, dgKey, agentGain, customerGain,
+      agentStream, customerStream, dualMode: feedDual, dgKey, agentGain, customerGain,
       onStatus: setDgStatus,
       onError: setError,
       onLine: processNewEntry,
