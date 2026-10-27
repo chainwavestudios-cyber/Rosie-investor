@@ -1438,10 +1438,20 @@ ${recentText}`,
       agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
-        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
+        // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
+        // browser silently hand back the DEFAULT MICROPHONE, so the customer channel
+        // ends up recording the agent's own voice — two voices on one channel. Failing
+        // loudly is better than quietly mis-routing the feed.
+        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } })
+          .catch(() => { throw new Error('CUSTOMER_DEVICE_UNAVAILABLE'); });
         customerStreamRef.current = customerStream;
       }
-    } catch { setError('Microphone/audio access denied.'); setPhase('idle'); setDgStatus('error'); return; }
+    } catch (e) {
+      setError(e?.message === 'CUSTOMER_DEVICE_UNAVAILABLE'
+        ? 'Customer audio device is not available — click the 🔄 re-scan button and pick it again (the browser would otherwise record your microphone on that channel).'
+        : 'Microphone/audio access denied.');
+      setPhase('idle'); setDgStatus('error'); return;
+    }
 
     // Server-held key first (its secret is always the current one); the compiled
     // value is only a last resort, so a failed lookup can't fall back onto a dead key.
@@ -1958,7 +1968,10 @@ ${recentText}`,
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testCustomerCtxRef.current = ctx;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
+      // Must be `exact` — see startCall: an `ideal` match silently falls back to the
+      // default mic, which would make this test pass while the mic sits on that channel.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } })
+        .catch(() => { throw new Error('Customer device unavailable — re-scan and pick it again.'); });
       testCustomerStreamRef.current = stream;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
