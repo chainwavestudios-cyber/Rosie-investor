@@ -1075,30 +1075,33 @@ ${recentText}`,
     // after it appears on channel 1 (customer). Discard the agent-channel version
     // as bleed — only for longer utterances to avoid discarding legitimate short
     // agent acknowledgments that happen to match customer words.
-    if (entry.speaker === 0 && entry.text.length > 10) {
-      const now = Date.now();
-      for (const r of recentBleedRef.current) {
-        if (r.speaker === 0) continue;
-        if (now - r.ts > 6000) continue;
-        if (textSimilarity(entry.text, r.text) > 0.65) {
-          // Partial bleed: the agent line starts with customer words (picked up
-          // from the external speaker) but then continues with real agent speech.
-          // Find the split point: trim progressively more words from the agent
-          // text until the remaining portion has low similarity with the customer
-          // text, then keep the portion after the bleed prefix.
-          const agtWords = entry.text.split(/\s+/);
-          let bestCut = 0;
-          for (let cut = 1; cut < agtWords.length; cut++) {
-            const remaining = agtWords.slice(cut).join(' ');
-            if (remaining.trim().length < 5) { bestCut = cut; break; }
-            if (textSimilarity(remaining, r.text) < 0.4) { bestCut = cut; break; }
-            bestCut = cut;
-          }
-          const remaining = agtWords.slice(bestCut).join(' ').trim();
-          if (remaining.length < 5) return; // all bleed — discard
-          entry = { ...entry, text: remaining };
-          break;
+    // ── Channel isolation (hard rule) ───────────────────────────────────
+    // Channel 1 is the Realtek / Stereo Mix feed — that is the caller, always.
+    // Channel 0 is the mic — that is the agent, always. Anything the mic hears
+    // coming out of the speakers must never be attributed to the agent, and
+    // mic audio must never be attributed to the caller. So any line that echoes
+    // the other channel inside the same few seconds is dropped from the channel
+    // it does not belong to, whatever its length.
+    const echoNow = Date.now();
+    const ECHO_WINDOW_MS = 8000;
+    if (entry.speaker === 0) {
+      const echo = recentBleedRef.current.find(r =>
+        r.speaker !== 0 && echoNow - r.ts <= ECHO_WINDOW_MS &&
+        (r.text.trim() === entry.text.trim() || textSimilarity(entry.text, r.text) > 0.45));
+      if (echo) {
+        // Keep only the part of the agent line that is not the caller's speech
+        // leaking back through the mic.
+        const agtWords = entry.text.split(/\s+/);
+        let bestCut = 0;
+        for (let cut = 1; cut < agtWords.length; cut++) {
+          const remaining = agtWords.slice(cut).join(' ').trim();
+          if (!remaining) { bestCut = cut; break; }
+          if (textSimilarity(remaining, echo.text) < 0.4) { bestCut = cut; break; }
+          bestCut = cut;
         }
+        const remaining = agtWords.slice(bestCut).join(' ').trim();
+        if (remaining.length < 3) return; // caller audio — never the agent
+        entry = { ...entry, text: remaining };
       }
     }
     recentBleedRef.current = [...recentBleedRef.current, { speaker: entry.speaker, text: entry.text, ts: Date.now() }].slice(-20);
@@ -1154,26 +1157,27 @@ ${recentText}`,
       // line was an agent line with near-identical text, that agent line was
       // external-speaker bleed that arrived before the clean audio — remove it
       // and let the clean customer line replace it.
-      if (entry.speaker === 1 && entry.text.length > 10 && withoutInterim.length > 0) {
-        const lastCommitted = withoutInterim[withoutInterim.length - 1];
-        if (lastCommitted.speaker === 0 && !lastCommitted.interim && textSimilarity(entry.text, lastCommitted.text) > 0.65) {
-          // Partial reverse bleed: the agent line may start with customer bleed
-          // but also contain real agent speech. Trim the bleed prefix instead
-          // of removing the entire line.
-          const agtWords = (lastCommitted.text || '').split(/\s+/);
+      // A caller line just arrived clean — any earlier agent line carrying the
+      // same words was the mic hearing the speakers, so scrub it. Scans the last
+      // few lines because the bleed often commits before the clean caller line.
+      if (entry.speaker === 1 && withoutInterim.length > 0) {
+        for (let i = withoutInterim.length - 1; i >= Math.max(0, withoutInterim.length - 4); i--) {
+          const line = withoutInterim[i];
+          if (line.speaker !== 0 || line.interim) continue;
+          if ((line.text || '').trim().length < 3) continue;
+          const same = line.text.trim() === entry.text.trim() || textSimilarity(entry.text, line.text) > 0.45;
+          if (!same) continue;
+          const agtWords = (line.text || '').split(/\s+/);
           let bestCut = 0;
           for (let cut = 1; cut < agtWords.length; cut++) {
-            const remaining = agtWords.slice(cut).join(' ');
-            if (remaining.trim().length < 5) { bestCut = cut; break; }
+            const remaining = agtWords.slice(cut).join(' ').trim();
+            if (!remaining) { bestCut = cut; break; }
             if (textSimilarity(remaining, entry.text) < 0.4) { bestCut = cut; break; }
             bestCut = cut;
           }
           const remaining = agtWords.slice(bestCut).join(' ').trim();
-          if (remaining.length < 5) {
-            withoutInterim.pop(); // all bleed — remove
-          } else {
-            withoutInterim[withoutInterim.length - 1] = { ...lastCommitted, text: remaining };
-          }
+          if (remaining.length < 3) withoutInterim.splice(i, 1);
+          else withoutInterim[i] = { ...line, text: remaining };
         }
       }
       if (withoutInterim.length === 0) return [...withoutInterim, entry];
