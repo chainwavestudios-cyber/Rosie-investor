@@ -19,7 +19,7 @@ import DebtEmailsTab from '@/components/debt/DebtEmailsTab';
 import EmailCampaignManagerTab from '@/components/campaigns/EmailCampaignManagerTab';
 import EmailFinderTab from '@/components/debt/EmailFinderTab';
 import ProtoFaceTab from '@/components/debt/protoface/ProtoFaceTab';
-import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
+
 import CallIntelligenceTab from '@/components/debt/CallIntelligenceTab';
 import AICreditsTab from '@/components/debt/AICreditsTab';
 import AICostReportsTab from '@/components/debt/AICostReportsTab';
@@ -79,8 +79,9 @@ export default function DebtCallCoach() {
     const requested = new URLSearchParams(location.search).get('tab');
     // Old Marketing bookmarks now open the unified Email Campaigns workspace.
     const destination = requested === 'marketing' ? 'campaigns' : requested;
+    if (destination === 'bob') { navigate('/bob/portal', {replace: true}); return; }
     if (destination && tabMap[destination]) setTab(destination);
-  }, [location.search, tabMap]);
+  }, [location.search, tabMap, navigate]);
 
   // Alt+D hotkey → toggle Deal Monitor popout
   useEffect(() => {
@@ -171,7 +172,7 @@ export default function DebtCallCoach() {
       <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} compact />
 
       {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
-      <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={setTab} onMove={moveTab} onReset={resetTabOrder} />
+      <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={(nextTab)=>nextTab==='bob'?navigate('/bob/portal'):setTab(nextTab)} onMove={moveTab} onReset={resetTabOrder} />
 
       <div className="dcc-current-section" aria-live="polite"><span className="dcc-path">Debt Call Coach /</span><strong>{friendlyTab(tabMap[tab]?.label||'Live Call')}</strong></div>
       <main className="dcc-workspace-body" aria-label={friendlyTab(tabMap[tab]?.label||'Live Call')}>
@@ -196,7 +197,7 @@ export default function DebtCallCoach() {
         <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} onOpenHeatMap={() => setHeatMapVisible(true)} />
       </PopOutTab>
       {tab === 'pipeline' && <PipelineTab onOpenLead={(lead) => setPipelineLead(lead)} />}
-      {tab === 'bob' && <DebtBobTrainer debtCoachUser={user} />}
+
       {tab === 'pitches' && <DebtPitchTab canDelete={!isDialerRole} />}
       {tab === 'emails' && <DebtEmailsTab username={user?.username} />}
       {tab === 'protoface' && isAdmin && <ProtoFaceTab />}

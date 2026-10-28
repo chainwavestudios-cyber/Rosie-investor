@@ -49,8 +49,11 @@ import AgentConsole from '@/components/agent/AgentConsole';
 import Notifications from '@/pages/Notifications';
 import EvidenceReview from './pages/EvidenceReview';
 import OAuthConsent from './pages/OAuthConsent';
+import BobMarketing from './pages/bob/BobMarketing';
+import { BobLogin, BobSignup, BobInquiry } from './pages/bob/BobAccess';
+import BobPortal from './pages/bob/BobPortal';
 
-const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/oauth/consent'];
+const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/oauth/consent'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -113,6 +116,11 @@ function App() {
               <Route path="/qualify" element={<SarahQualifyPage />} />
               <Route path="/stories/:slug" element={<StoryDetail />} />
               <Route path="/oauth/consent" element={<OAuthConsent />} />
+              <Route path="/bob" element={<BobMarketing />} />
+              <Route path="/bob/login" element={<BobLogin />} />
+              <Route path="/bob/signup" element={<BobSignup />} />
+              <Route path="/bob/inquire" element={<BobInquiry />} />
+              <Route path="/bob/portal" element={<BobPortal />} />
               {/* Protected */}
               <Route path="/" element={<Home />} />
               <Route path="/portal" element={<InvestorPortal />} />
