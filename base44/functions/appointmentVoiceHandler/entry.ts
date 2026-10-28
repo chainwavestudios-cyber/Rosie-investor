@@ -320,6 +320,22 @@ Return JSON:
         });
       } catch {}
 
+      // The calendar booking succeeded. Close only the corresponding AI
+      // transfer card; leave other appointment booking behaviors untouched.
+      if (holdSource === 'ai' && leadId) {
+        try {
+          const alerts = await base44.asServiceRole.entities.FronterHeadsUp.filter({ leadId, status: 'active' });
+          for (const item of alerts || []) {
+            if (item.routeType === 'ai_agent') {
+              await base44.asServiceRole.entities.FronterHeadsUp.update(item.id, { routeState: 'appointment_booked', status: 'closed' });
+            }
+          }
+          await base44.asServiceRole.entities.FronterLead.update(leadId, {
+            callStatus: 'appointment_booked', lastCallResult: 'appointment_booked',
+          });
+        } catch (e) { console.warn('[appointmentVoiceHandler] AI queue cleanup failed:', e?.message); }
+      }
+
       // Generate confirmation TTS with Flex voice, then hang up
       const confirmText = wasRescheduled
         ? `Great! I've scheduled your appointment for ${resolvedTime}. That time was taken so I moved it to the next available slot. We'll send a reminder to your email. Thank you and have a great day!`
