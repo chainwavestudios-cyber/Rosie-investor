@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
+import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import ScriptTeleprompter from '@/components/debt/ScriptTeleprompter';
 import ScriptContactDock from '@/components/debt/ScriptContactDock';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
@@ -99,9 +99,8 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
-  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'teleprompt');
-  // Reading is the safe entry state; edit controls are deliberate, never automatic.
-  useEffect(() => { setMode('teleprompt'); }, [username, setMode]);
+  // A new visit always begins in reading mode; editing is an explicit agent choice.
+  const [mode, setMode] = useState('teleprompt');
   const textareaRef = useRef(null);
   const insertionRangeRef = useRef(null);
   const [editRequest, setEditRequest] = useState(0);
