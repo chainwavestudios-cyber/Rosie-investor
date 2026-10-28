@@ -1,0 +1,222 @@
+/* Shared visual language for Debt Call Coach contact surfaces.
+   Layout-only: no changes to CRM persistence, field mapping, or action handlers. */
+.dcc-contact-card,
+.dcc-profile-shell {
+  --dcc-ink: #edf3ef;
+  --dcc-soft: #a1b8b7;
+  --dcc-line: rgba(155, 203, 186, .18);
+  --dcc-gold: #ddbd80;
+  --dcc-mint: #8ed9bc;
+  color: var(--dcc-ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  isolation: isolate;
+}
+.dcc-contact-card {
+  background: linear-gradient(154deg, #142c31 0, #101d2b 30%, #0c1723 100%) !important;
+  border: 1px solid rgba(135, 196, 178, .3) !important;
+  border-radius: 15px !important;
+  box-shadow: 0 12px 36px rgba(0,0,0,.18), inset 0 1px rgba(240,246,232,.035);
+  min-width: 0;
+  overflow: hidden;
+}
+.dcc-contact-header {
+  padding: 12px 14px 10px !important;
+  background: linear-gradient(105deg,rgba(48,112,94,.22),rgba(8,20,32,.16)) !important;
+  border-bottom: 1px solid var(--dcc-line) !important;
+}
+.dcc-contact-avatar,
+.dcc-profile-avatar {
+  background: linear-gradient(145deg,#254f49,#172d37) !important;
+  border: 1px solid rgba(221,189,128,.55) !important;
+  border-radius: 11px !important;
+  color: #f2dcab !important;
+  font-family: system-ui,-apple-system,sans-serif;
+  font-weight: 750 !important;
+  letter-spacing: -.3px;
+  box-shadow: inset 0 1px rgba(255,255,255,.1);
+}
+.dcc-contact-name,
+.dcc-profile-name {
+  color: #f5f6ef !important;
+  font-family: system-ui,-apple-system,sans-serif;
+  letter-spacing: -.25px;
+  font-weight: 750 !important;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.dcc-contact-meta { color: #a2bcb7 !important; overflow-wrap:anywhere; }
+.dcc-contact-meta a { color: #badccc; }
+.dcc-contact-header-top { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.dcc-contact-identity { display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 180px; }
+.dcc-contact-identity-copy { min-width:0; flex:1; }
+.dcc-contact-primary-action,
+.dcc-profile-primary-action {
+  background: linear-gradient(125deg,#e5cc96,#cfa761) !important;
+  border: 1px solid rgba(252,228,178,.52) !important;
+  border-radius: 8px !important;
+  color: #14202a !important;
+  letter-spacing: .2px !important;
+  box-shadow: 0 3px 12px rgba(177,133,67,.16);
+  transition: filter .15s ease, box-shadow .15s ease;
+}
+.dcc-contact-primary-action:hover:not(:disabled),
+.dcc-profile-primary-action:hover:not(:disabled) {
+  filter: brightness(1.065);
+  box-shadow: 0 5px 18px rgba(181,135,68,.22);
+}
+.dcc-contact-status-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  min-width:0;
+}
+.dcc-contact-status-label {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .25px;
+  color: #9db7b4;
+  white-space:nowrap;
+}
+.dcc-contact-status-select {
+  max-width: 147px !important;
+  min-height: 29px !important;
+  padding: 4px 28px 4px 9px !important;
+  background: #142931 !important;
+  border: 1px solid rgba(122,194,161,.34) !important;
+  color: #b9e7d0 !important;
+  font-size: 11px !important;
+  font-weight: 700;
+}
+.dcc-contact-mini-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 10px;
+  white-space:nowrap;
+  color: #a4bdbb;
+}
+.dcc-contact-mini-stat strong {color: #f0e0b7;font-size: 11px;font-weight:750;}
+.dcc-contact-callbar {
+  padding: 4px 12px !important;
+  background: rgba(10,22,32,.35);
+}
+.dcc-contact-tabs,
+.dcc-profile-tabs {
+  display:flex;
+  gap:5px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #335951 transparent;
+  padding: 7px 10px !important;
+  background: rgba(7,15,25,.48);
+  border-bottom: 1px solid var(--dcc-line) !important;
+  scroll-behavior:smooth;
+}
+.dcc-contact-tabs > button,
+.dcc-profile-tabs > button {
+  flex:0 0 auto;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  padding: 6px 10px !important;
+  background:transparent !important;
+  color:#9bb3b4 !important;
+  font-family:system-ui,-apple-system,sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  transition: background .15s ease,color .15s ease;
+}
+.dcc-contact-tabs > button:hover,
+.dcc-profile-tabs > button:hover {background:rgba(126,188,171,.09) !important; color:#e7ede7 !important;}
+.dcc-contact-tabs > button[aria-selected="true"],
+.dcc-profile-tabs > button[aria-selected="true"] {
+  background:rgba(213,178,109,.14) !important;
+  border-color:rgba(213,178,109,.4) !important;
+  color:#f0d19b !important;
+}
+.dcc-contact-content {padding: 12px 14px !important;min-width:0;}
+.dcc-contact-savebar {
+  padding: 10px 14px !important;
+  border-top:1px solid var(--dcc-line) !important;
+  background:rgba(5,13,22,.46);
+}
+.dcc-contact-card label,
+.dcc-profile-shell label { color:#a3bab8 !important;font-family:system-ui,-apple-system,sans-serif !important;font-weight:650;letter-spacing:.35px;}
+.dcc-contact-card input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+.dcc-contact-card textarea,
+.dcc-contact-card select,
+.dcc-profile-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+.dcc-profile-shell textarea,
+.dcc-profile-shell select {
+  background:rgba(5,17,26,.62) !important;
+  border:1px solid rgba(148,182,177,.25) !important;
+  border-radius:7px !important;
+  color:#eef2ec !important;
+  font-family:system-ui,-apple-system,sans-serif !important;
+  font-size:12px !important;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+.dcc-contact-card input:not([type="checkbox"]):not([type="radio"]):focus,
+.dcc-contact-card textarea:focus,
+.dcc-contact-card select:focus,
+.dcc-profile-shell input:not([type="checkbox"]):not([type="radio"]):focus,
+.dcc-profile-shell textarea:focus,
+.dcc-profile-shell select:focus {
+  outline:none !important;
+  border-color:rgba(226,196,137,.8) !important;
+  box-shadow:0 0 0 2px rgba(217,187,122,.16) !important;
+}
+.dcc-contact-card input::placeholder,
+.dcc-profile-shell input::placeholder,
+.dcc-contact-card textarea::placeholder,
+.dcc-profile-shell textarea::placeholder {color:#708b8d !important;}
+.dcc-contact-card button:focus-visible,
+.dcc-profile-shell button:focus-visible {outline:2px solid #d9bb7a !important;outline-offset:2px;}
+.dcc-contact-card button:disabled,
+.dcc-profile-shell button:disabled {cursor:not-allowed;opacity:.6;}
+.dcc-profile-shell {
+  background: linear-gradient(145deg,#111f2b,#0b1523 60%,#0b1720) !important;
+  border:1px solid rgba(155,203,186,.32) !important;
+  border-radius:16px !important;
+  box-shadow:0 22px 70px rgba(0,0,0,.6), inset 0 1px rgba(255,255,255,.05) !important;
+  overflow:hidden;
+  min-width: min(310px, calc(100vw - 20px));
+}
+.dcc-profile-header {
+  background:linear-gradient(110deg,rgba(43,103,88,.26),rgba(15,27,42,.7)) !important;
+  padding:11px 14px !important;
+  border-bottom:1px solid var(--dcc-line) !important;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.dcc-profile-heading {min-width:0;flex:1 1 260px;}
+.dcc-profile-header-actions {display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end;}
+.dcc-profile-subbar {
+  background:rgba(4,12,22,.45) !important;
+  border-bottom:1px solid var(--dcc-line) !important;
+  padding:6px 14px !important;
+}
+.dcc-profile-body {padding:14px !important;min-width:0;}
+.dcc-profile-body > div {max-width:100%;}
+.dcc-profile-close {
+  width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:8px !important;border:1px solid rgba(164,196,188,.2) !important;
+  background:rgba(255,255,255,.04) !important;color:#d7e6df !important;font-size:19px !important;
+}
+.dcc-profile-close:hover{background:rgba(242,199,129,.12) !important;color:#f1d8a4 !important;}
+@media(max-width:600px){
+  .dcc-contact-header {padding:10px !important;}
+  .dcc-contact-status-strip{gap:6px 10px;}
+  .dcc-contact-content{padding:10px !important;}
+  .dcc-profile-header {padding:10px !important;}
+  .dcc-profile-header-actions {justify-content:flex-start;}
+  .dcc-profile-body {padding:10px !important;}
+  .dcc-contact-tabs,.dcc-profile-tabs{padding:6px 8px !important;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .dcc-contact-card *, .dcc-profile-shell * {scroll-behavior:auto !important;transition:none !important;}
+}
