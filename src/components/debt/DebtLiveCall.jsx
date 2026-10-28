@@ -209,17 +209,17 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const transcriptRecordIdRef = useRef(null);
-  const profileAutoOpenedRef = useRef(false); // tracks if client profile was auto-opened (name or 45s)
-  const autoSaveTimerRef = useRef(null); // 45-second auto-save timer
+  // The client profile is always opened explicitly by the agent, never by timer/name detection.
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [showEmergencyScripts, setShowEmergencyScripts] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
-  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
-  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
-  const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username);
-  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username);
-  const [allPoppedOut, setAllPoppedOut] = useState(false);
+  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username, 9998, false);
+  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username, 9998, false);
+  const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username, 9998, false);
+  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username, 9998, false);
+  const [showCustomerStats, setShowCustomerStats] = useState(false);
+  const allPoppedOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
@@ -391,19 +391,7 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => { leadRef.current = lead; }, [lead]);
   useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
 
-  // Auto-pop up Client Profile when a real name is detected (transition from placeholder)
-  useEffect(() => {
-    if (profileAutoOpenedRef.current) return;
-    if (phase !== 'live') return;
-    const fn = (lead.firstName || '').trim();
-    const ln = (lead.lastName || '').trim();
-    // Placeholder names: 'New', 'Lead', empty
-    const isPlaceholder = (!fn || fn.toLowerCase() === 'new') && (!ln || ln.toLowerCase() === 'lead');
-    if (!isPlaceholder && fn && ln) {
-      profileAutoOpenedRef.current = true;
-      setShowProfile(true);
-    }
-  }, [lead.firstName, lead.lastName, phase]);
+  // Identifying a contact must never interrupt a live call with a profile modal.
 
   // Load key memories for the selected lead — surfaced in AI Coach on follow-up calls
   const loadMemories = useCallback(async (leadId) => {
@@ -520,7 +508,7 @@ Agent line: "${firstAgentLines}"`,
     setLead(selectedLead);
     leadRef.current = selectedLead;
     setProfileData(selectedLead.profileJson ? (() => { try { return JSON.parse(selectedLead.profileJson); } catch { return null; } })() : null);
-    setShowProfile(true);
+    // Keep the contact card docked; the agent may open the profile manually.
     // Start the call with this lead
     setTimeout(() => startCall(false), 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,7 +519,7 @@ Agent line: "${firstAgentLines}"`,
     setLead(savedLead);
     leadRef.current = savedLead;
     loadLeads();
-    setShowProfile(true);
+    // Leave focus in the call workspace after saving; profile opens on demand.
   }, [loadLeads]);
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
@@ -1329,7 +1317,6 @@ ${recentText}`,
     setAgentQuestionActive(false);
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
-    profileAutoOpenedRef.current = false;
     ledgerDoneRef.current = false;
     hardshipDoneRef.current = false;
     billsDoneRef.current = false;
@@ -1371,23 +1358,9 @@ ${recentText}`,
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
-    // 45-second auto-save: pop up Client Profile to remind agent to save lead info
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
-    autoSaveTimerRef.current = setTimeout(() => {
-      if (!profileAutoOpenedRef.current) {
-        profileAutoOpenedRef.current = true;
-        setShowProfile(true);
-      }
-    }, 45000);
-
-    // Auto-pop-out all panels to saved layout positions
-    setTimeout(() => {
-      leadPanel.popOut();
-      transcriptPanel.popOut();
-      scriptsPanel.popOut();
-      aiPanel.popOut();
-      setAllPoppedOut(true);
-    }, 300);
+    // Quiet start: keep the lead card, transcript, scripts, and AI tools docked.
+    // No timed profile modal or automatic floating panel. User-initiated
+    // pop-out buttons remain available in the headers of each panel.
 
     // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout).
     // Set the refs directly too so processNewEntry (captured by the WebSocket handler)
@@ -1494,7 +1467,6 @@ ${recentText}`,
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
     // Update DialerSession back to logged_in
     if (coachUser?.username) {
       try {
@@ -2190,12 +2162,8 @@ ${recentText}`,
 
       {/* Main layout: lead card + transcript + AI tools — all pop-out enabled */}
       {(() => {
-        const cols = [];
-        if (!leadPanel.poppedOut) cols.push('380px');
-        if (!transcriptPanel.poppedOut) cols.push('1fr');
-        if (!scriptsPanel.poppedOut) cols.push('420px');
-        if (!aiPanel.poppedOut) cols.push('400px');
-        const gridCols = cols.length > 0 ? cols.join(' ') : '1fr';
+        // Responsive docked layout adapts to laptop and ultrawide workstations.
+        const gridCols = 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))';
         const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
 
         return (
@@ -2258,7 +2226,7 @@ ${recentText}`,
                       username={coachUser?.username}
                       activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
                       onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                      autoOpenPopup={phase === 'live'}
+                      autoOpenPopup={false}
                     />
                   </div>
                   {aiPanel.resizeHandles}
@@ -2277,7 +2245,7 @@ ${recentText}`,
                     username={coachUser?.username}
                     activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
                     onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                    autoOpenPopup={phase === 'live'}
+                    autoOpenPopup={false}
                   />
                 </div>
               )}
