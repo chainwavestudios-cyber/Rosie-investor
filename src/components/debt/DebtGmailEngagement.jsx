@@ -8,6 +8,16 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const colors = { background: '#101829', border: '#273347', ink: '#e9edf5', muted: '#91a0b9', accent: '#10b981' };
 const date = (value) => value ? new Date(value).toLocaleString() : '—';
+const destinationLabel = (url) => {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.endsWith('bbb.org')) return 'Better Business Bureau';
+    if (host.endsWith('trustpilot.com')) return 'Trustpilot';
+    if (host.endsWith('debtadvisorsofamerica.com')) return 'Debt Advisors of America';
+    if ((host.endsWith('debtsolutions.cc') || host.endsWith('base44.app')) && new URL(url).pathname === '/welcome') return 'Personal welcome message';
+    return host.replace(/^www\./, '');
+  } catch { return 'Tracked link'; }
+};
 const metric = (label, count, note) => <div key={label} style={{ flex: '1 1 150px', padding: 14, borderRadius: 8, border: '1px solid ' + colors.border, background: colors.background }}>
   <div style={{ color: colors.muted, fontSize: 11 }}>{label}</div>
   <div style={{ color: colors.ink, fontSize: 26, fontWeight: 700 }}>{count ?? 0}</div>
@@ -67,7 +77,7 @@ export default function DebtGmailEngagement({ view = 'report' }) {
     {error && <div role="alert" style={{ color: '#fca5a5', marginBottom: 12 }}>{error}</div>}
     {data?.truncated && Object.values(data.truncated).some(Boolean) && <div style={{ color: '#fcd34d', fontSize: 12, marginBottom: 12 }}>This report has reached a historical query limit. Narrow the date range before treating the counts as complete.</div>}
     <div style={{ color: colors.muted, fontSize: 11, marginBottom: 14 }}>
-      Open pixels can be fetched by privacy proxies or automated scanners. Non-proxy opens are still not proof of reading. Only distinct links and qualification actions raise email intent substantially.
+      Open pixels may be fetched automatically. Gmail links passing through Base44 are counted as tracked redirects (not confirmed human browsing); known bot signatures are excluded. Recorded playback and calendar actions are measured separately.
     </div>
     {view === 'report' && data && <>
       <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -102,9 +112,9 @@ export default function DebtGmailEngagement({ view = 'report' }) {
           <td style={cell}>{x.templateName}</td><td style={cell}>{x.status}</td>
           <td style={cell}>{view === 'old' ? x.legacyOpens : x.nonProxyOpens + ' non-proxy / ' + x.proxyOpens + ' proxy'}</td>
           <td style={cell}>{view === 'old' ? x.legacyClicks : x.distinctLinks}</td>
-          <td style={cell}>{view === 'old' ? '—' : x.audioPlays ? x.audioBestPercent + '% played' + (x.audioCompleted ? ' ✓' : '') : '—'}</td>
+          <td style={cell}>{view === 'old' ? '—' : x.audioPlays ? x.audioBestPercent + '% played' + (x.audioCompleted ? x.audioCompletionEstimated ? ' · estimated full' : ' ✓' : '') : '—'}</td>
           <td style={cell}>{view === 'old' ? '—' : x.calendarOpened ? 'Opened' : '—'}</td>
-          <td style={cell}>{view === 'old' ? '—' : x.websiteClicked ? 'Clicked' : '—'}</td>
+          <td style={cell}>{view === 'old' ? '—' : x.websiteClicked ? 'Clicked on welcome page' : '—'}</td>
           <td style={cell}>{view === 'old' ? x.provenance : x.intentScore + '/100 · ' + x.tier}</td>
           <td style={cell}><button onClick={() => setSelected(selected?.id === x.id ? null : x)} style={{ cursor: 'pointer', color: colors.accent, background: 'transparent', border: 'none' }}>{selected?.id === x.id ? 'Close' : 'View'}</button></td>
         </tr>)}</tbody>
@@ -118,8 +128,14 @@ export default function DebtGmailEngagement({ view = 'report' }) {
       <div style={{ color: colors.muted, fontSize: 12 }}>Sent: {date(selected.sentAt)} · Send ID: {selected.sendId || 'Legacy / unavailable'}</div>
       {view === 'old' ? <div style={{ marginTop: 10, fontSize: 12 }}>First recorded open: {date(selected.openedAt)} · Recorded click: {date(selected.clickedAt)}</div> : <>
         <div style={{ marginTop: 8, fontSize: 12 }}>Email intent: {selected.intentScore}/100. {selected.reasons.join('; ') || 'No verified intent signals.'}</div>
-        <div style={{ marginTop: 9, fontSize: 12 }}>Personal audio: {selected.audioPlays || 0} play(s), {selected.audioBestPercent || 0}% estimated played {selected.audioCompleted ? '· Completed' : ''} · Calendar: {selected.calendarOpened ? 'Opened' : 'Not opened'} {selected.calendarExternalClicks ? '· External click(s): ' + selected.calendarExternalClicks : ''} · Company site: {selected.websiteClicked ? 'Clicked' : 'Not clicked'}</div>
-        {(selected.events || []).map((e) => <div key={e.id} style={{ borderTop: '1px solid ' + colors.border, marginTop: 7, paddingTop: 7, fontSize: 11 }}>{date(e.at)} · {e.type}{e.url ? ' · ' + e.url : ''} · {e.quality === 'proxy_or_automated' ? 'Proxy/automated' : 'Unverified non-proxy'}</div>)}
+        <div style={{ marginTop: 9, fontSize: 12 }}>Personal audio: {selected.audioPlays || 0} play(s), {selected.audioBestPercent || 0}% estimated played {selected.audioCompleted ? selected.audioCompletionEstimated ? '· Full playback estimated' : '· Completion event recorded' : ''} · Calendar: {selected.calendarOpened ? 'Opened' : 'Not opened'} {selected.calendarExternalClicks ? '· External click(s): ' + selected.calendarExternalClicks : ''} · Company site from welcome page: {selected.websiteClicked ? 'Clicked' : 'Not recorded'}</div>
+        <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700 }}>Recorded email link destinations ({selected.clickedDestinations?.length || 0})</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+          {(selected.clickedDestinations || []).map((url) => <span key={url} style={{ padding: '6px 9px', fontSize: 11, border: '1px solid #326e62', borderRadius: 6, color: '#9fe6cd', background: '#102c2b' }}>{destinationLabel(url)}</span>)}
+          {!selected.clickedDestinations?.length && <span style={{ color: colors.muted, fontSize: 11 }}>No tracked redirects</span>}
+        </div>
+        <div style={{ color: colors.muted, fontSize: 11, marginTop: 7 }}>A redirect records that a tracked link was followed; it does not prove the destination finished loading or that a person read it.</div>
+        {(selected.events || []).map((e) => <div key={e.id} style={{ borderTop: '1px solid ' + colors.border, marginTop: 7, paddingTop: 7, fontSize: 11 }}>{date(e.at)} · {e.type}{e.url ? ' · ' + e.url : ''} · {e.quality === 'proxy_or_automated' ? 'Proxy/automated' : e.quality === 'unverified_relay_click' ? 'Base44 relay click · unverified visitor' : 'Unverified non-proxy'}</div>)}
       </>}
     </section>}
     {data?.generatedAt && <div style={{ color: colors.muted, fontSize: 10, marginTop: 13 }}>Updated {date(data.generatedAt)} · Read-only report</div>}
