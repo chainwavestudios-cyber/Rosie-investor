@@ -12,7 +12,7 @@ const HOUR = 60 * 60 * 1000;
 const OFFICE = toE164(Deno.env.get('OFFICE_MAIN_LINE') || '+16193530919');
 const FROM = toE164(Deno.env.get('TWILIO_FROM_NUMBER') || '');
 const base64 = (data:string) => btoa(data).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-const keyPromise = crypto.subtle.importKey('raw',new TextEncoder().encode(AUTH_TOKEN),'HMAC',{hash:'SHA-256'},false,['sign','verify']);
+const keyPromise = crypto.subtle.importKey('raw',new TextEncoder().encode(AUTH_TOKEN),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);
 async function sign(data:any):Promise<string> {
   const p = base64(JSON.stringify(data));
   const digest = await crypto.subtle.sign('HMAC',await keyPromise,new TextEncoder().encode(p));
