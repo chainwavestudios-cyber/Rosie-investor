@@ -573,20 +573,37 @@ export default async function(req) {
     // lead transferred so fronters no longer see it as waiting.
     if (params.get('Mode') === 'aiQueueMerged') {
       const mergedLeadId = params.get('LeadId') || '';
-      if (mergedLeadId) {
+      const conf = params.get('Conf') || '';
+      if (mergedLeadId && conf) {
         try {
           const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
           const base44 = createClientFromRequest(req).asServiceRole;
-          await base44.entities.FronterLead.update(mergedLeadId, {
-            status: 'transferred',
-            lastCallResult: 'transferred',
-            callStatus: 'transferred',
-            transferredAt: new Date().toISOString(),
-            transferredTo: 'Incoming AI Agent → Senior Advisor',
-          });
-          const headsUps = await base44.entities.FronterHeadsUp.filter({ leadId: mergedLeadId, status: 'active' });
-          for (const hu of headsUps || []) {
-            await base44.entities.FronterHeadsUp.update(hu.id, { status: 'closed' });
+          const headsUps = await base44.entities.FronterHeadsUp.filter({ conferenceName: conf, status: 'active' });
+          const active = headsUps?.[0];
+          if (active) {
+            const joiningSid = params.get('CallSid') || '';
+            const customerSid = active.customerCallSid || params.get('CallerCallSid') || '';
+            const event = String(params.get('StatusCallbackEvent') || '').toLowerCase();
+            // The customer joining an empty conference is not a completed
+            // transfer. Only advisor-side start/join confirms a live handoff.
+            const isCustomerJoin = event.includes('join') && customerSid && joiningSid === customerSid;
+            if (!isCustomerJoin && !['merged', 'appointment_booked'].includes(active.routeState)) {
+              await base44.entities.FronterHeadsUp.update(active.id, { routeState: 'merged', status: 'closed' });
+              await base44.entities.FronterLead.update(mergedLeadId, {
+                status: 'transferred', lastCallResult: 'transferred',
+                callStatus: 'transferred', transferredAt: new Date().toISOString(),
+                transferredTo: 'AI Agent → Senior Advisor',
+              });
+              // Browser pickup may win while Chris's phone is still ringing.
+              // Cancel that orphan leg so he doesn't get a second transfer call.
+              if (active.advisorCallSid && joiningSid !== active.advisorCallSid) {
+                try {
+                  await twilioFetch(`/Calls/${active.advisorCallSid}.json`, {
+                    method: 'POST', body: new URLSearchParams({ Status: 'completed' }),
+                  });
+                } catch (e) { console.warn('[AI Queue] Could not stop unused advisor leg:', e?.message); }
+              }
+            }
           }
         } catch (e) { console.warn('[dialerVoiceHandler] Merge status update failed:', e?.message); }
       }
