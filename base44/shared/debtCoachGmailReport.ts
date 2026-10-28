@@ -136,6 +136,9 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
       // Record that as estimated full playback, not as an ended event.
       const audioCompletionEstimated = !audioCompletionRecorded && sessions.some((s: any) => Number(s.durationSeconds || 0) >= 10 && Number(s.playedSeconds || 0) / Number(s.durationSeconds || 1) >= 0.98);
       const audioCompleted = audioCompletionRecorded || audioCompletionEstimated;
+      const completedSessions = sessions.filter((s: any) => s.completed === true || (Number(s.durationSeconds || 0) >= 10 && Number(s.playedSeconds || 0) / Number(s.durationSeconds || 1) >= 0.98));
+      const audioFullAt = completedSessions.reduce((last: any, s: any) => clock(s.completedAt || s.lastAt) > clock(last) ? (s.completedAt || s.lastAt) : last, null);
+      const audioLastAt = sessions.reduce((last: any, s: any) => clock(s.lastAt) > clock(last) ? s.lastAt : last, null);
       const calendarOpened = sessions.some((s: any) => !!s.calendarOpenedAt);
       const calendarExternalClicks = sessions.reduce((n: number, s: any) => n + Number(s.calendarExternalClicks || 0), 0);
       const websiteClicked = sessions.some((s: any) => !!s.websiteClickedAt);
@@ -152,8 +155,9 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         clickedDestinations: unique(clicks.filter(countedClick).map((e) => String(e.url || ''))),
         lastEventAt: events.reduce((a, e) => clock(e.trackedAt) > clock(a) ? e.trackedAt : a, null),
         intentScore: intent.score, tier: intent.tier, reasons: intent.reasons,
-        audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted, audioCompletionEstimated,
+        audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted, audioCompletionEstimated, audioFullAt, audioLastAt,
         calendarOpened, calendarExternalClicks, websiteClicked, websiteClicks,
+        lastEngagementAt: clock(audioLastAt) > clock(events.reduce((last: any, e: any) => clock(e.trackedAt) > clock(last) ? e.trackedAt : last, null)) ? audioLastAt : events.reduce((last: any, e: any) => clock(e.trackedAt) > clock(last) ? e.trackedAt : last, null),
         audioPlayedSeconds: Math.max(0, ...sessions.map((s: any) => Number(s.playedSeconds || 0))),
         events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: eventQuality(e) })),
       };

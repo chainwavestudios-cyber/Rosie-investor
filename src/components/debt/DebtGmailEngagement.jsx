@@ -5,6 +5,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { composeGmailIntelligence } from '@/lib/coachGmailIntelligence';
+import { aggregateMilestones, compareEngagementPeople, engagementPriority } from '@/lib/coachGmailMilestones';
+import DebtGmailCompactRows, { CompactAudioProgress, CompactSignal, CompactMilestone } from './DebtGmailCompactRows';
+import EngagementContactCard from '@/components/engagement/EngagementContactCard';
 
 const colors = { background: '#101829', border: '#273347', ink: '#e9edf5', muted: '#91a0b9', accent: '#10b981' };
 const date = (value) => value ? new Date(value).toLocaleString() : '—';
@@ -27,13 +31,14 @@ const cell = { padding: '9px 10px', borderBottom: '1px solid ' + colors.border, 
 const header = { ...cell, color: colors.muted, fontSize: 10, textAlign: 'left', whiteSpace: 'nowrap' };
 
 export default function DebtGmailEngagement({ view = 'report' }) {
-  const { sessionUserId, sessionToken, isAdmin } = useDebtCoachAuth();
+  const { sessionUserId, sessionToken, isAdmin, user } = useDebtCoachAuth();
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const [card, setCard] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!sessionUserId || !sessionToken || !isAdmin) return;
@@ -55,7 +60,19 @@ export default function DebtGmailEngagement({ view = 'report' }) {
   if (!isAdmin) return <div style={{ padding: 20, color: colors.muted }}>Email reporting is restricted to Debt Call Coach administrators.</div>;
 
   const filter = (r) => [r.contactName, r.contactEmail, r.templateName, r.subject, r.name, r.email].join(' ').toLowerCase().includes(search.toLowerCase());
-  const messages = (data?.timeline || []).filter(filter);
+  const allPeople = composeGmailIntelligence(data).leads;
+  const people = allPeople.filter((p) => [p.name,p.email,p.lastTemplate].join(' ').toLowerCase().includes(search.toLowerCase())).sort((a,b) => compareEngagementPeople(a,b));
+  const personById = new Map(people.map(p => [String(p.leadId||p.id),p]));
+  const messages = (data?.timeline || []).filter(filter).map((send) => ({
+    ...send, ...aggregateMilestones([send]), score:send.intentScore || 0,
+    hotLead:send.tier === 'high',
+  })).sort((a,b) => {
+    const leadA = personById.get(String(a.contactId||''));
+    const leadB = personById.get(String(b.contactId||''));
+    return engagementPriority(leadB||b)-engagementPriority(leadA||a)
+      || Number(leadB?.score||b.score)-Number(leadA?.score||a.score)
+      || new Date(b.sentAt||0)-new Date(a.sentAt||0);
+  });
   const old = (data?.legacyHistory || []).filter(filter);
   const history = [
     ...messages.map((m) => ({ ...m, openedAt: m.firstOpenAt, clickedAt: m.events?.find((e) => e.type === 'click')?.at || null, legacyOpens: m.opens, legacyClicks: m.clicks, provenance: 'Gmail send record' })),
@@ -92,6 +109,9 @@ export default function DebtGmailEngagement({ view = 'report' }) {
         {metric('Audio completed', data.summary.audioCompleted, 'At least one completed playback')}
         {metric('Calendar opened', data.summary.calendarOpened, 'Not confirmed appointments')}
         {metric('Company site clicked', data.summary.companyWebsiteClicked, 'Links opened from welcome page')}
+        {metric('Gold listeners', allPeople.filter(p=>p.goldListener).length, 'Full estimated audio playback')}
+        {metric('All links + audio', allPeople.filter(p=>p.allLinksAndAudio).length, 'Audio plus three external links')}
+        {metric('Elite journey', allPeople.filter(p=>p.eliteJourney).length, 'All links, audio and calendar')}
       </div>
       <h3 style={{ fontSize: 13, margin: '16px 0 8px' }}>Template effectiveness</h3>
       <div style={{ overflowX: 'auto' }}>
@@ -101,21 +121,31 @@ export default function DebtGmailEngagement({ view = 'report' }) {
         </table>
       </div>
     </>}
-    <h3 style={{ fontSize: 13, margin: '18px 0 9px' }}>{view === 'old' ? 'Preserved Gmail send and follow-up history' : 'Who received each email and what happened'}</h3>
+    <h3 style={{ fontSize: 14, margin: '18px 0 9px' }}>{view === 'old' ? 'Preserved Gmail send and follow-up history' : 'Full Gmail engagement lists · highest-priority first'}</h3>
     <input aria-label="Search email history" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search contact, email or template..." style={{ width: '100%', maxWidth: 360, boxSizing: 'border-box', background: colors.background, color: colors.ink, border: '1px solid ' + colors.border, borderRadius: 6, padding: 9, marginBottom: 10 }} />
+    {view === 'report' && data && <>
+      <p style={{fontSize:11,color:colors.muted,margin:'8px 0 10px'}}>All emailed people, ranked by milestone and hot-lead engagement. Each row has their audio bar, all four checkmarks, badge and score.</p>
+      <DebtGmailCompactRows title="Full Gmail recipient engagement list" people={people} onOpen={p=>setCard({leadId:p.leadId,source:'coach',name:p.name})}/>
+      <h3 style={{fontSize:13,margin:'22px 0 9px',color:'#d7ba82'}}>Individual Gmail sends · detailed records</h3>
+    </>}
     <div style={{ maxHeight: 600, overflow: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse' }}>
-        <thead><tr>{['Sent', 'Contact', 'Template', 'Status', 'Opens', 'Clicks', 'Audio', 'Calendar', 'Website', 'Email intent', 'Details'].map((x) => <th key={x} style={header}>{x}</th>)}</tr></thead>
+      <table style={{ width: '100%', minWidth: view==='old'?850:1450, borderCollapse: 'collapse' }}>
+        <thead><tr>{(view==='old' ? ['Sent','Contact','Template','Status','Opens','Clicks','Audio','Calendar','Website','Email intent','Details'] : ['Sent','Contact','Template','Status','Opens','Clicks','Audio progress','BBB','Trustpilot','Company site','Calendar','Milestone','Email intent','Details']).map((x) => <th key={x} style={header}>{x}</th>)}</tr></thead>
         <tbody>{(view === 'old' ? history : messages).map((x) => <tr key={x.id}>
           <td style={cell}>{date(x.sentAt)}</td>
           <td style={cell}><strong>{x.contactName || 'Unknown'}</strong><div style={{ fontSize: 10, color: colors.muted }}>{x.contactEmail}</div></td>
           <td style={cell}>{x.templateName}</td><td style={cell}>{x.status}</td>
           <td style={cell}>{view === 'old' ? x.legacyOpens : x.nonProxyOpens + ' non-proxy / ' + x.proxyOpens + ' proxy'}</td>
           <td style={cell}>{view === 'old' ? x.legacyClicks : x.distinctLinks}</td>
-          <td style={cell}>{view === 'old' ? '—' : x.audioPlays ? x.audioBestPercent + '% played' + (x.audioCompleted ? x.audioCompletionEstimated ? ' · estimated full' : ' ✓' : '') : '—'}</td>
-          <td style={cell}>{view === 'old' ? '—' : x.calendarOpened ? 'Opened' : '—'}</td>
-          <td style={cell}>{view === 'old' ? '—' : x.websiteClicked ? 'Clicked on welcome page' : '—'}</td>
-          <td style={cell}>{view === 'old' ? x.provenance : x.intentScore + '/100 · ' + x.tier}</td>
+          <td style={cell}>{view === 'old' ? '—' : <CompactAudioProgress name={x.contactName||x.contactEmail||'Contact'} percent={x.percent} gold={x.goldListener} estimated={x.estimated}/>}</td>
+          {view === 'old' ? <><td style={cell}>—</td><td style={cell}>—</td></> : <>
+            <td style={cell}><CompactSignal checked={x.flags?.bbb} label="BBB" description="Tracked BBB redirect"/></td>
+            <td style={cell}><CompactSignal checked={x.flags?.trustpilot} label="Review" description="Tracked Trustpilot redirect"/></td>
+            <td style={cell}><CompactSignal checked={x.flags?.company} label="Site" description="Tracked company website redirect"/></td>
+            <td style={cell}><CompactSignal checked={x.flags?.calendar} label="Open" description="Calendar opened, not booked"/></td>
+            <td style={cell}><CompactMilestone person={x}/></td>
+          </>}
+          <td style={cell}>{view === 'old' ? x.provenance : <strong style={{color:x.intentScore>=60?'#e9bf77':'#75ddb9'}}>{x.intentScore}/100 · {x.tier}</strong>}</td>
           <td style={cell}><button onClick={() => setSelected(selected?.id === x.id ? null : x)} style={{ cursor: 'pointer', color: colors.accent, background: 'transparent', border: 'none' }}>{selected?.id === x.id ? 'Close' : 'View'}</button></td>
         </tr>)}</tbody>
       </table>
@@ -139,5 +169,6 @@ export default function DebtGmailEngagement({ view = 'report' }) {
       </>}
     </section>}
     {data?.generatedAt && <div style={{ color: colors.muted, fontSize: 10, marginTop: 13 }}>Updated {date(data.generatedAt)} · Read-only report</div>}
+    <EngagementContactCard target={card} username={user?.username} onClose={()=>setCard(null)}/>
   </div>;
 }

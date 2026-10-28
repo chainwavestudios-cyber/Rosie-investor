@@ -38,6 +38,7 @@ import SmartClose from '@/components/debt/closing/SmartClose';
 import ObjectionsEngineTab from '@/components/debt/ObjectionsEngineTab';
 import CompliancePortal from '@/pages/CompliancePortal';
 import DebtCoachGmailEngagementPanel from '@/components/debt/DebtCoachGmailEngagementPanel';
+import DebtGmailGoldMilestoneWatcher from '@/components/debt/DebtGmailGoldMilestoneWatcher';
 import WCRChecklist from '@/components/debt/WCRChecklist';
 import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -116,6 +117,9 @@ export default function DebtCallCoach() {
   return (
     <div data-debt-coach style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif', minHeight: '100vh', background: DARK, color: '#e8e0d0', padding: '24px 32px' }}>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+
+      {/* Quiet admin-only milestone watcher: confetti only for newly completed audio. */}
+      {isAdmin && <DebtGmailGoldMilestoneWatcher/>}
 
       {/* Dual clock bar — super admins see Eastern + Philippine Time */}
       {isSuperAdmin && (
