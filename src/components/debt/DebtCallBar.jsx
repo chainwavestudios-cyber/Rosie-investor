@@ -23,7 +23,7 @@ export default function DebtCallBar({ lead, onCallEnded }) {
     onCallLogged: () => { onCallEnded?.(); },
   });
 
-  const { callStatus, duration, muted, isActive, dialerError, dial, hangup, toggleMute, fmt } = dialer;
+  const { callStatus, duration, muted, isActive, dialerError, dial, hangup, toggleMute, fmt, callerId, setCallerId, lines } = dialer;
 
   const statusColor = {
     idle: '#6b7280', calling: AMBER, ringing: AMBER, connected: GOLD, ended: RED,
@@ -58,7 +58,24 @@ export default function DebtCallBar({ lead, onCallEnded }) {
         )}
       </div>
 
-      {/* Row 2: action buttons */}
+      {/* Row 2: the Twilio line this call goes out on */}
+      {lines?.length > 0 && !isActive && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '0.5px', textTransform: 'uppercase', flexShrink: 0 }}>Call from</span>
+          <select
+            value={callerId}
+            onChange={e => setCallerId(e.target.value)}
+            title="The Twilio line this call is placed from"
+            style={{ flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '5px 8px', color: '#8a9ab8', fontSize: '10px', outline: 'none', cursor: 'pointer' }}
+          >
+            {lines.map(l => (
+              <option key={l.key || l.number} value={l.number}>📞 {l.label || 'Line'} — {l.number}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Row 3: action buttons */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
         {/* IDLE — Live Call button */}
         {(callStatus === 'idle' || callStatus === 'ready') && (
