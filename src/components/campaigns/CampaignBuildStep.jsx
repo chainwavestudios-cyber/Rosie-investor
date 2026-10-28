@@ -116,8 +116,8 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
               onChange={(e) => save({ subject: e.target.value })}
             />
           </Field>
-          <Field label="From name shown to recipients" hint="Sends always go out from the connected Gmail account.">
-            <input style={inputStyle} value={campaign?.senderName || ''} placeholder="Debt Solutions Inc" onChange={(e) => save({ senderName: e.target.value })} />
+          <Field label="DAA sender identity" hint="Gmail campaigns always use the connected DAA mailbox and Debt Advisors of America identity.">
+            <input style={{...inputStyle,color:'#b6dcc9'}} value="Debt Advisors of America" readOnly />
           </Field>
           <Field label="Connected sending account">
             <input style={{ ...inputStyle, color: MUTED }} readOnly value={account.loading ? 'Checking…' : account.emailAddress || 'Gmail connected'} />
