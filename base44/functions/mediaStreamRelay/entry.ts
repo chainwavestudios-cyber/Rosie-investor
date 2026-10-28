@@ -379,8 +379,9 @@ async function handleEndCall(base44: any, body: any): Promise<Response> {
   if (leadId) {
     try {
       const lead = await base44.entities.FronterLead.get(leadId);
+      // aiAgentDial already increments the outbound count when a call starts.
+      // Do not increment it again on end_call and inflate activity metrics.
       const update: any = {
-        callCount: (lead?.callCount || 0) + 1,
         lastCallResult: validDisposition,
         lastCalledAt: new Date().toISOString(),
       };
