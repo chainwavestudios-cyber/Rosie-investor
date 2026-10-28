@@ -1,0 +1,42 @@
+{
+  "name": "DebtCalendarEventStatus",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "title": "Google Calendar Event ID"
+    },
+    "leadId": {
+      "type": "string",
+      "title": "Confirmed Debt Lead ID"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "scheduled",
+        "no_show"
+      ],
+      "title": "Staff Appointment Review Status",
+      "default": "scheduled"
+    },
+    "updatedBy": {
+      "type": "string",
+      "title": "Updated by (Debt Coach Username)"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Marked Completed At"
+    },
+    "reviewedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Reviewed At"
+    }
+  },
+  "required": [
+    "eventId",
+    "status"
+  ]
+}

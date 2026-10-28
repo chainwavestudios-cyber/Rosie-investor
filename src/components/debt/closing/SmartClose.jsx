@@ -296,7 +296,7 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
         agentUsername: lead?.debtCoachOwner, leadId, leadName: `${lead?.firstName || ''} ${lead?.lastName || ''}`.trim(),
         callType: 'smart_close', estimatedCredits: CREDIT_ESTIMATES.smart_close ?? 2,
       });
-      const recentText = transcript.slice(-60).map(t => `${t.speaker === 0 ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
+      const recentText = transcript.slice(-60).map(t => `${t.speaker === 0 || /^agent$/i.test(String(t.speaker || '')) ? 'Agent' : 'Customer'}: ${t.text}`).join('\n');
       // Use editable script modules (with keywords) for the AI prompt
       const aiModules = scriptModulesRef.current.map(m => ({
         id: m.id, title: m.title,
@@ -361,7 +361,7 @@ ${recentText}`,
   }, [smartOn, transcript.length, runAnalysis]);
 
   const handleToggle = (key) => {
-    if (progressLoadedLeadId !== leadId) return;
+    if (!leadId || progressLoadedLeadId !== leadId) return;
     setManualDone(prev => ({ ...prev, [key]: !(prev[key] === undefined ? !!(smartOn && autoDone[key]) : !!prev[key]) }));
     setProgressDirty(true);
   };
