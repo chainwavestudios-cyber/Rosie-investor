@@ -5,6 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Headphones, PhoneCall, PhoneForwarded, GitMerge, PhoneOff } from 'lucide-react';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const actionStyle=(primary=false)=>({
   display:'inline-flex',gap:6,alignItems:'center',border:'1px solid '+(primary?'#d5b278':'#648e80'),
@@ -14,6 +15,8 @@ const actionStyle=(primary=false)=>({
 });
 
 export default function DebtCallBar({lead, onLaunch}) {
+  const {user} = useDebtCoachAuth();
+  const officeAllowed = ['admin','super_admin'].includes(user?.role);
   const [office,setOffice]=useState(()=>window.__debtOfficeBridgeState||null);
   useEffect(()=>{
     const sync=(event)=>setOffice(event.detail);
@@ -37,10 +40,10 @@ export default function DebtCallBar({lead, onLaunch}) {
         title="Dial the customer with Twilio WebRTC and start Live Call, transcription, Q&A and Coach when connected.">
         <PhoneCall size={14}/> Dial + Live Coach
       </button>
-      <button type="button" onClick={()=>dispatch('office')} disabled={!!active} style={actionStyle(false)}
+      {officeAllowed&&<button type="button" onClick={()=>dispatch('office')} disabled={!!active} style={actionStyle(false)}
         title="Ring your office main line, then connect the customer and merge into the same conference.">
         <PhoneForwarded size={14}/> Connect Main Line
-      </button>
+      </button>}
     </div>
     {active&&<div className="dcc-office-bridge-controls" role="group" aria-label="Office conference controls"
       style={{display:'flex',flexDirection:'column',gap:7,padding:'9px 11px',border:'1px solid rgba(216,179,110,.36)',borderRadius:8,background:'rgba(11,30,38,.87)'}}>
