@@ -15,13 +15,18 @@ const encrypted = (v:unknown) => {
   return payload;
 };
 const now = () => new Date().toISOString();
+const ADDON_IDS=['live_qa','live_coach'];
+const selectedAddons=(v:unknown)=>{
+ const a=Array.isArray(v)?v:[];
+ return ADDON_IDS.filter(id=>a.includes(id));
+};
 const allow = ['active','trial'];
 const fmtOrg = (o: any) => ({
   id:o.id, name:o.name, slug:o.slug, ownerEmail:o.ownerEmail, seatLimit:o.seatLimit,
   status:o.status, industry:o.industry, preferredVoice:o.preferredVoice,
   hasDeepgramKey:!!o.encryptedDeepgramKey, createdAt:o.createdAt, knowledgeSalt:o.knowledgeSalt||'',
   keyVerifier:o.keyVerifier||'', billingStatus:o.billingStatus||'trial',
-  hasSubscription:!!o.stripeSubscriptionId,managerCanConfigure:!!o.managerCanConfigure,
+  hasSubscription:!!o.stripeSubscriptionId,requestedAddons:(()=>{try{return selectedAddons(JSON.parse(o.requestedAddons||'[]'));}catch{return[]}})(),managerCanConfigure:!!o.managerCanConfigure,
   managerCanControlRecording:!!o.managerCanControlRecording,
   allowSessionRecording:!!o.allowSessionRecording,allowLiveMonitoring:!!o.allowLiveMonitoring
 });
@@ -37,7 +42,7 @@ const secureGateway = async (req: Request) => {
     if (!name || !/^\S+@\S+\.\S+$/.test(email)) return bad('Enter a name and valid email.');
     await db.BOBInquiry.create({ contactName:name,email,company:str(data.company,150),
       seatEstimate:Math.max(1,Math.min(10000,Number(data.seatEstimate)||1)),
-      message:str(data.message,2500),status:'new',createdAt:now() });
+      message:str(data.message,2500),requestedAddons:JSON.stringify(selectedAddons(data.requestedAddons)),status:'new',createdAt:now() });
     return Response.json({ success:true });
   }
 
@@ -106,10 +111,19 @@ const secureGateway = async (req: Request) => {
       ownerEmail,seatLimit:seats,status:isPlatformAdmin?'active':'trial',
       industry:str(data.industry,80)||'General sales',preferredVoice:'flux-cliff-en',
       knowledgeSalt:btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
-      billingStatus:'trial',managerCanConfigure:false,managerCanControlRecording:false,
+      billingStatus:'trial',requestedAddons:JSON.stringify(selectedAddons(data.requestedAddons)),
+      managerCanConfigure:false,managerCanControlRecording:false,
       allowSessionRecording:false,allowLiveMonitoring:false,createdAt:now()});
     await db.BOBMember.create({organizationId:o.id,email:ownerEmail,displayName:'',role:'owner',status:'active',createdAt:now()});
     return Response.json({success:true,organization:fmtOrg(o)});
+  }
+  if (action==='requestAddons') {
+    // Customer admin expresses commercial interest; this never grants entitlement.
+    requireAdmin();
+    const requested=selectedAddons(data.requestedAddons);
+    await db.BOBOrganization.update(org.id,{requestedAddons:JSON.stringify(requested)});
+    return Response.json({success:true,requestedAddons:requested,
+       status:'interest_only',message:'BOB sales will review these product requests. Neither product is activated by this action.'});
   }
   if (action==='listInquiries') {
     if (!isPlatformAdmin) return bad('Platform access required.',403);
@@ -368,6 +382,34 @@ const secureGateway = async (req: Request) => {
       file_uri:row.fileUri,expires_in:180
     });
     return Response.json({success:true,encryptedUrl:result.signed_url,iv:row.encryptedIv});
+  }
+  // Add-on content is a DIFFERENT datastore than BOB's training KB.
+  // Within the add-on datastore, every query is strictly scoped to the org
+  // and the requested product. No public or unauthenticated access.
+  if(['addonKnowledge','addAddonKnowledge','deleteAddonKnowledge'].includes(action)){
+    requireOrg();
+    if(!['owner','admin'].includes(member?.role)&&!mayConfigure())
+      return bad('Organization training administrator permission required.',403);
+    const product=str(data.product,30);
+    if(!ADDON_IDS.includes(product))return bad('Unknown commercial product.',400);
+    if(action==='addonKnowledge'){
+      const rows=await db.BOBAddonKnowledge.filter({organizationId:org.id,product},'-created_date',150);
+      return Response.json({success:true,documents:(rows||[]).map((d:any)=>({
+        id:d.id,encryptedPayload:d.encryptedPayload,createdAt:d.createdAt
+      }))});
+    }
+    if(!org.keyVerifier)return bad('Initialize your customer-owned encryption vault first.',409);
+    if(action==='addAddonKnowledge'){
+      const created=await db.BOBAddonKnowledge.create({
+        organizationId:org.id,product,encryptedPayload:encrypted(data.encryptedPayload),
+        createdBy:email,createdAt:now()
+      });
+      return Response.json({success:true,id:created.id});
+    }
+    const record=await db.BOBAddonKnowledge.get(str(data.documentId,120)).catch(()=>null);
+    if(!record||record.organizationId!==org.id||record.product!==product)return bad('Document not found in this organization and product.',404);
+    await db.BOBAddonKnowledge.delete(record.id);
+    return Response.json({success:true});
   }
   if (action==='setDeepgramKey') {
     requireAdmin();

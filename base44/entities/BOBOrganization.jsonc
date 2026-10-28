@@ -85,6 +85,10 @@
       "type": "boolean",
       "title": "allowLiveMonitoring",
       "default": false
+    },
+    "requestedAddons": {
+      "type": "string",
+      "title": "Requested commercial add-ons (JSON array)"
     }
   },
   "required": [

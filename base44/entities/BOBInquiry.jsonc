@@ -29,6 +29,10 @@
     "status": {
       "type": "string",
       "title": "status"
+    },
+    "requestedAddons": {
+      "type": "string",
+      "title": "Requested commercial add-ons (JSON array)"
     }
   },
   "required": [
