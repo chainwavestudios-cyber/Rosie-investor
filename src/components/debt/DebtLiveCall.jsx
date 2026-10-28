@@ -139,9 +139,6 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // Lead
   const [leads, setLeads] = useState([]);
   const [lead, setLead] = useState({ firstName: '', lastName: '', status: 'new' });
-  useEffect(() => {
-    onScriptContextChange?.({ lead, liveTranscript: transcript, phase });
-  }, [lead, transcript, phase, onScriptContextChange]);
   const [showLeadPicker, setShowLeadPicker] = useState(false);
   const [profileData, setProfileData] = useState(null);
   const [memories, setMemories] = useState([]);
@@ -182,6 +179,10 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   useEffect(() => { qaItemsRef.current = qaItems; }, [qaItems]);
   useEffect(() => { coachTipsRef.current = coachTips; }, [coachTips]);
   useEffect(() => { intentScoreRef.current = intentScore; }, [intentScore]);
+  // Share live intent and transcript with Scripts AND Smart Close while the call is mounted.
+  useEffect(() => {
+    onScriptContextChange?.({ lead, liveTranscript: transcript, phase, intentScore, animalType: profileData?.animalType || lead?.animalType });
+  }, [lead, transcript, phase, intentScore, profileData?.animalType, onScriptContextChange]);
 
   // Toggle handlers for the AI tools — update state AND ref so processNewEntry
   // (captured by the WebSocket onmessage handler) sees the change immediately.
