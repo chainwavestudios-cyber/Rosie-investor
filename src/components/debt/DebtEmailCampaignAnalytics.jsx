@@ -131,7 +131,7 @@ export default function DebtEmailCampaignAnalytics(){
      const percent=milestone.percent;
      const allLinksAndAudio=milestone.goldListener&&flags.bbb&&flags.trustpilot&&flags.company;
      const eliteJourney=allLinksAndAudio&&flags.calendar;
-     const val={...milestone,flags,percent,allLinksAndAudio,eliteJourney,hotLead:n(r.clickCount)>1||!!r.qualifyVisitAt,score:Math.min(100,Math.round((percent>=98?22:percent>=75?16:percent>=25?8:percent>0?3:0)+(flags.bbb?15:0)+(flags.trustpilot?15:0)+(flags.company?15:0)+(flags.calendar?18:0)+Math.min(15,n(r.clickCount)*3)))};
+     const val={...milestone,flags,percent,allLinksAndAudio,eliteJourney,hotLead:n(r.clickCount)>1||!!r.qualifyVisitAt,score:Math.min(100,Math.round((percent>=98?22:percent>=75?16:percent>=25?8:percent>0?3:0)+(flags.bbb?15:0)+(flags.trustpilot?15:0)+(flags.company?15:0)+(flags.calendar?18:0)+Math.min(15,n(r.clickCount)*3)+(r.openedAt?4:0)+Math.min(6,Math.max(0,n(r.openCount)-1)))))};
      return [r.id,val];
    }));
  },[rows,gmailSends]);
@@ -270,13 +270,14 @@ export default function DebtEmailCampaignAnalytics(){
          {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}{actionNote&&<div role="status" className="dca-note">{actionNote}</div>}
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
          <div className="dca-table-scroll" style={{overflowX:'auto'}}><table className="dca-table" style={{minWidth:1730,width:'100%',whiteSpace:'nowrap',borderCollapse:'collapse'}}>
-           <thead><tr>{['Contact','Audio','BBB','Trustpilot','Company','Calendar','Milestone','Score','Activity','Phone','Last Called','Actions'].map(k=><th key={k} style={{padding:'7px 8px',fontSize:10}}>{k}</th>)}</tr></thead>
+           <thead><tr>{['Contact','Email Opened','Audio','BBB','Trustpilot','Company','Calendar','Milestone','Score','Activity','Phone','Last Called','Actions'].map(k=><th key={k} style={{padding:'7px 8px',fontSize:10}}>{k}</th>)}</tr></thead>
            <tbody>{orderedRows.map(row=>{
              const info=campaignSignals.get(row.id)||{};
              const cell={padding:'5px 7px',height:43,verticalAlign:'middle',fontSize:11};
              const btn={padding:'4px 7px',fontSize:10,whiteSpace:'nowrap'};
              return <tr key={row.id} style={{height:43}}>
                <td style={{...cell,maxWidth:185,overflow:'hidden',textOverflow:'ellipsis'}} title={row.email}><strong>{row.name}</strong> <span style={{fontSize:10,color:'#90a6ad'}}>{row.email}</span></td>
+               <td style={cell}><span title={row.openedAt?`Tracked open request · ${n(row.openCount)} recorded · first ${date(row.openedAt)}. Email image requests may be automated.`:'No open request recorded'} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:11,color:row.openedAt?'#94e6b9':'#8899a3',fontWeight:row.openedAt?800:400}}>{row.openedAt?'✓ Opened':'— Not opened'}{row.openedAt&&<span style={{fontSize:10,color:'#c1d1d2'}}>({n(row.openCount)})</span>}</span></td>
                <td style={cell}><CompactAudioProgress name={row.name} percent={info.percent||0} gold={info.goldListener} estimated={info.estimated}/></td>
                <td style={cell}><CompactSignal checked={info.flags?.bbb} label="BBB" description="Tracked BBB link"/></td>
                <td style={cell}><CompactSignal checked={info.flags?.trustpilot} label="Review" description="Tracked Trustpilot link"/></td>
@@ -295,7 +296,7 @@ export default function DebtEmailCampaignAnalytics(){
                  <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button>
                </div></td>
              </tr>})}
-           {!rows.length&&!rowsBusy&&<tr><td colSpan={12} className="dca-muted">No recipients match this filter.</td></tr>}
+           {!rows.length&&!rowsBusy&&<tr><td colSpan={13} className="dca-muted">No recipients match this filter.</td></tr>}
            </tbody></table></div>
          {rowsBusy&&<p className="dca-muted">Loading recipients…</p>}
          {recMore&&<button type="button" className="dca-button dca-load" onClick={()=>loadRecipients(true)} disabled={rowsBusy}>Load more recipients <ChevronDown size={15}/></button>}
