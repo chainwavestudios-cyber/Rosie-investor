@@ -186,20 +186,23 @@ export default async function(req: Request): Promise<Response> {
       if (!['super_admin','admin','super_manager','manager','dialer','fronter'].includes(role)) return Response.json({ error: 'Invalid role' }, { status: 400 });
       if (['super_admin','admin','fronter'].includes(role) && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins may create admin or fronter accounts' }, { status: 403 });
 
-      // New accounts cannot sign in until their private, expiring setup link is used.
+      // Generate and persist the token digest during account creation,
+      // avoiding a window where a new account has no usable setup link.
+      const setupSecret = secureRandomHex();
+      const setupTokenHash = await sha256(setupSecret);
+      const setupTokenExpiresAt = new Date(Date.now() + ACCOUNT_LINK_LIFETIME_MS).toISOString();
       const hash = await hashPassword(secureRandomHex(24));
       const permissions = body.permissions ? JSON.stringify(body.permissions) : '';
-
       const newUser = await base44.asServiceRole.entities.DebtCoachUser.create({
         username, email: body.email?.trim() || '', passwordHash: hash, role,
         permissions, mustResetPassword: true, isActive: true,
+        setupTokenHash, setupTokenExpiresAt,
         createdBy: admin.username, created_date: new Date().toISOString()
       });
-
-      const setup = await createSetupLink(newUser.id);
-      await base44.asServiceRole.entities.DebtCoachUser.update(newUser.id, {
-        setupTokenHash: setup.setupTokenHash, setupTokenExpiresAt: setup.setupTokenExpiresAt,
-      });
+      const setup = {
+        link: `${ACCOUNT_LINK_ORIGIN}#account=${encodeURIComponent(newUser.id)}&setup=${setupSecret}`,
+        setupTokenExpiresAt,
+      };
       let inviteSent = false;
       if (body.sendInvite && body.email) {
         try {
