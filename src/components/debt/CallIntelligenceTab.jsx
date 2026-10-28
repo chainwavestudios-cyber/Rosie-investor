@@ -218,6 +218,6 @@ export default function CallIntelligenceTab() {
         </>}
       </section>
     </div>
-    {profile&&<ClientProfileModal lead={profile} onClose={()=>setProfile(null)} onSave={updated=>setProfile(updated)}/>}
+    {profile&&<ClientProfileModal lead={profile} username={user?.username} onClose={()=>setProfile(null)} onSave={updated=>setProfile(updated)}/>}
   </div>;
 }
