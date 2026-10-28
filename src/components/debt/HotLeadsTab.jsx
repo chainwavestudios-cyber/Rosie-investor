@@ -1,482 +1,277 @@
-/**
- * HotLeadsTab.jsx — Shows all leads tagged "Hot Lead" alongside a calendar
- * view of upcoming scheduled calls/appointments.
- *
- * Features:
- *   - Pop-out calendar panel (persists across tabs)
- *   - Shows ALL appointments for the current day (even past ones)
- *   - "Today Only" toggle button
- *   - Phone number shown for each appointment
- *   - Click appointment to open contact card (not calendar link)
- *   - Green checkmark to mark appointment completed
- *   - Missed appointment detection (past time + no checkmark)
- */
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { base44 } from '@/api/base44Client';
+/** Hot Lead Command Center — prioritized queue, context panel, shared appointment workflow. */
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import {
+  Activity, AlertCircle, ArrowRight, CalendarDays, CheckCircle2, ChevronRight,
+  CircleAlert, Clock3, ExternalLink, Flame, Headphones, LayoutDashboard, Mail,
+  Map, Phone, RefreshCcw, Search, ShieldCheck, Sparkles, UserRound, Users, X
+} from 'lucide-react';
 import useHotLeads from '@/hooks/useHotLeads';
+import { base44 } from '@/api/base44Client';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import HotLeadsCalendar from './HotLeadsCalendar';
+import './HotLeadsTab.css';
 
-const GOLD = '#10b981';
-const RED = '#ef4444';
-const BLUE = '#60a5fa';
-const PURPLE = '#a78bfa';
-const AMBER = '#f59e0b';
-const DARK = '#0a0f1e';
+const TZ='America/New_York';
+const parseTime = value => {const v=value?new Date(value).getTime():NaN;return Number.isFinite(v)?v:null;};
+const dayET = value => value?new Date(value).toLocaleDateString('en-US',{timeZone:TZ,month:'2-digit',day:'2-digit',year:'numeric'}):'';
+const todayET = () => dayET(new Date().toISOString());
+const formatDate = value => {
+  const ms=parseTime(value);
+  return ms===null?'—':new Date(ms).toLocaleString('en-US',{timeZone:TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+};
+const ago = value => {
+  const ms=parseTime(value);
+  if(ms===null)return '—';
+  const min=Math.max(0,Math.floor((Date.now()-ms)/60000));
+  return min<60?min+'m ago':min<1440?Math.floor(min/60)+'h ago':Math.floor(min/1440)+'d ago';
+};
+const currency = value => Number(value)>0?'$'+Math.round(Number(value)).toLocaleString('en-US'):'—';
+const fullname = lead => [lead?.firstName,lead?.lastName].filter(Boolean).join(' ')||'Unnamed contact';
+const engagement = lead => {
+  const clickCount=['apptBbbClickedAt','apptTrustpilotClickedAt','apptWebsiteClickedAt'].filter(k=>Boolean(lead[k])).length;
+  const opened=Boolean(lead.apptEmailOpenedAt||lead.apptHourReminderOpenedAt);
+  const high=opened&&clickCount>=2;
+  return {clickCount,opened,high,oneHour:Boolean(lead.apptHourReminderOpenedAt)};
+};
+const isClosed = lead => ['completed','declined','enrolled'].includes(lead.status);
+const priorityFor = lead => {
+  const now=Date.now(),callback=parseTime(lead.callbackAt),appointment=parseTime(lead.appointmentDate);
+  const today=appointment!==null&&dayET(lead.appointmentDate)===todayET();
+  const callbackOverdue=callback!==null && callback<now && !isClosed(lead);
+  const apptPast=appointment!==null && appointment<now && !isClosed(lead) && !lead.rescheduleBookedAt;
+  const change=Boolean(lead.appointmentChangeRequested) && !isClosed(lead);
+  const engagementSignals=engagement(lead);
+  let score=0;
+  const reasons=[];
+  if(change){score+=120;reasons.push('Change requested');}
+  if(callbackOverdue){score+=100;reasons.push('Overdue callback');}
+  if(today){score+=75;reasons.push('Appointment today');}
+  if(apptPast){score+=45;reasons.push('Past appointment · review');}
+  if(engagementSignals.high){score+=35;reasons.push('Strong email engagement');}
+  if(engagementSignals.oneHour){score+=12;reasons.push('1-hour email opened');}
+  if(Number(lead.intentScore)>=75){score+=15;reasons.push('High intent score');}
+  if(Number(lead.dealScore)>=75){score+=10;reasons.push('High deal score');}
+  const attention=change||callbackOverdue||(today&&!lead.appointmentConfirmed)||apptPast;
+  let label='Follow up';
+  let kind='normal';
+  if(change||callbackOverdue){label='Action needed';kind='urgent';}
+  else if(today){label='Today';kind='today';}
+  else if(engagementSignals.high){label='Engaged';kind='engaged';}
+  return {score,attention,label,kind,today,callbackOverdue,apptPast,change,...engagementSignals,reasons};
+};
 
-function fmtDate(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', {
-    timeZone: 'America/New_York',
-    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
+const FILTERS=[
+  ['all','All hot leads'],
+  ['attention','Needs attention'],
+  ['today','Today'],
+  ['engaged','Engaged'],
+  ['overdue','Overdue']
+];
+function Stat({Icon,label,value,caption,tone='gold'}) {
+  return <div className="hl-stat"><div className="hl-stat-top">{label}<Icon size={15} className={'hl-tone-'+tone}/></div>
+    <strong>{value}</strong><div className="hl-stat-caption">{caption}</div></div>;
+}
+function Section({title,children}) {
+  return <div className="hl-detail-section"><h4>{title}</h4>{children}</div>;
+}
+function DataPair({label,value}) {
+  return <div className="hl-data-pair"><span>{label}</span><strong>{value??'—'}</strong></div>;
 }
 
-function timeAgo(iso) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
+export default function HotLeadsTab({onOpenLead,onOpenHeatMap}) {
+  const {user}=useDebtCoachAuth();
+  const [search,setSearch]=useState('');
+  const [filter,setFilter]=useState('all');
+  const [sort,setSort]=useState('priority');
+  const [selectedId,setSelectedId]=useState(null);
+  const [calendar,setCalendar]=useState([]);
+  const [calendarLoading,setCalendarLoading]=useState(true);
+  const [calendarError,setCalendarError]=useState('');
+  const [removeBusy,setRemoveBusy]=useState('');
+  const [removeError,setRemoveError]=useState('');
+  const {leads,total,loading,refreshing,error:leadError,hasMore,loadingMore,loadMore,refresh:refreshLeads}=useHotLeads(search);
 
-function isToday(dateStr) {
-  const today = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'short', day: 'numeric' });
-  return dateStr === today;
-}
-
-export default function HotLeadsTab({ onOpenLead, onOpenHeatMap }) {
-  const [events, setEvents] = useState([]);
-  const [calLoading, setCalLoading] = useState(true);
-  const [calError, setCalError] = useState('');
-  const [search, setSearch] = useState('');
-  const { leads, total, loading, refreshing, error: leadError, hasMore, loadingMore, loadMore, refresh: loadLeads } = useHotLeads(search);
-  const [todayOnly, setTodayOnly] = useState(false);
-  const [completed, setCompleted] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('appt_completed') || '{}'); } catch { return {}; }
-  });
-  const [calPoppedOut, setCalPoppedOut] = useState(false);
-  const [calPos, setCalPos] = useState({ x: 760, y: 80 });
-  const [calSize, setCalSize] = useState({ w: 380, h: 600 });
-  const calDragRef = useRef(null);
-  const [rescheduling, setRescheduling] = useState({});
-  const [rescheduleSent, setRescheduleSent] = useState({});
-
-
-
-  const loadCalendar = useCallback(async () => {
-    setCalLoading(true);
-    setCalError('');
-    try {
-      const res = await base44.functions.invoke('listCalendarEvents', { days: 3 });
-      const data = res?.data || res;
-      if (data?.error) setCalError(data.error);
-      else setEvents(data?.events || []);
-    } catch (e) {
-      setCalError(e?.message || String(e));
-    }
-    setCalLoading(false);
-  }, []);
-
-  useEffect(() => {
+  const loadCalendar=useCallback(async()=>{
+    setCalendarLoading(true);
+    try{
+      const res=await base44.functions.invoke('listCalendarEvents',{days:3});
+      const out=res?.data||res;
+      if(out?.error)throw new Error(out.error);
+      setCalendar(Array.isArray(out.events)?out.events:[]);
+      setCalendarError('');
+    }catch(err){setCalendarError(err?.message||'Could not load the calendar.');}
+    finally{setCalendarLoading(false);}
+  },[]);
+  useEffect(()=>{
     loadCalendar();
-    const calInterval = setInterval(loadCalendar, 60000);
-    const onVisibility = () => { if (!document.hidden) loadCalendar(); };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      clearInterval(calInterval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [loadCalendar]);
+    const timer=setInterval(loadCalendar,60000);
+    const refresh=()=>{if(!document.hidden)loadCalendar();};
+    document.addEventListener('visibilitychange',refresh);
+    return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};
+  },[loadCalendar]);
 
-  const removeHotTag = async (lead) => {
-    if (!window.confirm(`Remove "Hot Lead" tag from ${lead.firstName} ${lead.lastName}?`)) return;
-    try {
-      await base44.entities.DebtLead.update(lead.id, {
-        isHotLead: false,
-        hotLeadTaggedAt: null,
-        hotLeadTaggedBy: null,
-      });
-      loadLeads();
-    } catch (e) {
-      alert('Failed: ' + (e?.message || String(e)));
-    }
-  };
-
-  const toggleCompleted = (ev) => {
-    const next = { ...completed, [ev.id]: !completed[ev.id] };
-    setCompleted(next);
-    localStorage.setItem('appt_completed', JSON.stringify(next));
-  };
-
-  const sendReschedule = async (ev, lead) => {
-    if (!lead?.id || !lead?.email) return;
-    setRescheduling(prev => ({ ...prev, [ev.id]: true }));
-    try {
-      const res = await base44.functions.invoke('sendMissedApptReschedule', { leadId: lead.id });
-      const data = res?.data || res;
-      if (data?.success) {
-        setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
-      } else {
-        alert('Failed to send reschedule email: ' + (data?.error || 'Unknown error'));
-      }
-    } catch (e) {
-      alert('Failed to send reschedule email: ' + (e?.message || String(e)));
-    }
-    setRescheduling(prev => ({ ...prev, [ev.id]: false }));
-  };
-
-  // Rebook a missed appointment — searches ALL leads (not just hot leads) by
-  // attendee email or name from the event title. If found with an email, sends
-  // the reschedule email. If no lead found, opens the Google Calendar link.
-  const rebookAppointment = async (ev) => {
-    setRescheduling(prev => ({ ...prev, [ev.id]: true }));
-    try {
-      let foundLead = null;
-
-      // 1. Try matching by attendee email
-      if (ev.attendees?.length > 0) {
-        for (const email of ev.attendees) {
-          if (!email || !email.includes('@')) continue;
-          try {
-            const page = await base44.entities.DebtLead.filter(
-              { email: { $regex: email, $options: 'i' } },
-              { limit: 1 }
-            );
-            const items = page?.items || page || [];
-            if (items[0]) { foundLead = items[0]; break; }
-          } catch {}
-        }
-      }
-
-      // 2. Try matching by name from the event title
-      if (!foundLead) {
-        const title = (ev.title || '').trim();
-        // Strip phone numbers and common suffixes to get the name
-        const namePart = title.replace(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '').replace(/[-–—].*$/, '').trim();
-        const nameMatch = namePart.match(/^([A-Za-z]+)\s+([A-Za-z]+)/);
-        if (nameMatch) {
-          const [, firstName, lastName] = nameMatch;
-          try {
-            const page = await base44.entities.DebtLead.filter(
-              { firstName: { $regex: `^${firstName}$`, $options: 'i' }, lastName: { $regex: `^${lastName}$`, $options: 'i' } },
-              { limit: 1 }
-            );
-            const items = page?.items || page || [];
-            if (items[0]) foundLead = items[0];
-          } catch {}
-        }
-      }
-
-      // 3. If found with email, send the reschedule email
-      if (foundLead?.email) {
-        const res = await base44.functions.invoke('sendMissedApptReschedule', { leadId: foundLead.id });
-        const data = res?.data || res;
-        if (data?.success) {
-          setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
-        } else {
-          alert('Failed to send reschedule email: ' + (data?.error || 'Unknown error'));
-        }
-      } else {
-        // No lead found or no email — open the Google Calendar booking link
-        window.open('https://calendar.app.google/c9kk3wXrzPH21ARW7', '_blank');
-        setRescheduleSent(prev => ({ ...prev, [ev.id]: true }));
-      }
-    } catch (e) {
-      alert('Failed to rebook: ' + (e?.message || String(e)));
-    }
-    setRescheduling(prev => ({ ...prev, [ev.id]: false }));
-  };
-
-  // Calendar drag
-  const onCalDragStart = (e) => {
-    calDragRef.current = { startX: e.clientX - calPos.x, startY: e.clientY - calPos.y };
-    const onMove = (ev) => { if (calDragRef.current) setCalPos({ x: ev.clientX - calDragRef.current.startX, y: ev.clientY - calDragRef.current.startY }); };
-    const onUp = () => { calDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  // Try to match an event to a lead by name
-  const findLeadForEvent = (ev) => {
-    if (!leads.length) return null;
-    const title = (ev.title || '').toLowerCase();
-    return leads.find(l => {
-      const name = `${l.firstName} ${l.lastName}`.toLowerCase();
-      return title.includes(name) || title.includes((l.firstName || '').toLowerCase()) || title.includes((l.lastName || '').toLowerCase());
+  const info=useMemo(()=>leads.map(lead=>({lead,p:priorityFor(lead)})),[leads,calendar]); // Calendar reload also refreshes time-based labels.
+  const counts=useMemo(()=>({
+    attention:info.filter(({p})=>p.attention).length,
+    today:info.filter(({p})=>p.today).length,
+    engaged:info.filter(({p})=>p.high).length,
+    overdue:info.filter(({p})=>p.callbackOverdue||p.apptPast).length
+  }),[info]);
+  const visible=useMemo(()=>{
+    const rows=info.filter(({p})=>
+      filter==='all'||
+      filter==='attention'&&p.attention||
+      filter==='today'&&p.today||
+      filter==='engaged'&&p.high||
+      filter==='overdue'&&(p.callbackOverdue||p.apptPast)
+    );
+    rows.sort((a,b)=>{
+      if(sort==='newest')return (parseTime(b.lead.hotLeadTaggedAt)||0)-(parseTime(a.lead.hotLeadTaggedAt)||0);
+      if(sort==='appointment')return (parseTime(a.lead.appointmentDate)??Infinity)-(parseTime(b.lead.appointmentDate)??Infinity);
+      if(sort==='debt')return Number(b.lead.debtAmount||0)-Number(a.lead.debtAmount||0);
+      return b.p.score-a.p.score||(parseTime(b.lead.hotLeadTaggedAt)||0)-(parseTime(a.lead.hotLeadTaggedAt)||0);
     });
+    return rows;
+  },[info,filter,sort]);
+
+  useEffect(()=>{
+    if(!leads.length){setSelectedId(null);return;}
+    if(!leads.some(l=>l.id===selectedId))setSelectedId(leads[0].id);
+  },[leads,selectedId]);
+  const selected=leads.find(l=>l.id===selectedId);
+  const selectedPriority=selected?priorityFor(selected):null;
+  const selectedEngagement=selected?engagement(selected):null;
+  const refresh=()=>{refreshLeads();loadCalendar();};
+
+  const removeTag=async lead=>{
+    if(!window.confirm('Remove the Hot Lead tag from '+fullname(lead)+'? This keeps the contact and all its history.'))return;
+    setRemoveBusy(lead.id);setRemoveError('');
+    try{
+      await base44.entities.DebtLead.update(lead.id,{isHotLead:false,hotLeadTaggedAt:null,hotLeadTaggedBy:null});
+      if(selectedId===lead.id)setSelectedId(null);
+      refreshLeads();
+    }catch(err){setRemoveError('Could not remove the tag: '+(err?.message||'Try again.'));}
+    finally{setRemoveBusy('');}
   };
 
-  // Extract phone from event title or description (e.g. "John Doe - 555-123-4567")
-  const extractPhoneFromEvent = (ev) => {
-    const title = ev.title || '';
-    const phoneMatch = title.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-    if (phoneMatch) return phoneMatch[0];
-    // Try to find from matched lead
-    const lead = findLeadForEvent(ev);
-    if (lead?.phone) return lead.phone;
-    return null;
-  };
-
-  // Group calendar events by day
-  const eventsByDay = {};
-  let filteredEvents = events;
-  if (todayOnly) {
-    filteredEvents = events.filter(ev => isToday(ev.dayLabel));
-  }
-  filteredEvents.forEach(ev => {
-    if (!eventsByDay[ev.dayLabel]) eventsByDay[ev.dayLabel] = [];
-    eventsByDay[ev.dayLabel].push(ev);
-  });
-
-  const filtered = leads;
-
-  // Calendar panel content (shared between docked and popped-out)
-  const calendarPanel = (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
-      <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-        <span style={{ color: BLUE, fontSize: '13px', fontWeight: 'bold' }}>📅 {todayOnly ? 'Today' : 'Next 3 Days'}</span>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <button
-            onClick={() => setTodayOnly(p => !p)}
-            style={{
-              background: todayOnly ? `${GOLD}18` : 'rgba(255,255,255,0.05)',
-              color: todayOnly ? GOLD : '#6b7280',
-              border: `1px solid ${todayOnly ? GOLD + '44' : 'rgba(255,255,255,0.1)'}`,
-              borderRadius: '4px', padding: '4px 10px', cursor: 'pointer',
-              fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap',
-            }}
-          >
-            {todayOnly ? '✓ Today Only' : 'Today Only'}
-          </button>
-          <button onClick={loadCalendar} disabled={calLoading} style={{ background: 'rgba(96,165,250,0.1)', color: BLUE, border: `1px solid ${BLUE}33`, borderRadius: '4px', padding: '4px 10px', cursor: calLoading ? 'not-allowed' : 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{calLoading ? '⏳' : '↻'}</button>
-          {calPoppedOut ? (
-            <button onClick={() => setCalPoppedOut(false)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↙ Dock</button>
-          ) : (
-            <button onClick={() => setCalPoppedOut(true)} style={{ background: `${BLUE}18`, color: BLUE, border: `1px solid ${BLUE}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Pop Out</button>
-          )}
-        </div>
+  return <div className="hl-root">
+    <header className="hl-header">
+      <div>
+        <div className="hl-eyebrow"><Flame size={14}/>Settlement IQ · Priority pipeline</div>
+        <h2>Hot Lead Command Center</h2>
+        <p>Act on the next conversation, not just the newest tag. All priorities are suggestions based on saved activity.</p>
       </div>
-
-      {/* Events */}
-      {calError ? (
-        <div style={{ padding: '20px', color: RED, fontSize: '12px' }}>⚠ {calError}</div>
-      ) : calLoading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>Loading calendar…</div>
-      ) : filteredEvents.length === 0 ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#4a5568', fontSize: '12px' }}>
-          {todayOnly ? 'No appointments scheduled for today.' : 'No events scheduled for the next 3 days.'}
-        </div>
-      ) : (
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {Object.entries(eventsByDay).map(([day, dayEvents]) => {
-            const isCurrentDay = isToday(day);
-            return (
-              <div key={day}>
-                <div style={{
-                  padding: '8px 18px',
-                  background: isCurrentDay ? 'rgba(16,185,129,0.08)' : 'rgba(96,165,250,0.06)',
-                  borderBottom: '1px solid rgba(96,165,250,0.1)',
-                  borderTop: '1px solid rgba(96,165,250,0.1)',
-                  color: isCurrentDay ? GOLD : BLUE,
-                  fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                  <span>{isCurrentDay ? '★ ' : ''}{day}</span>
-                  <span style={{ opacity: 0.7 }}>{dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}</span>
-                </div>
-                {dayEvents.map(ev => {
-                  const startMs = new Date(ev.startISO || '').getTime();
-                  const isPast = !isNaN(startMs) && startMs < Date.now();
-                  const isDone = completed[ev.id];
-                  const isMissed = isPast && !isDone;
-                  const phone = extractPhoneFromEvent(ev);
-                  const matchedLead = findLeadForEvent(ev);
-                  const openHandler = () => {
-                    if (matchedLead && onOpenLead) onOpenLead(matchedLead);
-                  };
-                  return (
-                    <div key={ev.id} style={{
-                      padding: '10px 18px',
-                      borderBottom: '1px solid rgba(255,255,255,0.03)',
-                      display: 'flex', gap: '10px', alignItems: 'flex-start',
-                      background: isMissed ? 'rgba(239,68,68,0.04)' : 'transparent',
-                    }}>
-                      <div style={{ color: isPast && !isDone ? '#6b7280' : GOLD, fontSize: '11px', fontWeight: 'bold', minWidth: '55px', flexShrink: 0, textDecoration: isDone ? 'line-through' : 'none' }}>{ev.timeLabel}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          color: isDone ? '#4a5568' : isMissed ? RED : '#e8e0d0',
-                          fontSize: '12px', fontWeight: 'bold', wordBreak: 'break-word',
-                          textDecoration: isDone ? 'line-through' : 'none',
-                          cursor: onOpenLead ? 'pointer' : 'default',
-                        }} onClick={openHandler}>
-                          {ev.title}
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '3px' }}>
-                          {phone && <span style={{ color: BLUE, fontSize: '10px' }}>📞 {phone}</span>}
-                          {ev.attendees?.length > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>✉ {ev.attendees.join(', ')}</span>}
-                          {isMissed && <span style={{ color: RED, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚠ Missed</span>}
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                          {onOpenLead && (matchedLead || phone) && (
-                            <button onClick={openHandler} style={{
-                              background: `${GOLD}12`, color: GOLD,
-                              border: `1px solid ${GOLD}33`, borderRadius: '3px',
-                              padding: '3px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold',
-                            }}>
-                              📇 Contact Card
-                            </button>
-                          )}
-                          <button
-                            onClick={() => toggleCompleted(ev)}
-                            title={isDone ? 'Mark as not completed' : 'Mark as completed'}
-                            style={{
-                              background: isDone ? `${GOLD}20` : 'rgba(255,255,255,0.05)',
-                              color: isDone ? GOLD : '#4a5568',
-                              border: `1px solid ${isDone ? GOLD + '66' : 'rgba(255,255,255,0.12)'}`,
-                              borderRadius: '3px', padding: '3px 8px', cursor: 'pointer',
-                              fontSize: '11px', fontWeight: 'bold',
-                            }}
-                          >
-                            {isDone ? '✓ Completed' : '◯ Mark Done'}
-                          </button>
-                          {isMissed && (
-                            <button
-                              onClick={() => matchedLead?.email ? sendReschedule(ev, matchedLead) : rebookAppointment(ev)}
-                              disabled={rescheduling[ev.id]}
-                              title="Send reschedule email with booking link"
-                              style={{
-                                background: rescheduleSent[ev.id] ? `${GOLD}20` : `${RED}15`,
-                                color: rescheduleSent[ev.id] ? GOLD : RED,
-                                border: `1px solid ${rescheduleSent[ev.id] ? GOLD + '66' : RED + '44'}`,
-                                borderRadius: '3px', padding: '3px 8px', cursor: rescheduling[ev.id] ? 'not-allowed' : 'pointer',
-                                fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {rescheduling[ev.id] ? '⏳ Rebooking…' : rescheduleSent[ev.id] ? '✓ Sent' : '📅 Rebook'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: calPoppedOut ? '1fr' : '1fr 380px', gap: '16px', alignItems: 'start' }}>
-      {/* Hot Leads List */}
-      <div style={{ background: '#0d1b2a', border: `1px solid ${RED}33`, borderRadius: '8px', overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div>
-            <span style={{ color: RED, fontSize: '15px', fontWeight: 'bold' }}>🔥 Hot Leads</span>
-            <span style={{ color: '#8a9ab8', fontSize: '11px', marginLeft: '8px' }} aria-live="polite">{total ?? '…'} {search.trim() ? 'matching tagged leads' : 'tagged'}</span>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => loadLeads()} disabled={refreshing} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: refreshing ? 'not-allowed' : 'pointer', fontSize: '11px' }}>{refreshing ? 'Updating…' : 'Refresh Hot Leads'}</button>
-            {onOpenHeatMap && (
-              <button onClick={onOpenHeatMap} title="Pop out the Deal Heat Map" style={{ background: `${RED}18`, color: RED, border: `1px solid ${RED}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', fontFamily: 'Georgia, serif' }}>🔥 Heat Meter</button>
-            )}
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search hot leads…" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '5px 10px', color: '#e8e0d0', fontSize: '11px', outline: 'none', fontFamily: 'Georgia, serif', width: '200px' }} />
-          </div>
-        </div>
-
-        {leadError && <div role="alert" style={{ padding: '12px 18px', color: RED, fontSize: '12px' }}>Hot Leads could not update. {leads.length > 0 ? 'Your last loaded leads are still shown. ' : ''}Please press Refresh Hot Leads to retry.</div>}
-        {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>Loading hot leads…</div>
-        ) : filtered.length === 0 && !leadError ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#4a5568', fontSize: '13px' }}>
-            {search ? 'No hot leads match your search.' : 'No hot leads yet. Tag a lead as "Hot Lead" from the contact card header.'}
-          </div>
-        ) : (
-          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            {filtered.map(lead => {
-              const credClicks = [lead.apptBbbClickedAt, lead.apptTrustpilotClickedAt, lead.apptWebsiteClickedAt].filter(Boolean).length;
-              const fireHighlight = lead.apptEmailOpenedAt && credClicks >= 2;
-              const neonGreen = !!lead.apptHourReminderOpenedAt;
-              const highlightClass = fireHighlight ? 'hot-lead-fire-border' : neonGreen ? 'hot-lead-neon-green-border' : '';
-              return (
-              <div key={lead.id} className={highlightClass} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: '12px', margin: '2px 4px', borderRadius: highlightClass ? '6px' : '0' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: `linear-gradient(135deg,${RED},#f97316)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DARK, fontSize: '13px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
-                  {(lead.firstName?.[0] || '?')}{(lead.lastName?.[0] || '')}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead.firstName} {lead.lastName}</span>
-                    <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', background: `${RED}15`, color: RED, border: `1px solid ${RED}33` }}>🔥 Hot</span>
-                    {lead.status && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(138,154,184,0.12)', color: '#8a9ab8' }}>{lead.status}</span>}
-                    {fireHighlight && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(239,68,68,0.15)', color: RED, border: `1px solid ${RED}44`, animation: 'pulse 1s infinite' }}>🔥 2/3 Links</span>}
-                    {neonGreen && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44` }}>⏰ 1hr Opened</span>}
-                    {lead.appointmentConfirmed && <span style={{ padding: '1px 7px', borderRadius: '8px', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', background: 'rgba(16,185,129,0.15)', color: GOLD, border: `1px solid ${GOLD}44` }}>✅ Confirmed</span>}
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    {lead.phone && <span>📞 {lead.phone}</span>}
-                    {lead.debtAmount > 0 && <span>💳 ${lead.debtAmount.toLocaleString()}</span>}
-                    {lead.callCount > 0 && <span>📋 {lead.callCount} call{lead.callCount !== 1 ? 's' : ''}</span>}
-                    {lead.hotLeadTaggedAt && <span style={{ color: AMBER }}>🔥 Tagged {timeAgo(lead.hotLeadTaggedAt)}</span>}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  {onOpenLead && (
-                    <button onClick={() => onOpenLead(lead)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Open</button>
-                  )}
-                  <button onClick={() => removeHotTag(lead)} title="Remove hot lead tag" style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: `1px solid ${RED}33`, borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✕</button>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        )}
-        {hasMore && <div style={{ padding: '12px 18px', textAlign: 'center' }}><button onClick={loadMore} disabled={loadingMore} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '7px 16px', cursor: loadingMore ? 'not-allowed' : 'pointer', fontSize: '12px' }}>{loadingMore ? 'Loading…' : 'Load more hot leads'}</button></div>}
+      <div className="hl-header-actions">
+        <button className="hl-btn secondary" type="button" disabled={refreshing||calendarLoading} onClick={refresh}><RefreshCcw size={14}/>Refresh</button>
+        {onOpenHeatMap&&<button className="hl-btn secondary" type="button" onClick={onOpenHeatMap}><Map size={14}/>Deal heat map</button>}
       </div>
+    </header>
 
-      {/* Docked Calendar */}
-      {!calPoppedOut && (
-        <div style={{ background: '#0d1b2a', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '8px', overflow: 'hidden', position: 'sticky', top: '0', maxHeight: '700px' }}>
-          {calendarPanel}
-        </div>
-      )}
-
-      {/* Popped-out Calendar */}
-      {calPoppedOut && (
-        <div style={{
-          position: 'fixed', left: calPos.x, top: calPos.y, width: calSize.w, height: calSize.h,
-          background: '#0d1b2a', border: `2px solid ${BLUE}44`, borderRadius: '8px',
-          boxShadow: '0 16px 64px rgba(0,0,0,0.8)', zIndex: 14650,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
-          <div onMouseDown={onCalDragStart} style={{
-            padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            cursor: 'move', userSelect: 'none', flexShrink: 0,
-          }}>
-            <span style={{ color: BLUE, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📅 Calendar</span>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button onClick={() => setCalSize(s => ({ ...s, w: Math.max(300, s.w - 40) }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '14px' }}>−</button>
-              <button onClick={() => setCalSize(s => ({ ...s, w: s.w + 40, h: s.h + 40 }))} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '14px' }}>+</button>
-              <button onClick={() => setCalPoppedOut(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: '0 4px' }}>×</button>
-            </div>
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            {calendarPanel}
-          </div>
-          <div onMouseDown={(e) => {
-            e.stopPropagation();
-            const startX = e.clientX, startY = e.clientY, startW = calSize.w, startH = calSize.h;
-            const onMove = (ev) => setCalSize({ w: Math.max(300, startW + ev.clientX - startX), h: Math.max(300, startH + ev.clientY - startY) });
-            const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-          }} style={{ position: 'absolute', bottom: 0, right: 0, width: '16px', height: '16px', cursor: 'nwse-resize', color: '#4a5568', textAlign: 'right', paddingRight: '2px' }}>⌟</div>
-        </div>
-      )}
+    <div className="hl-metrics">
+      <Stat Icon={Users} label="Hot leads" value={Number(total??leads.length).toLocaleString()} caption={search?'Matching tagged leads':'Tagged contacts'}/>
+      <Stat Icon={CircleAlert} label="Needs attention" value={counts.attention} caption="Among loaded leads" tone="red"/>
+      <Stat Icon={CalendarDays} label="Appointments today" value={counts.today} caption="Loaded hot leads" tone="blue"/>
+      <Stat Icon={Activity} label="Highly engaged" value={counts.engaged} caption="Email + link signals" tone="green"/>
     </div>
-  );
+
+    <div className="hl-tools">
+      <label className="hl-search"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hot leads by name, email, phone…" aria-label="Search hot leads"/></label>
+      <div className="hl-filters" role="group" aria-label="Filter hot leads">
+        {FILTERS.map(([id,label])=><button key={id} type="button" className="hl-filter" aria-pressed={filter===id} onClick={()=>setFilter(id)}>
+          {label}{id!=='all'&&<span>{counts[id]}</span>}
+        </button>)}
+      </div>
+      <select className="hl-select" aria-label="Sort hot leads" value={sort} onChange={e=>setSort(e.target.value)}>
+        <option value="priority">Suggested priority</option>
+        <option value="appointment">Appointment time</option>
+        <option value="newest">Recently tagged</option>
+        <option value="debt">Highest debt</option>
+      </select>
+    </div>
+
+    {leadError&&<div className="hl-inline-error" role="alert"><AlertCircle size={14}/>Leads could not refresh. Showing the last loaded records, if available.</div>}
+    {removeError&&<div className="hl-inline-error" role="alert"><AlertCircle size={14}/>{removeError}</div>}
+    <div className="hl-columns">
+      <section className="hl-queue">
+        <div className="hl-panel-heading"><strong>Priority queue</strong><span>{visible.length} visible · {leads.length} loaded</span></div>
+        {loading&&!leads.length
+          ?<div className="hl-empty">Loading hot leads…</div>
+          : !visible.length
+          ?<div className="hl-empty">{search?'No matching contacts.':filter!=='all'?'No contacts in this category.':'No hot leads yet. Tag a contact to add it here.'}</div>
+          :<div className="hl-queue-scroll" role="listbox" aria-label="Hot leads">
+            {visible.map(({lead,p})=><button type="button" key={lead.id} className="hl-lead-row" role="option" aria-selected={selectedId===lead.id} onClick={()=>setSelectedId(lead.id)}>
+              <span className="hl-avatar">{(lead.firstName?.[0]||'?').toUpperCase()}{(lead.lastName?.[0]||'').toUpperCase()}</span>
+              <span className="hl-lead-identity">
+                <span className="hl-lead-name">{fullname(lead)}<span className={'hl-lead-badge '+p.kind}>{p.label}</span></span>
+                <span className="hl-lead-meta">
+                  {currency(lead.debtAmount)} debt
+                  {lead.debtCoachOwner?' · '+lead.debtCoachOwner:''}
+                  {lead.appointmentDate?' · Appt '+formatDate(lead.appointmentDate):lead.callbackAt?' · Callback '+formatDate(lead.callbackAt):''}
+                </span>
+                {(p.change||p.callbackOverdue||p.high)&&<span className="hl-row-signal">{p.reasons[0]}</span>}
+              </span>
+              <span className="hl-lead-right">
+                {Number.isFinite(Number(lead.intentScore))&&lead.intentScore!=null&&<span className="hl-score">Intent {Math.round(Number(lead.intentScore))}</span>}
+                <ChevronRight size={15}/>
+              </span>
+            </button>)}
+          </div>}
+        {hasMore&&<div className="hl-loadmore"><button type="button" disabled={loadingMore} onClick={loadMore}>{loadingMore?'Loading…':'Load more hot leads'}</button></div>}
+        <div className="hl-queue-foot">Sorted within loaded leads. Load more to include older tagged contacts in the priority ranking.</div>
+      </section>
+
+      <aside className="hl-side">
+        <section className="hl-detail">
+          <div className="hl-panel-heading"><strong>Contact intelligence</strong><span>{selected?'Selected contact':'Select a lead'}</span></div>
+          {!selected?<div className="hl-empty"><UserRound size={22}/>Select a lead from the queue to see recent signals, details and actions.</div>:
+            <div className="hl-detail-inner">
+              <div className="hl-person">
+                <div><h3>{fullname(selected)}</h3><div className="hl-person-meta">{selected.leadNumber||'Contact'} {selected.status?' · '+selected.status:''}</div></div>
+                <span className={'hl-lead-badge '+selectedPriority.kind}>{selectedPriority.label}</span>
+              </div>
+              {selectedPriority.reasons.length>0&&<div className="hl-priority-note"><Sparkles size={15}/><span><strong>Suggested next focus</strong>{selectedPriority.reasons.slice(0,2).join(' · ')}</span></div>}
+              <div className="hl-quick-actions">
+                <button className="hl-btn gold" type="button" onClick={()=>onOpenLead?.(selected)}><UserRound size={14}/>Open contact card</button>
+                {selected.phone&&<a className="hl-btn secondary" href={'tel:'+selected.phone.replace(/[^+\d]/g,'')} title="Dial using your device's phone handler"><Phone size={14}/>Call</a>}
+                {selected.email&&<a className="hl-btn secondary" href={'mailto:'+encodeURIComponent(selected.email)} title="Open your email app; tracked platform mailers are sent from the contact card"><Mail size={14}/>Email</a>}
+              </div>
+              <Section title="Contact snapshot">
+                <div className="hl-data-grid">
+                  <DataPair label="Total debt" value={currency(selected.debtAmount)}/>
+                  <DataPair label="Assigned agent" value={selected.debtCoachOwner||'Unassigned'}/>
+                  <DataPair label="Intent score" value={selected.intentScore!=null?Math.round(Number(selected.intentScore))+'/100':'Not scored'}/>
+                  <DataPair label="Last call" value={selected.lastCallAt?ago(selected.lastCallAt):'No call logged'}/>
+                  <DataPair label="Call count" value={Number(selected.callCount||0)}/>
+                  <DataPair label="Tagged hot" value={selected.hotLeadTaggedAt?ago(selected.hotLeadTaggedAt):'—'}/>
+                </div>
+              </Section>
+              <Section title="Appointment & follow-up">
+                <DataPair label="Appointment" value={selected.appointmentDate?formatDate(selected.appointmentDate)+' ET':'Not scheduled'}/>
+                <DataPair label="Confirmation" value={selected.appointmentDate?(selected.appointmentConfirmed?'Client confirmed':'Not confirmed'):'—'}/>
+                <DataPair label="Callback" value={selected.callbackAt?formatDate(selected.callbackAt)+' ET':'Not scheduled'}/>
+                {selected.appointmentChangeRequested&&<div className="hl-inline-alert"><CircleAlert size={13}/>Client requested a change</div>}
+                {selected.appointmentEventHtmlLink&&<a className="hl-subtle-link" href={selected.appointmentEventHtmlLink} target="_blank" rel="noreferrer"><ExternalLink size={12}/>View appointment in Calendar</a>}
+              </Section>
+              <Section title="Engagement signals">
+                <div className="hl-signal-grid">
+                  <span className={selectedEngagement.opened?'active':''}><Mail size={13}/>{selectedEngagement.opened?'Reminder opened':'No reminder open tracked'}</span>
+                  <span className={selectedEngagement.clickCount>=2?'active':''}><Activity size={13}/>{selectedEngagement.clickCount}/3 credibility links clicked</span>
+                  <span className={selectedEngagement.oneHour?'active':''}><Clock3 size={13}/>{selectedEngagement.oneHour?'1-hour reminder opened':'No 1-hour open tracked'}</span>
+                  <span className={selected.appointmentConfirmed?'active':''}><CheckCircle2 size={13}/>{selected.appointmentConfirmed?'Appointment confirmed':'Not confirmed'}</span>
+                </div>
+              </Section>
+              {(selected.nextCallBriefing||selected.notes)&&<Section title={selected.nextCallBriefing?'Next-call briefing':'Contact notes'}>
+                <p className="hl-briefing">{(selected.nextCallBriefing||selected.notes).slice(0,800)}</p>
+              </Section>}
+              <div className="hl-detail-bottom">
+                <button className="hl-remove" type="button" disabled={removeBusy===selected.id} onClick={()=>removeTag(selected)}><X size={13}/>{removeBusy===selected.id?'Removing…':'Remove hot tag'}</button>
+                <span>Credentials and tracked outreach are available in the contact card.</span>
+              </div>
+            </div>}
+        </section>
+        <HotLeadsCalendar events={calendar} loading={calendarLoading} error={calendarError} onRefresh={loadCalendar} leads={leads} username={user?.username} onOpenLead={onOpenLead}/>
+      </aside>
+    </div>
+    <p className="hl-disclaimer">Priority is based on available saved signals—not a prediction of enrollment. Email opens and link clicks may be incomplete. Times use Eastern Time.</p>
+  </div>;
 }
