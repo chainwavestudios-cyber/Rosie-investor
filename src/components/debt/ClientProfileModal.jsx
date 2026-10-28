@@ -364,9 +364,22 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
       setLocal(prev => ({ ...prev, ...tag }));
       setSaved(true); setTimeout(() => setSaved(false), 2000);
       onSave?.({ ...merged, ...tag });
+      dirtyFieldsRef.current.clear();
       await queryClient.invalidateQueries({ queryKey: HOT_LEADS_KEY });
+      setSaving(false);
+      return true;
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
+    return false;
+  };
+
+  const launchFromProfile = async (mode) => {
+    // Any pending manual edits must persist before the new Live Call workspace
+    // loads the selected lead from the server. Never drop typed fields.
+    if (saving || !local.id) return;
+    if (dirtyFieldsRef.current.size && !(await save())) return;
+    window.dispatchEvent(new CustomEvent('debt_launch_live', { detail: { leadId: local.id, mode } }));
+    onClose?.();
   };
 
   return (
@@ -425,7 +438,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
           </>
         )}
         <div style={{ flex: 1, minWidth: '120px' }}>
-          <DebtCallBar lead={local} />
+          <DebtCallBar lead={local} onLaunch={launchFromProfile} />
         </div>
       </div>
 
