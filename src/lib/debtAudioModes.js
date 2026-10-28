@@ -21,7 +21,9 @@ export function findAudioDevice(devices = [], savedId = '', savedLabel = '') {
   const items = Array.isArray(devices) ? devices : [];
   if (savedId) {
     const byId = items.find(d => d.deviceId === savedId);
-    if (byId && (!savedLabel || !byId.label || byId.label === savedLabel)) return byId;
+    // A previously named device cannot be verified from an unlabeled entry.
+    // Ask for a permission-granting re-scan rather than guessing.
+    if (byId && (!savedLabel || byId.label === savedLabel)) return byId;
   }
   if (savedLabel) {
     const byLabel = items.filter(d => d.label && d.label === savedLabel);
