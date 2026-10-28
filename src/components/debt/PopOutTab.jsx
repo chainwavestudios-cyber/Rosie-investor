@@ -25,8 +25,8 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
     // Only an explicit opt-in can auto-arrange panels. The Coach start-call
     // flow no longer passes this option, avoiding a flood of windows.
     if (!autoPopOut) return;
-    if (!panel.poppedOut) panel.popOut();
-    else panel.center();
+    // Restore the operator's saved placement rather than recentering each live call.
+    panel.openAtSavedPosition();
   }, [autoPopOut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
