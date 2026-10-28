@@ -251,7 +251,8 @@ async function buildReport(base44: any, body: any, rules: any) {
     const entries = result.hotLeadIds
       .map((leadId: string) => ({ leadId, ...(result.scoreOf[leadId] || {}) }))
       .filter((entry: any) => typeof entry.score === 'number');
-    // Read paths must not mutate lead history or current hot-lead status.
+    // Preserve existing hot-lead ledger updates until a dedicated event-driven worker is deployed.
+    await recordHotLeads(base44, system, entries, describe);
     result.hotHistory = await readHotHistory(base44, system);
   }));
 
