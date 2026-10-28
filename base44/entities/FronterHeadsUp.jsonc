@@ -51,6 +51,10 @@
       "type": "number",
       "title": "Advisor attempt number"
     },
+    "advisorCallSid": {
+      "type": "string",
+      "title": "Active advisor call SID"
+    },
     "lineKey": {
       "type": "string",
       "title": "Twilio Line Key (for listen)"
