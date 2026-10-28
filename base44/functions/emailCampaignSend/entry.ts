@@ -27,6 +27,7 @@ import { campaignAssistants, normalizeAddress, recipientVars, renderEmail, sendi
 import { buildMime } from '../../shared/emailTracking.ts';
 import { sendViaGmail } from '../../shared/gmailSend.ts';
 import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
+import { daaTemplateIssue, DAA_WELCOME_URL, withDAAWelcomeCTA } from '../../shared/daaEmailPolicy.ts';
 import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 /** One queue of a campaign: how many emails it sends, and how long it then waits. */
@@ -100,6 +101,8 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
   // A missing template is a normal half-finished state, not an API failure — it
   // comes back as a readable message the wizard can show in place.
   if (!template) return { error: 'This campaign has no email template yet — choose one in step 3.' };
+  const policyError=daaTemplateIssue(template);
+  if (policyError) return { error: `DAA Gmail protection: ${policyError}` };
 
   const assistants = options.assistants || await campaignAssistants(base44);
   const subjectOverride = clean(campaign.subject);
@@ -223,7 +226,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     }
 
     const vars = recipientVars(recipient, assistants);
-    const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject }, vars);
+    const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
     const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const templateName = clean(campaign.templateName) || clean(template.name);
 
@@ -249,7 +252,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
         html: rendered.html,
         text: rendered.text,
         contactId: recipient.leadId || '',
-        contactKind: 'lead',
+        contactKind: 'debt_lead',
         contactName: `${clean(recipient.firstName)} ${clean(recipient.lastName)}`.trim(),
         templateId: template.id,
         templateName,
@@ -395,6 +398,8 @@ export default async function (req: Request): Promise<Response> {
       ? await base44.asServiceRole.entities.EmailCampaignTemplate.get(campaign.templateId).catch(() => null)
       : null;
     if (!template) return Response.json({ error: 'This campaign has no email template yet — choose one in step 3.' });
+    const policyError=daaTemplateIssue(template);
+    if (policyError) return Response.json({ error: `DAA Gmail protection: ${policyError}` }, {status:403});
 
     const assistants = await campaignAssistants(base44);
     const subjectOverride = clean(campaign.subject);
@@ -414,7 +419,7 @@ export default async function (req: Request): Promise<Response> {
       const recipient = await recipientFor(clean(body.recipientId) || undefined);
       if (!recipient) return Response.json({ error: 'There is no recipient to preview yet — import a list first.' });
       const vars = recipientVars(recipient, assistants);
-      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject }, vars);
+      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
       return Response.json({
         ok: true,
         recipient: {
@@ -450,9 +455,14 @@ export default async function (req: Request): Promise<Response> {
       if (!to) return Response.json({ error: 'Enter a valid address to send the test to.' });
       const recipient = await recipientFor(clean(body.recipientId) || undefined);
       const vars = recipientVars(recipient || { firstName: 'Friend', email: to }, assistants);
-      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject }, vars);
-      await sendViaGmail(base44, to, buildMime(to, `<TEST> ${rendered.subject}`, rendered.html, rendered.text));
-      return Response.json({ ok: true, to });
+      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
+      const test=await sendTrackedEmail(base44,{
+        to,subject:`[TEST] ${rendered.subject}`,html:rendered.html,text:rendered.text,
+        contactKind:'debt_lead',contactId:'',contactName:'Gmail test recipient',
+        templateId:template.id,templateName:`[TEST] ${template.name}`,
+        sentBy:'debt_coach',source:'template_test',allowDuplicate:true,track:true,
+      });
+      return Response.json({ ok: true, to, tracked:true, sendId:test.sendId });
     }
 
     // ── The queue ───────────────────────────────────────────────────────────
