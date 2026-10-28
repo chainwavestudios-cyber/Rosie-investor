@@ -41,15 +41,23 @@ async function readAll(entity: any, filter: any, sort: string) {
   return { items: out, truncated: out.length === MAX };
 }
 
-function intentScore(events: any[]) {
+function intentScore(events: any[], sessions: any[]) {
   const opens = events.filter((e) => e.eventType === 'open' && !automatedOpen(e.userAgent));
   const clickEvents = events.filter(countedClick);
   const links = unique(clickEvents.map((e) => String(e.url)));
   const visits = events.filter((e) => e.eventType === 'qualify_visit' && !knownBot(e.userAgent));
-  const score = Math.min(100, (opens.length ? 3 : 0) + Math.min(Math.max(opens.length - 1, 0), 2) * 2 + Math.min(links.length, 4) * 17 + (visits.length ? 35 : 0));
-  const actionable = links.length > 0 || visits.length > 0;
-  return { score, tier: score >= 60 && actionable ? 'high' : score >= 25 && actionable ? 'engaged' : opens.length ? 'open_only' : 'none',
-    reasons: [visits.length ? 'Qualification page visited' : '', links.length ? String(links.length) + ' distinct link destination(s) recorded (not proof of a human visit)' : '', opens.length ? String(opens.length) + ' non-proxy open(s)' : ''].filter(Boolean) };
+  // Corroborate click redirects with first-party playback/calendar events for
+  // high-intent classification. Link scanners alone must not make someone hot.
+  const audioBest = Math.max(0, ...sessions.map((s: any) => Number(s.percentListened || 0)));
+  const calendarOpened = sessions.some((s: any) => !!s.calendarOpenedAt);
+  const websiteClicked = sessions.some((s: any) => !!s.websiteClickedAt);
+  const audioPoints = audioBest >= 98 ? 22 : audioBest >= 75 ? 16 : audioBest >= 25 ? 8 : audioBest >= 5 ? 3 : 0;
+  const score = Math.min(100, (opens.length ? 3 : 0) + Math.min(links.length, 4) * 12 + (visits.length ? 25 : 0)
+    + audioPoints + (calendarOpened ? 15 : 0) + (websiteClicked ? 8 : 0));
+  const corroborated = visits.length > 0 || calendarOpened || audioBest >= 75;
+  const active = links.length > 0 || visits.length > 0 || audioBest >= 5 || calendarOpened || websiteClicked;
+  return { score, tier: score >= 60 && corroborated ? 'high' : active ? 'engaged' : opens.length ? 'open_only' : 'none',
+    reasons: [visits.length ? 'Qualification page visited' : '', links.length ? String(links.length) + ' tracked link destination(s) (visitor unverified)' : '', audioBest >= 5 ? String(Math.round(audioBest)) + '% estimated audio playback' : '', calendarOpened ? 'Calendar opened' : '', websiteClicked ? 'Company site opened from welcome page' : '', opens.length ? String(opens.length) + ' non-proxy open(s)' : ''].filter(Boolean) };
 }
 
 async function authenticate(base44: any, body: any) {
@@ -119,8 +127,8 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
       const opens = events.filter((ev) => ev.eventType === 'open');
       const clicks = events.filter((ev) => ev.eventType === 'click');
       const proxyOpens = opens.filter((ev) => automatedOpen(ev.userAgent));
-      const intent = intentScore(events);
       const sessions = audioBySend.get(String(m.sendId)) || [];
+      const intent = intentScore(events, sessions);
       const audioPlays = sessions.reduce((n: number, s: any) => n + Number(s.playCount || 0), 0);
       const audioBestPercent = Math.max(0, ...sessions.map((s: any) => Number(s.percentListened || 0)));
       const audioCompletionRecorded = sessions.some((s: any) => s.completed === true);
