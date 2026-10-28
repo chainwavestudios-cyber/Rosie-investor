@@ -47,6 +47,7 @@ import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
+import AiQueueFallbackAlert from '@/components/debt/AiQueueFallbackAlert';
 import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
 import AppointmentTimersBar from '@/components/debt/AppointmentTimersBar';
 import '@/components/debt/DebtCoachPolish.css';
@@ -274,6 +275,9 @@ export default function DebtCallCoach() {
 
       {/* Meeting alert — 5 min before a meeting, popup with audible tone */}
       <MeetingAlertPopup />
+
+      {/* AI outbound: both Chris lines unavailable — prospect is in recorded queue. */}
+      {(isAdmin || isSuperAdmin || isSuperManager) && <AiQueueFallbackAlert onOpenLead={(lead)=>setHotLead(lead)} />}
 
       {/* Missed appointment alert — checks every 15 min, 10am-10pm ET Mon-Sat (superadmins only) */}
       {isSuperAdmin && <MissedAppointmentAlert onOpenLead={(ev) => {
