@@ -47,6 +47,10 @@ export default function DebtGmailEngagement({ view = 'report' }) {
   const filter = (r) => [r.contactName, r.contactEmail, r.templateName, r.subject, r.name, r.email].join(' ').toLowerCase().includes(search.toLowerCase());
   const messages = (data?.timeline || []).filter(filter);
   const old = (data?.legacyHistory || []).filter(filter);
+  const history = [
+    ...messages.map((m) => ({ ...m, openedAt: m.firstOpenAt, clickedAt: m.events?.find((e) => e.type === 'click')?.at || null, legacyOpens: m.opens, legacyClicks: m.clicks, provenance: 'Gmail send record' })),
+    ...old.map((m) => ({ ...m, contactName: m.name, contactEmail: m.email, legacyOpens: m.openedAt ? 'Recorded' : '—', legacyClicks: m.clickedAt ? 'Recorded' : '—', provenance: 'Legacy Gmail log' })),
+  ].sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
 
   return <div style={{ marginTop: 12, color: colors.ink }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
@@ -68,6 +72,7 @@ export default function DebtGmailEngagement({ view = 'report' }) {
     {view === 'report' && data && <>
       <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginBottom: 18 }}>
         {metric('Gmail emails sent', data.summary.emailsSent, 'Unique send records')}
+        {metric('Failed Gmail attempts', data.summary.failedAttempts, 'Not counted as sent')}
         {metric('Recipients', data.summary.distinctRecipients)}
         {metric('Non-proxy opens', data.summary.withNonProxyOpens, 'Unique sends, not people')}
         {metric('Clicked', data.summary.withClicks, 'Unique sends')}
@@ -82,22 +87,22 @@ export default function DebtGmailEngagement({ view = 'report' }) {
         </table>
       </div>
     </>}
-    <h3 style={{ fontSize: 13, margin: '18px 0 9px' }}>{view === 'old' ? 'Legacy Gmail history' : 'Who received each email and what happened'}</h3>
+    <h3 style={{ fontSize: 13, margin: '18px 0 9px' }}>{view === 'old' ? 'Preserved Gmail send and follow-up history' : 'Who received each email and what happened'}</h3>
     <input aria-label="Search email history" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search contact, email or template..." style={{ width: '100%', maxWidth: 360, boxSizing: 'border-box', background: colors.background, color: colors.ink, border: '1px solid ' + colors.border, borderRadius: 6, padding: 9, marginBottom: 10 }} />
     <div style={{ maxHeight: 600, overflow: 'auto' }}>
       <table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse' }}>
         <thead><tr>{['Sent', 'Contact', 'Template', 'Status', 'Opens', 'Clicks', 'Email intent', 'Details'].map((x) => <th key={x} style={header}>{x}</th>)}</tr></thead>
-        <tbody>{(view === 'old' ? old.map((x) => ({ ...x, contactName: x.name, contactEmail: x.email, opens: x.openedAt ? 'Yes (legacy)' : '—', clicks: x.clickedAt ? 'Yes (legacy)' : '—', tier: 'unverified' })) : messages).map((x) => <tr key={x.id}>
+        <tbody>{(view === 'old' ? history : messages).map((x) => <tr key={x.id}>
           <td style={cell}>{date(x.sentAt)}</td>
           <td style={cell}><strong>{x.contactName || 'Unknown'}</strong><div style={{ fontSize: 10, color: colors.muted }}>{x.contactEmail}</div></td>
           <td style={cell}>{x.templateName}</td><td style={cell}>{x.status}</td>
-          <td style={cell}>{view === 'old' ? x.opens : x.nonProxyOpens + ' non-proxy / ' + x.proxyOpens + ' proxy'}</td>
-          <td style={cell}>{view === 'old' ? x.clicks : x.distinctLinks}</td>
-          <td style={cell}>{view === 'old' ? 'Unverified legacy' : x.intentScore + '/100 · ' + x.tier}</td>
+          <td style={cell}>{view === 'old' ? x.legacyOpens : x.nonProxyOpens + ' non-proxy / ' + x.proxyOpens + ' proxy'}</td>
+          <td style={cell}>{view === 'old' ? x.legacyClicks : x.distinctLinks}</td>
+          <td style={cell}>{view === 'old' ? x.provenance : x.intentScore + '/100 · ' + x.tier}</td>
           <td style={cell}><button onClick={() => setSelected(selected?.id === x.id ? null : x)} style={{ cursor: 'pointer', color: colors.accent, background: 'transparent', border: 'none' }}>{selected?.id === x.id ? 'Close' : 'View'}</button></td>
         </tr>)}</tbody>
       </table>
-      {data && !(view === 'old' ? old.length : messages.length) && <div style={{ padding: 16, color: colors.muted }}>No matching Gmail template emails in this period.</div>}
+      {data && !(view === 'old' ? history.length : messages.length) && <div style={{ padding: 16, color: colors.muted }}>No matching Gmail template emails in this period.</div>}
     </div>
     {selected && <section style={{ marginTop: 14, padding: 15, background: colors.background, border: '1px solid ' + colors.border, borderRadius: 8 }}>
       <strong>{selected.templateName}</strong>
