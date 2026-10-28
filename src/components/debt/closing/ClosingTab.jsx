@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClosingChecklist from './ClosingChecklist';
+import { CLOSING_MODULES } from './ClosingModules';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -19,7 +20,21 @@ export default function ClosingTab({ lead, update, username }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(lead?.closingProgressUpdatedAt || null);
   const [error, setError] = useState('');
+  const [modules, setModules] = useState(CLOSING_MODULES);
   const saveTimerRef = useRef(null);
+
+  // The profile checklist uses the same editable closing stages as Smart Close.
+  useEffect(() => {
+    let active = true;
+    base44.entities.ClosingScriptConfig.filter({ configName: 'default' }).then(records => {
+      if (!active || !records?.[0]?.modulesJson) return;
+      try {
+        const configured = JSON.parse(records[0].modulesJson);
+        if (Array.isArray(configured) && configured.length) setModules(configured);
+      } catch {}
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   // Reload when lead changes
   useEffect(() => {
@@ -71,7 +86,7 @@ export default function ClosingTab({ lead, update, username }) {
         Track your progress through the close. Progress is saved to the client record so you can pick up exactly where you left off on the next call.
       </div>
 
-      <ClosingChecklist leadId={lead?.id} done={done} onToggle={handleToggle} />
+      <ClosingChecklist leadId={lead?.id} done={done} onToggle={handleToggle} modules={modules} />
 
       {/* Save button */}
       <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
