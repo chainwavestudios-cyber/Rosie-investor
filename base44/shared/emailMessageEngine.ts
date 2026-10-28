@@ -137,7 +137,14 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
 
   const sendId = opts.sendId || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const token = mintToken();
-  const html = await hostEmbeddedImages(base44, opts.html || '');
+  let html = await hostEmbeddedImages(base44, opts.html || '');
+  // Every personal welcome link gets the token belonging to THIS Gmail send.
+  // This migration is Coach-only: campaign/Fronter links are never rewritten.
+  if (opts.contactKind === 'debt_lead' && opts.source !== 'campaign' && token) {
+    const welcome = `https://rosieai-investorpage.base44.app/welcome?m=${encodeURIComponent(token)}`;
+    html = html.replace(/https?:\/\/abitaboutme\.base44\.app\/?(?=["'<>\s]|&|$)/gi, welcome)
+      .replace(/https:\/\/rosieai-investorpage\.base44\.app\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome);
+  }
 
   const record = await base44.asServiceRole.entities.EmailMessage.create({
     token,

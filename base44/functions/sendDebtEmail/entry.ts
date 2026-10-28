@@ -5,6 +5,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { sendTemplateEmail } from '../../shared/debtEmailSender.ts';
 import debtCoachGmailReport from '../../shared/debtCoachGmailReport.ts';
+import { welcomeEngagement } from '../../shared/welcomeEngagement.ts';
 import { PROTOFACE_ID_RE, formatProtofaceId } from '../../shared/protofaceId.ts';
 
 export default async function (req: Request): Promise<Response> {
@@ -14,6 +15,7 @@ export default async function (req: Request): Promise<Response> {
     // Existing, deployed Debt Call Coach endpoint: use the authenticated,
     // strictly read-only Gmail reporting action rather than a new function route.
     if (body.action === 'gmailReport') return debtCoachGmailReport(base44, body);
+    if (body.action === 'welcomeEngagement') return welcomeEngagement(base44, body);
     const { templateId, leadId, testMode, forceTemplateType } = body;
 
     if (!leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
