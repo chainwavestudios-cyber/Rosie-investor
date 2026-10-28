@@ -141,9 +141,10 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
   // Every personal welcome link gets the token belonging to THIS Gmail send.
   // This migration is Coach-only: campaign/Fronter links are never rewritten.
   if (opts.contactKind === 'debt_lead' && opts.source !== 'campaign' && token) {
-    const welcome = `https://rosieai-investorpage.base44.app/welcome?m=${encodeURIComponent(token)}`;
+    const welcome = `https://debtsolutions.cc/welcome?m=${encodeURIComponent(token)}`;
     html = html.replace(/https?:\/\/abitaboutme\.base44\.app\/?(?=["'<>\s]|&|$)/gi, welcome)
-      .replace(/https:\/\/rosieai-investorpage\.base44\.app\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome);
+      .replace(/https:\/\/rosieai-investorpage\.base44\.app\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome)
+      .replace(/https?:\/\/(?:www\.)?debtsolutions\.cc\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome);
   }
 
   const record = await base44.asServiceRole.entities.EmailMessage.create({
@@ -165,7 +166,11 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
     status: 'sending',
   });
 
-  const body = opts.track === false ? html : injectTracking(html, contactId, sendId, templateId, templateName, token);
+  // The Debt Call Coach's customer-facing links use the branded domain.
+  // Other sources retain the existing tracking host and behavior.
+  const coachTrackingBase = opts.contactKind === 'debt_lead' && opts.source !== 'campaign'
+    ? 'https://debtsolutions.cc/functions' : undefined;
+  const body = opts.track === false ? html : injectTracking(html, contactId, sendId, templateId, templateName, token, coachTrackingBase);
   const mimeMessage = buildMime(recipient, subject, body, opts.text, opts.inlineImages);
 
   try {

@@ -43,7 +43,7 @@ export function unwrapTrackedUrl(raw: string): string {
   return value;
 }
 
-export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string, token?: string): string {
+export function injectTracking(html: string, leadId: string, sendId: string, templateId?: string, templateName?: string, token?: string, trackingBase: string = TRACKING_BASE): string {
   if (!html) return html;
   const templateParam = templateId ? `&templateId=${encodeURIComponent(templateId)}` : '';
   // The template's name rides along so every recorded event says WHICH email was
@@ -55,8 +55,8 @@ export function injectTracking(html: string, leadId: string, sendId: string, tem
   const identity = token
     ? `m=${encodeURIComponent(token)}`
     : `leadId=${encodeURIComponent(leadId)}&sendId=${sendId}${templateParam}${nameParam}`;
-  const trackOpenUrl = `${TRACKING_BASE}/emailTrackOpen?${identity}`;
-  const trackClickBase = `${TRACKING_BASE}/emailTrackClick?${identity}&url=`;
+  const trackOpenUrl = `${trackingBase}/emailTrackOpen?${identity}`;
+  const trackClickBase = `${trackingBase}/emailTrackClick?${identity}&url=`;
 
   // 0. Drop any tracking pixel an earlier send left in this markup, so one email
   //    can never report its opens twice.
