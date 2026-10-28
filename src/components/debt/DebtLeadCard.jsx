@@ -23,13 +23,18 @@ const STATUS_LABELS = {
   new: '🔵 New', contacted: '📞 Contacted', qualified: '⭐ Qualified', enrolled: '✅ Enrolled', declined: '❌ Declined', completed: '✓ Completed', callback: '📅 Callback',
 };
 
-export default function DebtLeadCard({ lead, onLeadChange, onLeadSaved, transcript, intentScore, animalType, profileData }) {
+export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLeadSaved, transcript, intentScore, animalType, profileData }) {
   const [tab, setTab] = useState('overview');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const update = (field, value) => onLeadChange({ ...lead, [field]: value });
+  // Functional updates prevent an AI update and a keyboard event from
+  // overwriting one another through a stale render of the lead object.
+  const update = (field, value) => {
+    if (onLeadFieldEdit) onLeadFieldEdit(field, value);
+    else onLeadChange(prev => ({ ...prev, [field]: value }));
+  };
 
   const save = async () => {
     if (!lead.firstName || !lead.lastName) return;
