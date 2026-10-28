@@ -149,8 +149,8 @@ export default function DebtCoachGmailCommandCenter() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong style={{color:tones.teal}}>New engagement detected</strong><button onClick={()=>setNewActions([])} style={{background:'none',border:0,color:tones.muted,cursor:'pointer'}}>Dismiss</button></div>
         {newActions.map(a=><p key={a.key} style={{margin:'6px 0 0',fontSize:12}}>{a.title} · <strong>{a.subject}</strong> · {a.detail}</p>)}
       </div>}
-      <DebtGmailVisualJourney people={view.leads} onOpen={showLead}/>
       <HotLeadBanner hot={view.hot} leads={view.leads} system="coach" recorded={view.hotHistory.length} onOpenLead={showLead} onViewRecord={()=>hotRef.current?.scrollIntoView({behavior:'smooth'})}/>
+      <DebtGmailVisualJourney people={view.leads} onOpen={showLead}/>
       <div ref={hotRef}><HotLeadRecord history={view.hotHistory} system="coach" onOpenLead={showLead} onHandle={markHandled} handlingId={handlingId} soundOn={soundOn} onToggleSound={()=>setSoundOn(v=>!v)}/></div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(450px,100%),1fr))',gap:14,marginTop:15}}>
         <section style={{padding:16,borderRadius:10,background:'#10212e',border:'1px solid '+tones.border}}>
