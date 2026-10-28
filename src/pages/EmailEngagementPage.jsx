@@ -38,6 +38,7 @@ export default function EmailEngagementPage({ standalone = false }) {
   const { user, isAdmin } = useDebtCoachAuth();
   const [days, setDays] = useState(30);
   const [system, setSystem] = useState('coach');
+  const [view, setView] = useState('live');
   const { report, loading, error, refresh, markHandled, handlingId } = useEngagementReport(days);
   const [card, setCard] = useState(null);
   const [metric, setMetric] = useState(null);
@@ -107,6 +108,28 @@ export default function EmailEngagementPage({ standalone = false }) {
         {report?.generatedAt && <span style={{ color: C.dim, fontSize: '10px' }}>updated {new Date(report.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button onClick={() => setView('live')} style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.border}`, background: view === 'live' ? C.surface : 'transparent', color: C.ink, cursor: 'pointer' }}>Live Engagement</button>
+        <button onClick={() => setView('old')} style={{ padding: '8px 14px', borderRadius: 6, border: `1px solid ${C.border}`, background: view === 'old' ? C.surface : 'transparent', color: C.ink, cursor: 'pointer' }}>OLD Follow-Up Report</button>
+      </div>
+      {view === 'old' ? <section style={{ background: C.surface, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8 }}>
+        <h3 style={{ fontSize: 15, marginBottom: 7 }}>Historical email follow-up ledger</h3>
+        <p style={{ fontSize: 12, color: C.muted }}>Preserved legacy email records. Open indicators can include mail privacy proxies and automated scanners; they do not prove a person read the email.</p>
+        <div style={{ overflowX: 'auto', maxHeight: 610, overflowY: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead><tr>{['Sent at', 'Contact', 'Email / Subject', 'Status', 'Opened', 'Clicked', 'Send ID'].map(h => <th key={h} style={{ textAlign: 'left', padding: 9, borderBottom: `1px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+            <tbody>{(report?.legacyHistory || []).map(row => <tr key={row.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+              <td style={{ padding: 8 }}>{row.sentAt ? new Date(row.sentAt).toLocaleString() : '—'}</td>
+              <td style={{ padding: 8 }}>{row.toName || row.toEmail || 'Unknown'}</td>
+              <td style={{ padding: 8 }}>{row.templateName || row.subject || 'Unattributed'}</td>
+              <td style={{ padding: 8 }}>{row.status || '—'}</td>
+              <td style={{ padding: 8 }}>{row.openedAt ? new Date(row.openedAt).toLocaleString() : '—'}</td>
+              <td style={{ padding: 8 }}>{row.clickedAt ? new Date(row.clickedAt).toLocaleString() : '—'}</td>
+              <td style={{ padding: 8, fontSize: 10 }}>{row.sendId || 'Legacy / no ID'}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </section> : <>
       <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap', marginBottom: '12px' }}>
         {SYSTEMS.map((key) => {
           const option = SYSTEM_META[key];
@@ -211,6 +234,7 @@ export default function EmailEngagementPage({ standalone = false }) {
         </>
       )}
 
+      </>}
       <EngagementContactCard target={card} username={user?.username} onClose={() => setCard(null)} />
     </div>
   );
