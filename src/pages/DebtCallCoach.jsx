@@ -152,7 +152,7 @@ export default function DebtCallCoach() {
             <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
             <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'super_manager' ? 'Super Manager' : user?.role === 'manager' ? 'Manager' : user?.role === 'fronter' ? 'Fronter' : 'Dialer'}</span>
           </div>
-          {isSuperManager && <button onClick={() => setShowCompliance(true)} style={{...headerBtn, background:'rgba(239,68,68,.09)',color:'#f3a69f',border:'1px solid rgba(239,68,68,.35)'}}><ShieldCheck size={14}/> Compliance</button>}
+          {isSuperManager && <button onClick={() => setTab('compliance')} style={{...headerBtn, background:'rgba(239,68,68,.09)',color:'#f3a69f',border:'1px solid rgba(239,68,68,.35)'}}><ShieldCheck size={14}/> Compliance</button>}
           {(isAdmin || isManager || isSuperManager) && (
             <button onClick={() => navigate('/manager-portal')} style={{...headerBtn,background:'rgba(77,163,135,.14)',color:'#a8eacc',border:'1px solid rgba(72,184,149,.39)'}}><LayoutDashboard size={14}/> Manager Portal</button>
           )}
@@ -173,7 +173,7 @@ export default function DebtCallCoach() {
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
-      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive} zIndex={14500}>
+      <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} zIndex={14500}>
         <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Call Intelligence" icon="📞" active={tab === 'calls'} defaultSize={{ width: 1120, height: 820 }}>
