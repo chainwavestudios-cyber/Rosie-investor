@@ -29,6 +29,7 @@ import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useObjectionEngine } from '@/hooks/useObjectionEngine';
 import ObjectionPopup from '@/components/debt/ObjectionPopup';
+import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
@@ -127,7 +128,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [agentLevel, setAgentLevel] = useState(0);
   const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
-  const { activeObjection, dismissObjection } = useObjectionEngine(transcript);
+  const { activeObjection, dismissObjection, recentMatches, openMatch, clearRecent } = useObjectionEngine(transcript, phase === 'live');
   const [kbEntries, setKbEntries] = useState([]);
   const [kbLoading, setKbLoading] = useState(true);
 
@@ -2264,6 +2265,8 @@ ${recentText}`,
           </span>
         </div>
       )}
+
+      {phase === 'live' && <LiveObjectionRail matches={recentMatches} onOpen={openMatch} onClear={clearRecent} />}
 
       {(testingAgent || testingCustomer) && (
         <div style={{ marginBottom: '12px', padding: '14px 18px', background: '#0d1b2a', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', display: 'flex', gap: '24px', alignItems: 'center' }}>
