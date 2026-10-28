@@ -4,16 +4,19 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { sendTemplateEmail } from '../../shared/debtEmailSender.ts';
+import debtCoachGmailReport from '../../shared/debtCoachGmailReport.ts';
 import { PROTOFACE_ID_RE, formatProtofaceId } from '../../shared/protofaceId.ts';
 
 export default async function (req: Request): Promise<Response> {
   try {
     const body = await req.json();
+    const base44 = createClientFromRequest(req);
+    // Existing, deployed Debt Call Coach endpoint: use the authenticated,
+    // strictly read-only Gmail reporting action rather than a new function route.
+    if (body.action === 'gmailReport') return debtCoachGmailReport(base44, body);
     const { templateId, leadId, testMode, forceTemplateType } = body;
 
     if (!leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
-
-    const base44 = createClientFromRequest(req);
 
     const lead = await base44.asServiceRole.entities.DebtLead.get(leadId);
     if (!lead) return Response.json({ error: 'Lead not found' }, { status: 404 });
@@ -44,7 +47,10 @@ export default async function (req: Request): Promise<Response> {
       lead.protofaceId = protofaceId;
     }
 
-    const { sendId } = await sendTemplateEmail(base44, template, lead);
+    const { sendId, duplicate } = await sendTemplateEmail(base44, template, lead);
+    // An accidental repeat click reuses the earlier Gmail send. Do not write a
+    // second "sent email" activity or re-stamp reminder fields for that no-op.
+    if (duplicate) return Response.json({ success: true, skippedDuplicate: true, sendId, templateName: template.name });
 
     // Update lead tracking fields based on template type
     const now = new Date().toISOString();

@@ -13,6 +13,7 @@ import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 export interface SendResult {
   sendId: string;
   subject: string;
+  duplicate?: boolean;
 }
 
 export async function sendTemplateEmail(
@@ -98,7 +99,7 @@ export async function sendTemplateEmail(
     track: template.trackingEnabled !== false,
   });
 
-  return { sendId: result.sendId, subject };
+  return { sendId: result.sendId, subject, duplicate: result.duplicate === true };
 }
 
 /** Default templates — used when no DebtEmailTemplate records exist yet */

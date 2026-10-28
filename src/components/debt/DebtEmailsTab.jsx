@@ -11,6 +11,8 @@ import 'react-quill/dist/quill.snow.css';
 import { registerImageResizeBlot } from '@/utils/quillImageResize';
 import { useQuillImageModules } from '@/utils/quillImageUpload';
 import { insertWelcomeTracker } from '@/utils/quillWelcomeTracker';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import DebtGmailEngagement from '@/components/debt/DebtGmailEngagement';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -32,6 +34,8 @@ const TYPE_LABELS = {
 const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function DebtEmailsTab({ username }) {
+  const { isAdmin } = useDebtCoachAuth();
+  const [emailView, setEmailView] = useState('templates');
   const quillRef = useRef(null);
   const quillModules = useQuillImageModules(quillRef);
   const [templates, setTemplates] = useState([]);
@@ -168,6 +172,17 @@ export default function DebtEmailsTab({ username }) {
   };
 
   const update = (field, value) => setEditing(prev => ({ ...prev, [field]: value }));
+
+  const viewTabs = <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+    {[{ id: 'templates', label: 'Email Templates' }, ...(isAdmin ? [{ id: 'report', label: 'Gmail Engagement' }, { id: 'old', label: 'OLD Follow-Up Report' }] : [])].map(item =>
+      <button key={item.id} onClick={() => { setEmailView(item.id); setEditing(null); }} style={{ padding: '8px 12px', border: '1px solid rgba(16,185,129,0.35)', background: emailView === item.id ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)', color: emailView === item.id ? GOLD : '#8a9ab8', borderRadius: 5, cursor: 'pointer', fontSize: 12 }}>{item.label}</button>
+    )}
+  </div>;
+
+  if (!editing && emailView !== 'templates' && isAdmin) return <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    {viewTabs}
+    <DebtGmailEngagement view={emailView} />
+  </div>;
 
   // ── Editor view ──
   if (editing) {
@@ -353,6 +368,7 @@ export default function DebtEmailsTab({ username }) {
   // ── List view ──
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      {viewTabs}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>📧 Email Templates & Automation</div>
         <button onClick={startNew} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ New Email Template</button>
