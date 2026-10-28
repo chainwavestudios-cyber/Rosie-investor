@@ -1,6 +1,34 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-const DEFAULT_PASSWORD = 'Debt@2026!!';
+const LEGACY_BOOTSTRAP_PASSWORD = 'Debt@2026!!';
+
+const ADMIN_FLAG_KEYS = new Set([
+  'liveAIEnabled','liveQA','liveCoach','liveIntent','bobAIEnabled','bobQA','bobCoach','bobIntent',
+  'tabLiveCall','tabCalls','tabBob','tabPitches','tabKB','tabKBChat','tabProfile','tabCompliance',
+  'canStartCall','canEndCall','canEditLead','canDeletePitch','complianceVisible','complianceSelfView',
+]);
+const ACCOUNT_LINK_ORIGIN = 'https://debtsolutions.cc/debt-coach-login';
+const ACCOUNT_LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;
+function secureRandomHex(length = 32): string {
+  const buffer = new Uint8Array(length);
+  crypto.getRandomValues(buffer);
+  return Array.from(buffer, value => value.toString(16).padStart(2, '0')).join('');
+}
+async function sha256(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2,'0')).join('');
+}
+async function createSetupLink(userId: string) {
+  const token = secureRandomHex();
+  const setupTokenHash = await sha256(token);
+  const setupTokenExpiresAt = new Date(Date.now() + ACCOUNT_LINK_LIFETIME_MS).toISOString();
+  // The URL fragment stays client-side, out of normal HTTP request URLs.
+  return { setupTokenHash, setupTokenExpiresAt,
+    link: `${ACCOUNT_LINK_ORIGIN}#account=${encodeURIComponent(userId)}&setup=${token}` };
+}
+const validNewPassword = (value: unknown) =>
+  typeof value === 'string' && value.length >= 12 && value.length <= 256;
 
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomUUID().replace(/-/g, '');
@@ -62,13 +90,14 @@ export default async function(req: Request): Promise<Response> {
     if (action === 'bootstrap') {
       const existing = await base44.asServiceRole.entities.DebtCoachUser.list('-created_date', 1);
       if (existing?.length > 0) return Response.json({ error: 'System already initialized' }, { status: 403 });
-      const hash = await hashPassword(DEFAULT_PASSWORD);
+      const password = secureRandomHex(24);
+      const hash = await hashPassword(password);
       const admin = await base44.asServiceRole.entities.DebtCoachUser.create({
         username: 'admin', email: '', passwordHash: hash, role: 'super_admin',
         permissions: '', mustResetPassword: true, isActive: true,
         createdBy: 'system', created_date: new Date().toISOString()
       });
-      return Response.json({ success: true, user: sanitizeUser(admin) });
+      return Response.json({ success: true, user: sanitizeUser(admin), temporaryPassword: password });
     }
 
     // ── LOGIN ──
@@ -97,7 +126,7 @@ export default async function(req: Request): Promise<Response> {
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
       const valid = await verifyPassword(body.currentPassword || '', user.passwordHash);
       if (!valid) return Response.json({ error: 'Current password is incorrect' }, { status: 400 });
-      if (!body.newPassword || body.newPassword.length < 6) return Response.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+      if (!validNewPassword(body.newPassword)) return Response.json({ error: 'Choose a password of 12 to 256 characters.' }, { status: 400 });
       const newHash = await hashPassword(body.newPassword);
       await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { passwordHash: newHash, mustResetPassword: false });
       return Response.json({ success: true });
@@ -108,7 +137,7 @@ export default async function(req: Request): Promise<Response> {
       const user = await verifySession(base44, body.sessionUserId, body.sessionToken);
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
       if (!user.mustResetPassword) return Response.json({ error: 'Password reset is not required' }, { status: 400 });
-      if (!body.newPassword || body.newPassword.length < 6) return Response.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+      if (!validNewPassword(body.newPassword)) return Response.json({ error: 'Choose a password of 12 to 256 characters.' }, { status: 400 });
       const newHash = await hashPassword(body.newPassword);
       await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { passwordHash: newHash, mustResetPassword: false });
       return Response.json({ success: true });
