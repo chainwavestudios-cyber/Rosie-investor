@@ -340,7 +340,7 @@ export default async function (req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    const mode = ['accounts', 'preview', 'test', 'send', 'tick'].includes(body.mode) ? body.mode : 'preview';
+    const mode = ['accounts', 'preview', 'test', 'test-template', 'send', 'tick'].includes(body.mode) ? body.mode : 'preview';
     const campaignId = clean(body.campaignId);
 
     // ── Which Gmail account is connected ────────────────────────────────────
@@ -390,6 +390,25 @@ export default async function (req: Request): Promise<Response> {
       return Response.json({ ok: true, checked: campaigns.length, results });
     }
 
+    // Test any saved DAA library template, without needing a campaign or
+    // recipient list. Uses the same tracked Gmail and welcome-player pipeline.
+    if (mode === 'test-template') {
+      const tester=await base44.asServiceRole.entities.DebtCoachUser.get(String(body.sessionUserId||'')).catch(()=>null);
+      if(!tester?.isActive || !body.sessionToken || tester.sessionToken!==body.sessionToken || !['admin','super_admin','super_manager','manager'].includes(tester.role))
+        return Response.json({error:'Manager sign-in required for Gmail template tests.'},{status:403});
+      const to=normalizeAddress(body.testEmail);
+      if (!to || /[\r\n]/.test(to) || to.length>254) return Response.json({error:'Enter a valid email address.'},{status:400});
+      const template=await base44.asServiceRole.entities.EmailCampaignTemplate.get(String(body.templateId||'')).catch(()=>null);
+      const issue=daaTemplateIssue(template);
+      if(issue)return Response.json({error:issue},{status:403});
+      const firstName=String(body.testFirstName||'Test').replace(/[<>\r\n]/g,'').slice(0,60)||'Test';
+      const vars=recipientVars({firstName,email:to},[]);
+      const rendered=renderEmail({...template,bodyHtml:withDAAWelcomeCTA(template.bodyHtml||'')},vars);
+      const sent=await sendTrackedEmail(base44,{to,subject:`[TEST] ${rendered.subject}`,html:rendered.html,text:rendered.text,
+        contactKind:'debt_lead',contactId:'',contactName:'DAA Gmail test',templateId:template.id,templateName:`[TEST] ${template.name}`,
+        sentBy:'debt_coach',source:'template_test',allowDuplicate:true,track:true});
+      return Response.json({ok:true,to,tracked:true,sendId:sent.sendId,templateName:template.name});
+    }
     if (!campaignId) return Response.json({ error: 'A campaign is required.' }, { status: 400 });
     const campaign = await base44.asServiceRole.entities.EmailCampaignJob.get(campaignId).catch(() => null);
     if (!campaign) return Response.json({ error: 'That campaign could not be found.' }, { status: 404 });
