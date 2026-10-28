@@ -183,6 +183,10 @@
       "type": "string",
       "title": "Hot Lead Tagged By (username)"
     },
+    "sourceFronterLeadId": {
+      "type": "string",
+      "title": "Original Fronter Lead ID (AI-queue migration deduplication)"
+    },
     "migratedFromFronter": {
       "type": "boolean",
       "title": "Migrated From Fronter (auto-created on successful transfer)",
