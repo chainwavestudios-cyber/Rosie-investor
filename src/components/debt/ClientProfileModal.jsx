@@ -67,6 +67,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [tab, setTab] = useState('overview');
   // The card reads the state in full — a stored "CA" opens as "California".
   const [local, setLocal] = useState(() => (lead ? { ...lead, state: fullStateName(lead.state) } : {}));
+  // Live AI, transcript and autosave updates change the lead prop during a call.
+  // Preserve anything the agent is typing until they explicitly save it.
+  const dirtyFieldsRef = useRef(new Set());
+  const editingLeadIdRef = useRef(lead?.id || null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [togglingHot, setTogglingHot] = useState(false);
@@ -170,7 +174,23 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
       .finally(() => setCreditPhotoLoading(false));
   }, [lead?.creditReportPhotoUri]);
 
-  useEffect(() => { setLocal(lead || {}); }, [lead]);
+  useEffect(() => {
+    const nextId = lead?.id || null;
+    if (editingLeadIdRef.current !== nextId) {
+      editingLeadIdRef.current = nextId;
+      dirtyFieldsRef.current.clear();
+      setLocal(lead ? { ...lead, state: fullStateName(lead.state) } : {});
+      return;
+    }
+    // Merge background updates for untouched fields, never discard a manual
+    // edit (even an email address that is only partly typed).
+    setLocal(prev => {
+      const incoming = lead ? { ...lead, state: fullStateName(lead.state) } : {};
+      const merged = { ...prev, ...incoming };
+      dirtyFieldsRef.current.forEach(field => { merged[field] = prev[field]; });
+      return merged;
+    });
+  }, [lead]);
 
   // Load active timer for this lead
   useEffect(() => {
@@ -200,7 +220,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     if (local.id) { cancelProfileTimer(username, local.id); setActiveTimer(null); }
   };
 
-  const update = (field, value) => setLocal(prev => ({ ...prev, [field]: value }));
+  const update = (field, value) => {
+    dirtyFieldsRef.current.add(field);
+    setLocal(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleLocationResearch = async () => {
     const loc = [local.city, local.state].filter(Boolean).join(', ');
