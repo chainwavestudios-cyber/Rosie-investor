@@ -323,6 +323,9 @@ Return JSON with:
 // ── TRANSFER: execute transfer prep + redirect Twilio call ───────────────
 async function handleTransfer(req: Request, base44: any, body: any): Promise<Response> {
   const { callSid, conversation, leadId } = body;
+  if (!callSid || !leadId) {
+    return Response.json({ ok: false, error: 'missing call or lead for transfer' }, { status: 400 });
+  }
 
   let lead: any = null;
   let config: any = {};
@@ -346,26 +349,25 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
   // so the caller goes straight into the queue with Custom Hold Music #2.
   const isInboundTransfer = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (!isInboundTransfer) {
-    const transferMsg = "Let me connect you with one of our senior debt advisors. Please hold for just a moment.";
+    const transferMsg = "I'm placing you in Chris's queue now. You'll hear a short message while I reach him. Please hold.";
     // The bridge uses this call's pinned TTS selections and records actual audio evidence.
     const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
     if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
   }
 
   // Redirect Twilio call to transfer TwiML (SkipSay since message already played via bridge)
-  if (callSid) {
-    try {
-      const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId || '')}&SkipSay=true`;
-      await twilioFetch(`/Calls/${callSid}.json`, {
-        method: 'POST',
-        body: new URLSearchParams({ Url: transferUrl }),
-      });
-    } catch (e) {
-      console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
-    }
+  try {
+    const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId)}&SkipSay=true`;
+    await twilioFetch(`/Calls/${callSid}.json`, {
+      method: 'POST',
+      body: new URLSearchParams({ Url: transferUrl }),
+    });
+  } catch (e) {
+    console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
+    return Response.json({ ok: false, error: 'transfer_redirect_failed' }, { status: 502 });
   }
 
-  return Response.json({ ok: true, transferNumber: config.transferPhoneNumber || '+16193530919' });
+  return Response.json({ ok: true, transferNumber: config.transferPhoneNumber || '' });
 }
 
 // ── END_CALL: update disposition (NOT automatic "removed") ──────────────
