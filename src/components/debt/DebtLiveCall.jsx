@@ -2515,7 +2515,7 @@ ${recentText}`,
       )}
 
       {/* Objection Engine — live popup when a high-priority objection is detected */}
-      <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} />
+      <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} startMinimized />
 
       {/* Emergency Scripts — Alt+E, overlays all other windows */}
       <EmergencyScripts open={showEmergencyScripts} onClose={() => setShowEmergencyScripts(false)} />
