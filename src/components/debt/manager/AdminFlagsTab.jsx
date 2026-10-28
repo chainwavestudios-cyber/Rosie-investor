@@ -130,7 +130,7 @@ export default function AdminFlagsTab() {
       const latest=(refreshed?.users||[]).find(u=>u.id===selectedUser.id);
       if(!latest)throw new Error('Could not verify the saved user settings.');
       let persisted={};try{persisted=JSON.parse(latest.aiSettingsJson||'{}');}catch{}
-      if(ALL_FLAG_KEYS.some(key=>Boolean(flags[key])!==Boolean(persisted[key]!==undefined?persisted[key]:true))) {
+      if(ALL_FLAG_KEYS.some(key=>persisted[key] !== !!flags[key])) {
         throw new Error('The server acknowledged this request but did not persist all feature flags. The change is NOT confirmed.');
       }
       setUsers((refreshed.users||[]).filter(u=>u.role!=='super_admin'));
