@@ -4,7 +4,7 @@
  * Each call expands to show: transcript, intent report, Q&A history,
  * coaching history, intent history, and manager comments.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
@@ -131,8 +131,10 @@ function CallRow({ call, expanded, onToggle, canManage, managerUsername, onOpenP
 }
 
 // ─── Call Detail (expanded) ────────────────────────────────────────────────
-function CallDetail({ call, canManage, managerUsername }) {
-  const [section, setSection] = useState('transcript');
+export function CallDetail({ call, canManage, managerUsername, initialSection = 'transcript', seekSeconds = null }) {
+  const [section, setSection] = useState(initialSection);
+  const recordingRef = useRef(null);
+  const transcriptContainerRef = useRef(null);
   const [qaHistory, setQaHistory] = useState([]);
   const [coachTips, setCoachTips] = useState([]);
   const [intentSnapshots, setIntentSnapshots] = useState([]);
@@ -193,6 +195,33 @@ function CallDetail({ call, canManage, managerUsername }) {
     }
   }, [section, call.id]);
 
+  // AI key-moment offsets are relative to the start of the saved transcript.
+  // Only seek within a recording that the existing signed-link flow has loaded.
+  useEffect(() => {
+    if (section !== 'recording' || !recordingSignedUrl || seekSeconds == null || !recordingRef.current) return;
+    const audio = recordingRef.current;
+    const seek = () => { audio.currentTime = Math.max(0, Number(seekSeconds) || 0); };
+    if (audio.readyState >= 1) seek();
+    else audio.addEventListener('loadedmetadata', seek, { once: true });
+    return () => audio.removeEventListener('loadedmetadata', seek);
+  }, [section, recordingSignedUrl, seekSeconds]);
+
+  useEffect(() => {
+    if (section !== 'transcript' || seekSeconds == null || !transcriptContainerRef.current) return;
+    const rows = transcriptLines;
+    if (!rows.length || !rows[0].time) return;
+    const start = new Date(rows[0].time).getTime();
+    if (!Number.isFinite(start)) return;
+    const target = start + (Number(seekSeconds) || 0) * 1000;
+    let best = 0;
+    for (let j = 1; j < rows.length; j++) {
+      const time = new Date(rows[j].time).getTime();
+      if (Number.isFinite(time) && Math.abs(time - target) < Math.abs(new Date(rows[best].time).getTime() - target)) best = j;
+    }
+    const line = transcriptContainerRef.current.querySelector('[data-call-line="' + best + '"]');
+    if (line) line.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [section, seekSeconds, call.id]);
+
   const saveComment = async () => {
     if (!newComment.trim()) return;
     setSavingComment(true);
@@ -227,11 +256,11 @@ function CallDetail({ call, canManage, managerUsername }) {
           transcriptLines.length === 0 ? (
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px 0', fontSize: '12px' }}>No transcript lines recorded.</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div ref={transcriptContainerRef} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {transcriptLines.map((msg, j) => {
                 const isAgent = msg.speaker === 0;
                 return (
-                  <div key={j} style={{ display: 'flex', gap: '8px' }}>
+                  <div key={j} data-call-line={j} style={{ display: 'flex', gap: '8px' }}>
                     <span style={{ color: '#4a5568', fontSize: '9px', flexShrink: 0, minWidth: '50px' }}>{msg.time ? new Date(msg.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}</span>
                     <span style={{ color: isAgent ? '#60a5fa' : '#10b981', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, minWidth: '60px' }}>{isAgent ? 'Agent' : 'Customer'}</span>
                     <span style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{msg.text}</span>
@@ -341,7 +370,7 @@ function CallDetail({ call, canManage, managerUsername }) {
           ) : recordingSignedUrl ? (
             <div>
               <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px' }}>🎵 Call Audio Recording</div>
-              <audio controls src={recordingSignedUrl} style={{ width: '100%', marginBottom: '14px', maxWidth: '420px' }} />
+              <audio ref={recordingRef} controls src={recordingSignedUrl} style={{ width: '100%', marginBottom: '14px', maxWidth: '420px' }} />
               <div>
                 <a href={recordingSignedUrl} download={`call-${call.leadNumber || call.id}.webm`} style={{ display: 'inline-block', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', textDecoration: 'none' }}>
                   ⬇ Download Recording
