@@ -48,10 +48,11 @@ import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
 import AppointmentTimersBar from '@/components/debt/AppointmentTimersBar';
+import './DebtCoachPolish.css';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const headerBtn = {display:'inline-flex',alignItems:'center',justifyContent:'center',gap:7,padding:'9px 12px',borderRadius:8,fontSize:11,fontWeight:750,cursor:'pointer',whiteSpace:'nowrap'};
+const friendlyTab = (label='') => label.replace(/^[^ ]+\s+/u,'').trim() || 'Workspace';
 
 export default function DebtCallCoach() {
   const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, isSuperAdmin, canManage, mustResetPassword, isFronter } = useDebtCoachAuth();
@@ -126,13 +127,7 @@ export default function DebtCallCoach() {
   if (mustResetPassword) return <Navigate to="/debt-call-coach-login" replace />;
 
   return (
-    <div data-debt-coach className="dcc-shell" style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif', minHeight: '100vh', background: 'radial-gradient(ellipse at 70% -8%,rgba(26,73,64,.23),transparent 53%),#080f1b', color: '#e8e0d0', padding: 'clamp(12px,2vw,26px)' }}>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-        .dcc-shell button:focus-visible,.dcc-shell a:focus-visible{outline:2px solid #d9bb7a;outline-offset:3px}
-        .dcc-shell .dcc-header{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;padding:16px 22px;border:1px solid rgba(154,198,188,.19);border-radius:15px;background:linear-gradient(115deg,#112331,#102b29 53%,#101b2b);box-shadow:0 12px 38px rgba(0,0,0,.15)}
-        @media(max-width:720px){.dcc-shell .dcc-header{padding:14px}.dcc-shell .dcc-header-actions{width:100%;justify-content:flex-start!important}}
-        @media(prefers-reduced-motion:reduce){.dcc-shell *{scroll-behavior:auto!important;animation-duration:.01ms!important}}
-      `}</style>
+    <div data-debt-coach className="dcc-shell" style={{ fontFamily:'system-ui,-apple-system,BlinkMacSystemFont,sans-serif',minHeight:'100vh',background:'radial-gradient(ellipse at 70% -8%,rgba(27,77,66,.16),transparent 55%),#080f19',color:'#e8eae3',padding:'clamp(10px,1.55vw,22px)' }}>
 
       {/* Quiet admin-only milestone watcher: confetti only for newly completed audio. */}
       {isAdmin && <DebtGmailGoldMilestoneWatcher/>}
