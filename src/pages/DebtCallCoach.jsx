@@ -139,28 +139,28 @@ export default function DebtCallCoach() {
         </div>
       )}
 
-      {/* Calm, compact command header. No tools open automatically. */}
+      {/* One compact, consistent header across every tab. No startup pop-outs. */}
       <header className="dcc-header">
-        <div style={{display:'flex',alignItems:'center',gap:18,flexWrap:'wrap',minWidth:0}}>
-          <img src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/cad8ccab3_UntitledOvalStickerLandscape.png" alt="Settlement IQ — Realtime Call Intelligence" style={{ width:'clamp(175px,20vw,260px)',maxWidth:'100%', height:'auto', objectFit:'contain' }} />
-          <div style={{borderLeft:'1px solid rgba(224,193,126,.28)',paddingLeft:17}}>
-            <div style={{color:'#dab879',fontWeight:800,letterSpacing:2,fontSize:10,textTransform:'uppercase'}}>Rosie AI · Agent workspace</div>
-            <div style={{font:'normal clamp(18px,2vw,24px) Georgia,serif',color:'#f6f5ef',margin:'5px 0 3px'}}>Debt Call Coach</div>
-            <span style={{fontSize:11,color:'#9cb7b2'}}>Live call intelligence &amp; follow-up</span>
+        <div className="dcc-header-brand">
+          <img className="dcc-header-logo" src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/cad8ccab3_UntitledOvalStickerLandscape.png" alt="Settlement IQ — Realtime Call Intelligence" />
+          <div className="dcc-header-copy">
+            <div className="dcc-header-eyebrow">Rosie AI · Agent workspace</div>
+            <div className="dcc-header-name">Debt Call Coach</div>
+            <div className="dcc-header-description">Sales intelligence &amp; follow-up</div>
           </div>
         </div>
-        <div className="dcc-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap:'wrap',justifyContent:'flex-end' }}>
-          <span title={liveCallActive?'Active live session':'Waiting for a live call'} style={{display:'inline-flex',alignItems:'center',gap:7,padding:'7px 11px',border:'1px solid '+(liveCallActive?'rgba(238,131,116,.46)':'rgba(83,161,138,.3)'),borderRadius:99,background:liveCallActive?'rgba(126,35,35,.2)':'rgba(26,90,75,.18)',color:liveCallActive?'#ffb19f':'#93ddc1',fontSize:10,fontWeight:800}}><Radio size={13}/>{liveCallActive?'LIVE SESSION':'WORKSPACE READY'}</span>
-          <button onClick={() => window.dispatchEvent(new Event('coach_open_wcr'))} title="Open Welcome Call Review checklist" style={{...headerBtn,border:'1px solid #3a635b',background:'#203e38',color:'#c4ebd8'}}><ClipboardCheck size={15}/> WCR Checklist</button>
-          <div style={{ textAlign: 'right',padding:'0 6px' }}>
-            <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{user?.username}</span>
-            <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '2px', background: 'rgba(16,185,129,0.15)', color: GOLD, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{user?.role === 'super_admin' ? 'Super Admin' : user?.role === 'admin' ? 'Admin' : user?.role === 'super_manager' ? 'Super Manager' : user?.role === 'manager' ? 'Manager' : user?.role === 'fronter' ? 'Fronter' : 'Dialer'}</span>
+        <div className="dcc-header-actions">
+          <span className={'dcc-header-status'+(liveCallActive?' is-live':'')} title={liveCallActive?'Call session active':'Workspace ready for use'}>
+            <Radio size={13} aria-hidden="true"/>{liveCallActive?'LIVE CALL':'READY'}
+          </span>
+          <button type="button" className="dcc-header-action" onClick={()=>window.dispatchEvent(new Event('coach_open_wcr'))} title="Open Welcome Call Review checklist"><ClipboardCheck size={14}/> WCR</button>
+          {isSuperManager && <button type="button" className="dcc-header-action is-sensitive" onClick={()=>setTab('compliance')}><ShieldCheck size={14}/> Compliance</button>}
+          {(isAdmin||isManager||isSuperManager) && <button type="button" className="dcc-header-action" onClick={()=>navigate('/manager-portal')}><LayoutDashboard size={14}/> Manager</button>}
+          <div className="dcc-header-user" title={user?.username||''}>
+            <span className="dcc-header-username">{user?.username}</span>
+            <span className="dcc-header-role">{user?.role === 'super_admin'?'Super Admin':user?.role === 'admin'?'Admin':user?.role === 'super_manager'?'Super Manager':user?.role === 'manager'?'Manager':user?.role === 'fronter'?'Fronter':'Dialer'}</span>
           </div>
-          {isSuperManager && <button onClick={() => setTab('compliance')} style={{...headerBtn, background:'rgba(239,68,68,.09)',color:'#f3a69f',border:'1px solid rgba(239,68,68,.35)'}}><ShieldCheck size={14}/> Compliance</button>}
-          {(isAdmin || isManager || isSuperManager) && (
-            <button onClick={() => navigate('/manager-portal')} style={{...headerBtn,background:'rgba(77,163,135,.14)',color:'#a8eacc',border:'1px solid rgba(72,184,149,.39)'}}><LayoutDashboard size={14}/> Manager Portal</button>
-          )}
-          <button onClick={logout} style={{...headerBtn,background:'rgba(255,255,255,.035)',color:'#b3c4d0',border:'1px solid rgba(255,255,255,.15)'}}><LogOut size={14}/> Logout</button>
+          <button type="button" className="dcc-header-action is-quiet" onClick={logout} title="Log out of Debt Call Coach"><LogOut size={14}/> Log out</button>
         </div>
       </header>
 
