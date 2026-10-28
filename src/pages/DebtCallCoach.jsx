@@ -3,7 +3,7 @@
  * Tabs: Live Call (headset coaching + lead card) | Knowledge Base | User Profiles.
  */
 import { useState, useEffect } from 'react';
-import { Headphones, ClipboardCheck, ShieldCheck, LogOut, LayoutDashboard, Radio, Layers3 } from 'lucide-react';
+import { ClipboardCheck, ShieldCheck, LogOut, LayoutDashboard, Radio } from 'lucide-react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
@@ -63,7 +63,6 @@ export default function DebtCallCoach() {
   const [timerLead, setTimerLead] = useState(null);
   const [hotLead, setHotLead] = useState(null);
   const [closingLeadId, setClosingLeadId] = useState(null);
-  const [showCompliance, setShowCompliance] = useState(false);
   const [liveCallActive, setLiveCallActive] = useState(false);
   const [scriptCallContext, setScriptCallContext] = useState({});
   const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
