@@ -27,6 +27,8 @@ export default function DebtAIPanel({
   micDeviceId = '',
   customerMicId = '',
   pendingQuestion = null,
+  liveQAItems = null,
+  liveCoachTips = null,
   canAIAssistant = true,
   canQA = true,
   canCoach = true,
@@ -298,6 +300,29 @@ export default function DebtAIPanel({
               </div>
             </div>
 
+            {/* Live answer preview: no automatic pop-out needed. The full Q&A
+                panel uses this exact same response, not a second AI request. */}
+            {qaActive && Array.isArray(liveQAItems) && liveQAItems.length > 0 && (
+              <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,0.06)', borderBottom: '1px solid rgba(245,158,11,0.17)' }}>
+                <div style={{ fontSize: 10, color: '#f59e0b', letterSpacing: 1, fontWeight: 700, marginBottom: 5 }}>LIVE Q&A · LATEST</div>
+                <div style={{ color: '#dfe6ee', fontSize: 12, fontWeight: 600, marginBottom: 5 }}>{liveQAItems[liveQAItems.length - 1].question}</div>
+                <div style={{ color: '#d5dce7', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                  {liveQAItems[liveQAItems.length - 1].loading ? 'Listening complete · finding the best answer…' : liveQAItems[liveQAItems.length - 1].answer || 'No answer available'}
+                </div>
+                {!liveQAItems[liveQAItems.length - 1].loading && liveQAItems[liveQAItems.length - 1].responseMs != null && (
+                  <div style={{ color: '#8494a6', fontSize: 10, marginTop: 6 }}>
+                    {liveQAItems[liveQAItems.length - 1].source === 'kb_direct' ? 'Verified KB' : 'Live Q&A'} · { (liveQAItems[liveQAItems.length - 1].responseMs / 1000).toFixed(1) }s
+                  </div>
+                )}
+                <button onClick={() => setShowPopup(true)} style={{ marginTop: 7, background: 'transparent', border: 'none', padding: 0, color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>View Q&A history and full answers</button>
+              </div>
+            )}
+            {coachActive && Array.isArray(liveCoachTips) && liveCoachTips.length > 0 && (
+              <div style={{ padding: '8px 14px', color: '#bfaaff', fontSize: 11, lineHeight: 1.5, borderBottom: '1px solid rgba(167,139,250,0.13)', whiteSpace: 'pre-wrap' }}>
+                <strong>LIVE COACH </strong>{liveCoachTips[0].tip}
+              </div>
+            )}
+
             {/* Error */}
             {error && <div style={{ padding: '6px 14px', background: 'rgba(239,68,68,0.06)' }}><div style={{ color: '#ef4444', fontSize: '10px' }}>{error}</div></div>}
 
@@ -382,6 +407,8 @@ export default function DebtAIPanel({
           previousCallSummary={null}
           memories={memories}
           pendingQuestion={pendingQuestion}
+          liveQAItems={liveQAItems}
+          liveCoachTips={liveCoachTips}
           username={username}
         />
       )}
