@@ -4,6 +4,7 @@
  * Replaces the limited dialer-permissions editor with a comprehensive feature-flag system.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { Search, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -77,13 +78,19 @@ export default function AdminFlagsTab() {
   const [selectedId, setSelectedId] = useState(null);
   const [flags, setFlags] = useState(DEFAULT_FLAGS);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const loadUsers = useCallback(async () => {
+    setError('');
     try {
       const res = await base44.functions.invoke('debtCoachAuth', { action: 'listUsers', sessionUserId, sessionToken });
       const data = res?.data || res;
-      setUsers((data?.users || []).filter(u => u.role !== 'super_admin'));
-    } catch {}
+      if(data?.error)throw new Error(data.error);
+      if(!Array.isArray(data?.users))throw new Error('User list unavailable.');
+      setUsers(data.users.filter(u => u.role !== 'super_admin'));
+    } catch(e) {setError(e?.message||'Unable to load users.');}
     setLoading(false);
   }, [sessionUserId, sessionToken]);
 
@@ -91,6 +98,7 @@ export default function AdminFlagsTab() {
 
   const selectUser = (u) => {
     setSelectedId(u.id);
+    setSuccess('');setError('');
     let parsed = {};
     try { parsed = JSON.parse(u.aiSettingsJson || '{}'); } catch {}
     // Merge with defaults so all flags exist
@@ -99,28 +107,48 @@ export default function AdminFlagsTab() {
 
   const selectedUser = users.find(u => u.id === selectedId);
 
-  const toggle = (key) => setFlags(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key) => {setSuccess('');setFlags(prev => ({ ...prev, [key]: !prev[key] }));};
 
-  const setAll = (val) => setFlags(ALL_FLAG_KEYS.reduce((acc, k) => { acc[k] = val; return acc; }, {}));
+  const setAll = (val) => {setSuccess('');setFlags(prev => ({...prev,...ALL_FLAG_KEYS.reduce((acc,k)=>{acc[k]=val;return acc;},{})}));};
 
   const save = async () => {
     if (!selectedUser) return;
-    setSaving(true);
+    setSaving(true);setSuccess('');setError('');
     try {
-      await base44.functions.invoke('debtCoachAuth', {
+      const res = await base44.functions.invoke('debtCoachAuth', {
         action: 'updateUser', sessionUserId, sessionToken,
         targetUserId: selectedUser.id,
         updates: { aiSettingsJson: JSON.stringify(flags) },
       });
-      loadUsers();
-    } catch (e) { alert('Save failed: ' + e.message); }
-    setSaving(false);
+      const data=res?.data||res;
+      if(data?.error)throw new Error(data.error);
+      // Confirm persistence: the existing API has previously returned success
+      // without handling aiSettingsJson. Never show a false "saved" status.
+      const check=await base44.functions.invoke('debtCoachAuth',{action:'listUsers',sessionUserId,sessionToken});
+      const refreshed=check?.data||check;
+      if(refreshed?.error)throw new Error(refreshed.error);
+      const latest=(refreshed?.users||[]).find(u=>u.id===selectedUser.id);
+      if(!latest)throw new Error('Could not verify the saved user settings.');
+      let persisted={};try{persisted=JSON.parse(latest.aiSettingsJson||'{}');}catch{}
+      if(ALL_FLAG_KEYS.some(key=>Boolean(flags[key])!==Boolean(persisted[key]!==undefined?persisted[key]:true))) {
+        throw new Error('The server acknowledged this request but did not persist all feature flags. The change is NOT confirmed.');
+      }
+      setUsers((refreshed.users||[]).filter(u=>u.role!=='super_admin'));
+      setSuccess(`Verified feature settings for ${selectedUser.username}.`);
+    } catch(e) {setError(e?.message||'Could not save feature flags.');}
+    finally{setSaving(false);}
   };
 
-  if (loading) return <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px' }}>Loading users…</div>;
+  if (loading) return <div style={{color:'#99b8b6',textAlign:'center',padding:30}}>Loading access settings…</div>;
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: selectedUser ? '280px 1fr' : '1fr', gap: '16px', alignItems: 'start' }}>
+  return (<div>
+    <div style={{display:'flex',gap:9,justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
+      <div><strong style={{color:'#e5c780',fontSize:12}}>Feature access</strong><p style={{fontSize:11,color:'#9cafb6',margin:'4px 0'}}>Select an account, review its settings, then verify any changes.</p></div>
+      <label style={{display:'flex',alignItems:'center',gap:7,border:'1px solid #375862',borderRadius:7,padding:'6px 9px',color:'#9ebaba',background:'#10202d'}}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Find users by name" placeholder="Find an account…" style={{background:'transparent',border:0,color:'#e1eae2',outline:0,fontSize:11,padding:4}}/></label>
+    </div>
+    {error&&<div role="alert" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(134,39,42,.14)',border:'1px solid #91514d',color:'#ffd0bc',fontSize:11,borderRadius:8,marginBottom:9}}><AlertTriangle size={14}/>{error}</div>}
+    {success&&<div role="status" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(34,137,94,.13)',border:'1px solid #487d61',color:'#a9ebca',fontSize:11,borderRadius:8,marginBottom:9}}><CheckCircle2 size={14}/>{success}</div>}
+    <div className="dcc-admin-flags-grid" style={{ display: 'grid',gridTemplateColumns: 'minmax(220px,260px) minmax(0,1fr)',gap:12,alignItems:'start' }}>
       {/* User list */}
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
         <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -128,7 +156,7 @@ export default function AdminFlagsTab() {
         </div>
         <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
           {users.length === 0 ? <div style={{ color: '#4a5568', textAlign: 'center', padding: '20px', fontSize: '12px' }}>No users.</div> :
-           users.map(u => {
+           users.filter(u=>[u.username,u.email,u.role].some(v=>String(v||'').toLowerCase().includes(search.trim().toLowerCase()))).map(u => {
             const rc = ROLE_COLORS[u.role] || '#6b7280';
             return (
               <button key={u.id} onClick={() => selectUser(u)} style={{ width: '100%', background: selectedId === u.id ? 'rgba(16,185,129,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 16px', cursor: 'pointer', textAlign: 'left' }}>
@@ -179,5 +207,5 @@ export default function AdminFlagsTab() {
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '13px' }}>Select a user to manage their feature flags.</div>
       )}
     </div>
-  );
+  </div>);
 }
