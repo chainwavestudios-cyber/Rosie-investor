@@ -145,7 +145,7 @@ async function playTransferSequence(mode, closerName, scenario, transferVoice, a
   }
 }
 
-export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy-upload', lazyMicDevices = false } = {}) {
+export function useDebtBobVoice({ onTranscript, onLog, onRecordingBlob, recordingPolicy = 'legacy-upload', lazyMicDevices = false } = {}) {
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [agentSpeaking, setAgentSpeaking] = useState(false);
@@ -173,6 +173,8 @@ export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy
   const outputDestRef = useRef(null);
   const onLogRef = useRef(onLog);
   useEffect(() => { onLogRef.current = onLog; }, [onLog]);
+  const onRecordingBlobRef=useRef(onRecordingBlob);
+  useEffect(()=>{onRecordingBlobRef.current=onRecordingBlob;},[onRecordingBlob]);
   const ring = useRingTone();
 
   useEffect(() => {
@@ -219,6 +221,13 @@ export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         chunksRef.current = [];
         if (blob.size < 2000) return;
+        // Commercial mode hands raw bytes only to the in-memory customer-side
+        // AES-GCM encryptor. Never use the legacy public file uploader.
+        if(recordingPolicy==='encrypted'){
+          try{await onRecordingBlobRef.current?.(blob);}
+          catch(e){console.warn('[BOB] Private encrypted recording save failed:',e instanceof Error?e.message:'unknown');}
+          return;
+        }
         // Always create a local object URL first — this is the safety net.
         // If the cloud upload fails (file too large, network error, etc.),
         // the recording is never lost: it downloads to the user's computer.
