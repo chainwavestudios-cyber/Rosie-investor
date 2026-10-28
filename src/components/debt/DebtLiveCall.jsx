@@ -13,6 +13,7 @@ import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
+import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import { buildIntentReport } from '@/components/debt/intentReport';
@@ -35,6 +36,10 @@ import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
+const DEFAULT_AUDIO_SETUPS = [
+  { name: 'Computer setup', saved: false },
+  { name: 'Cell setup', saved: false },
+];
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
@@ -95,6 +100,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId, micLoaded] = useDebtCoachValue(coachUser?.username, 'defaultMicDeviceId', '');
   const [customerMicId, setCustomerMicId, customerMicLoaded] = useDebtCoachValue(coachUser?.username, 'defaultCustomerMicId', '');
+  // Two saved audio setups — e.g. computer + Rodecaster, and cell + Realtek.
+  const [audioSetups, setAudioSetups, setupsLoaded] = useDebtCoachValue(coachUser?.username, 'audioSetupsJson', DEFAULT_AUDIO_SETUPS);
+  const [activeSetupIndex, setActiveSetupIndex, activeSetupLoaded] = useDebtCoachValue(coachUser?.username, 'activeAudioSetup', 0);
   const [outputDevices, setOutputDevices] = useState([]);
   const [outputDeviceId, setOutputDeviceId, outputLoaded] = useDebtCoachValue(coachUser?.username, 'defaultOutputDeviceId', '');
   const [agentGain, setAgentGain] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
@@ -1855,6 +1863,38 @@ ${recentText}`,
   // out of this list entirely so the room can never end up labelled "customer".
   const customerInputs = micDevices.filter(m => isLoopbackSource(m.label || ''));
   const customerLabelSelected = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
+  const micLabelSelected = micDevices.find(m => m.deviceId === micDeviceId)?.label || '';
+  const activeSetup = (audioSetups || DEFAULT_AUDIO_SETUPS)[activeSetupIndex] || null;
+
+  // Load a saved setup. Devices are matched by label first, because Windows hands
+  // out new device ids on every reboot / re-plug; the saved id is the fallback.
+  const useAudioSetup = (idx) => {
+    if (phase === 'live') return;
+    setActiveSetupIndex(idx);
+    const s = (audioSetups || [])[idx];
+    if (!s?.saved) return;
+    const mic = s.micLabel ? micDevices.find(m => m.label === s.micLabel) : null;
+    const cust = s.customerLabel ? micDevices.find(m => m.label === s.customerLabel) : null;
+    if (mic) setMicDeviceId(mic.deviceId);
+    if (cust) setCustomerMicId(cust.deviceId);
+    else if (!s.customerLabel) setCustomerMicId('');
+    if (s.micLabel && !mic) setError(`“${s.name}” was saved with “${s.micLabel}”, which isn't connected right now — plug it in and hit 🔄 to re-scan.`);
+  };
+
+  const renameAudioSetup = (idx, name) => {
+    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === idx ? { ...s, name } : s)));
+  };
+
+  // Whatever you pick while a setup is active is saved into that setup.
+  useEffect(() => {
+    if (!setupsLoaded || !micLoaded || !customerMicLoaded || !activeSetupLoaded) return;
+    if (phase === 'live' || !activeSetup) return;
+    if (!micDeviceId && !customerMicId) return;
+    if (activeSetup.micLabel === micLabelSelected && activeSetup.customerLabel === customerLabelSelected && activeSetup.saved) return;
+    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === activeSetupIndex
+      ? { ...s, saved: true, micDeviceId, micLabel: micLabelSelected, customerDeviceId: customerMicId, customerLabel: customerLabelSelected }
+      : s)));
+  }, [setupsLoaded, micLoaded, customerMicLoaded, activeSetupLoaded, phase, activeSetupIndex, micDeviceId, customerMicId, micLabelSelected, customerLabelSelected]);
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
@@ -1904,6 +1944,14 @@ ${recentText}`,
             </button>
           </div>
         </div>
+
+        <AudioSetupSwitcher
+          setups={audioSetups || DEFAULT_AUDIO_SETUPS}
+          activeIndex={activeSetupIndex}
+          disabled={phase === 'live'}
+          onUse={useAudioSetup}
+          onRename={renameAudioSetup}
+        />
 
         {outputDevices.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
