@@ -245,9 +245,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
   // Per-type amounts from blended debt confirm — [{type, amount}]
   const debtAmounts = (() => { try { return JSON.parse(local.debtAmountsJson || '[]'); } catch { return []; } })();
   const getAmountForType = (type) => {
-    const entry = debtAmounts.find(a => a.type === type);
-    return entry ? entry.amount : (local.debtAmount != null ? local.debtAmount : null);
+    const entry = debtAmounts.find(a => a.type === type && Number.isFinite(Number(a.amount)));
+    // Never show the entire combined debt twice when two categories are selected.
+    if (entry) return entry.amount;
+    return debtTypes.length === 1 ? local.debtAmount : null;
   };
+  const badgeTypes = debtTypes.length ? debtTypes : ['Unsecured Credit Card'];
+  const hasUnallocatedDebt = debtTypes.length > 1 && debtTypes.some(type => !debtAmounts.some(a => a.type === type && Number.isFinite(Number(a.amount))));
   const toggleDebtType = (type) => {
     const next = debtTypes.includes(type) ? debtTypes.filter(t => t !== type) : [...debtTypes, type];
     update('debtTypesJson', JSON.stringify(next));
@@ -749,11 +753,13 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
           <span style={{ color: leadTypeColor, fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', textTransform: 'uppercase' }}>● {leadTypeLabel} ●</span>
         </div>
         {/* Debt badges — visual badge cards with per-type amount overlay (shown when debt type + amount confirmed) */}
-        {debtTypes.length > 0 && local.debtAmount != null && local.debtAmount > 0 && (
+        {local.debtAmount != null && Number(local.debtAmount) > 0 && (
           <div style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, background: 'rgba(0,0,0,0.15)' }}>
-            {debtTypes.map(type => (
+            {badgeTypes.map(type => (
               <DebtBadge key={type} debtType={type} amount={getAmountForType(type)} size={72} />
             ))}
+            {!debtTypes.length && <span style={{fontSize:10,color:'#d5c49c'}}>Total debt · Type not yet confirmed</span>}
+            {hasUnallocatedDebt && <span style={{fontSize:11,color:'#e7c889',fontWeight:700}}>Combined total: ${Number(local.debtAmount).toLocaleString()} · Split not confirmed</span>}
           </div>
         )}
         {/* Header — draggable (disabled when embedded) */}
