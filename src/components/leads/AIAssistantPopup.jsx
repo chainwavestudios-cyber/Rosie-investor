@@ -445,7 +445,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
 }
 
 // ── Q&A Section ───────────────────────────────────────────────────────────────
-export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion }) {
+export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion, liveQAItems }) {
   const [questions, setQuestions] = useState([]);
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
@@ -456,6 +456,23 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   const [history, setHistory] = useState([]);
   const [commonPopOut, setCommonPopOut] = useState(false);
   const [commonCount, setCommonCount] = useState(0);
+
+  // Debt Live Call owns the settled-turn Q&A pipeline. Mirror those answers
+  // instead of independently asking again on each transcript fragment. Manual
+  // questions in this popup remain available as before.
+  useEffect(() => {
+    if (!Array.isArray(liveQAItems)) return;
+    setQuestions(prev => [
+      ...prev.filter(q => !q.fromLiveCall),
+      ...liveQAItems.map(q => ({
+        id: q.id, text: q.question, time: new Date(),
+        answer: q.answer || '', answers: [], answering: !!q.loading,
+        answered: !q.loading && !!q.answer, auto: true, manual: false,
+        source: q.source, responseMs: q.responseMs,
+        fromLiveCall: true,
+      })),
+    ]);
+  }, [liveQAItems]);
 
   // Live count of starred common questions for the tab badge
   useEffect(() => {
@@ -555,6 +572,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
   };
 
   useEffect(() => {
+    if (Array.isArray(liveQAItems)) return; // canonical live pipeline already handles Q&A
     if (!transcript.length) return;
     const last = transcript[transcript.length - 1];
     if (!last?.text) return;
@@ -859,7 +877,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
 }
 
 // ── Coach Section v2.0 ────────────────────────────────────────────────────────
-function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary, memories }) {
+function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary, memories, liveCoachTips }) {
   const [autoTips,    setAutoTips]    = useState([]);
   const [tileOutputs, setTileOutputs] = useState([]); // [{id,tile,text,loading,time}]
   const [activeTile,  setActiveTile]  = useState(null);
@@ -869,10 +887,17 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   const tileLoading   = useRef(false);
   const transcriptRef = useRef([]);
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+  useEffect(() => {
+    if (!Array.isArray(liveCoachTips)) return;
+    setAutoTips(liveCoachTips.map((tip, i) => ({
+      id: `live-coach-${i}-${tip.time || ''}`, text: tip.tip || '',
+      streaming: false, time: tip.time || new Date(),
+    })));
+  }, [liveCoachTips]);
 
   // ── Auto-coach: fires on objection keywords ──────────────────────────────────
   useEffect(() => {
-    if (!active || !transcript.length || collapsed) return;
+    if (Array.isArray(liveCoachTips) || !active || !transcript.length || collapsed) return;
     const last = transcript[transcript.length - 1];
     if (!last?.text) return;
     // Only evaluate each transcript line once — the effect re-runs on every parent
@@ -906,7 +931,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   const deliveredHotpoints = useRef(new Set());
   useEffect(() => { if (active) deliveredHotpoints.current.clear(); }, [active]);
   useEffect(() => {
-    if (!active || !transcript.length || collapsed) return;
+    if (Array.isArray(liveCoachTips) || !active || !transcript.length || collapsed) return;
     const hotpoints = (kbEntries || []).filter(e => e.category === 'debt_hotpoints');
     if (hotpoints.length === 0) return;
     const last = transcript[transcript.length - 1];
@@ -929,7 +954,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   const deliveredObjections = useRef(new Set());
   useEffect(() => { if (active) deliveredObjections.current.clear(); }, [active]);
   useEffect(() => {
-    if (!active || !transcript.length || collapsed) return;
+    if (Array.isArray(liveCoachTips) || !active || !transcript.length || collapsed) return;
     const objections = (kbEntries || []).filter(e => e.category === 'debt_objections');
     if (objections.length === 0) return;
     const last = transcript[transcript.length - 1];
@@ -1176,6 +1201,8 @@ export default function AIAssistantPopup({
   callAttemptNumber, previousCallSummary,
   memories,
   pendingQuestion,
+  liveQAItems = null,
+  liveCoachTips = null,
   username = null,
 }) {
   // DB-backed layout storage (used when username is provided — Debt Call Coach).
@@ -1417,7 +1444,7 @@ export default function AIAssistantPopup({
           {qaOnly && (
             <>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
+              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
             </>
           )}
 
@@ -1426,7 +1453,7 @@ export default function AIAssistantPopup({
               {!qaPoppedOut && (
                 <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
                   <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                  <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} />
+                  <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
                 </div>
               )}
 
@@ -1434,7 +1461,7 @@ export default function AIAssistantPopup({
 
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:coachCollapsed?'0 0 auto':coachH,minHeight:coachCollapsed?0:60}}>
                 <SectionHeader label="🎯 Coach" color="#a78bfa" active={coachActive} onToggle={onToggleCoach} collapsed={coachCollapsed} onCollapse={()=>setCoachCollapsed(p=>!p)} />
-                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} memories={memories || []} />
+                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} memories={memories || []} liveCoachTips={liveCoachTips} />
               </div>
 
               {!coachCollapsed&&!intentCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='coach-intent';divStartY.current=e.clientY;divStartH.current=coachH;e.preventDefault();}} />}
