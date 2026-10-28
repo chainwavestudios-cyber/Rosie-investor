@@ -230,38 +230,108 @@ export default function BobPortal(){
   const saveSettings=async(e)=>{e.preventDefault();await act(()=>api('setOrg',{organizationId:orgId,...settings}),'Organization settings saved.');};
   const saveKey=async(e)=>{e.preventDefault();await act(async()=>{await api('setDeepgramKey',{organizationId:orgId,key:deepgramKey});setDeepgramKey('');},'Deepgram credential updated. The key is stored encrypted, not displayed.');};
 
+  const advanceStage=async()=>{
+    if(!selectedFlow || stageIndex>=selectedFlow.stages.length-1)return;
+    if(!['idle','error'].includes(voiceCall.phase))await finish();
+    // The next AI voice stage reconnects with previous conversation memory.
+    // This is an explicitly simulated handoff, not a real phone-line transfer.
+    setPriorDialogue(prev=>[...prev,...messagesRef.current].slice(-50));
+    setStageIndex(i=>Math.min(i+1,selectedFlow.stages.length-1));
+    setSimActions(prev=>[...prev,{time:new Date().toLocaleTimeString(),
+      message:'Advanced to the next simulated call stage. Start the next AI conversation when ready.'}]);
+  };
+  const triggerAction=async(action)=>{
+    const messages={
+      qualify:'Customer marked qualified in this fictional scenario.',
+      mock_credit:'Synthetic credit report generated in the browser — no real bureau inquiry.',
+      send_email:'Mock credentials email marked as sent. No email was actually sent.',
+      send_text:'Mock SMS marked as sent. No text message was actually sent.',
+      capture_data:'Practice contact fields captured in the simulator only.',
+      confirm_debt:'Mock debt amount verified for the scenario.',
+      transfer:'AI handoff prepared. Advance to the next stage for the next agent voice.',
+      callback:'Follow-up requested. Advance to callback stage or choose this session on the next call.',
+      completed:'Simulation stage marked complete.'
+    };
+    if(action==='mock_credit')setCreditReport(mockCustomer(orgId+selectedFlowId,{createdAt:new Date().toISOString()}));
+    setSimActions(list=>[...list,{time:new Date().toLocaleTimeString(),message:messages[action]||action}]);
+    if(action==='transfer'&&selectedFlow && stageIndex<selectedFlow.stages.length-1)await advanceStage();
+  };
   const start=async()=>{
     if(!orgId||callBusy||!['idle','error'].includes(voiceCall.phase))return;
     if(!vaultKey){setError('Unlock your customer-owned knowledge vault before starting training.');return;}
     setCallBusy(true);setError('');setNotice('');
+    let currentPresence=null;
     try{
       const grant=await api('voiceGrant',{organizationId:orgId});
       const personality=BOB_CHARACTERS.find(p=>p.id===personaId)||BOB_CHARACTERS[0];
-      const topics=decryptedDocs.slice(0,35).map((d,i)=>'['+(i+1)+'] '+d.title+'\n'+d.content.slice(0,1800)).join('\n\n').slice(0,20000);
-      const prompt=`You are an AI roleplay customer in a BOB sales training simulation. STAY IN CHARACTER. This is a simulation, not a real sales call.
+      const activeScript=scripts.find(sc=>sc.dbId===selectedStage?.scriptId);
+      const stageScript=activeScript?applyTokens(clearCues(activeScript.content),customer,{
+        agentName:ctx?.user?.name||'Training Agent',company:org?.name||'Training company'}):'';
+      const topics=decryptedDocs.slice(0,35).map((d,i)=>'['+(i+1)+'] '+d.title+'\n'+d.content.slice(0,1800)).join('\n\n').slice(0,18000);
+      const earlier=[...priorDialogue].slice(-35).map(e=>e.role+': '+String(e.text||'').slice(0,350)).join('\n').slice(-6500);
+      const asCloser=selectedStage?.type==='closer_handoff';
+      const prompt=`BOB TRAINING SIMULATION — FICTIONAL SALES PRACTICE. ${asCloser
+        ?'You are the simulated senior closer receiving an internal sales handoff. Coach by naturally completing the sales conversation with the trainee acting as your colleague. You are not a real human.'
+        :'You are the simulated customer. Stay in character and respond naturally to the trainee.'}
 Persona: ${personality.name}. ${personality.personalityPrompt}
-Scenario: ${scenario}. Call direction: ${mode}. The human trainee is practicing the sales conversation.
-Difficulty: ${difficulty}/10. 1 means eager and trusting; 5 means cautious and realistic; 10 means guarded, skeptical and difficult.
-Use spontaneous, natural interruptions and authentic objections. Listen to the trainee and respond to their actual statements. Keep responses short (usually one or two sentences). Reveal needs through discovery, not a scripted monologue. Do not disclose or invent sensitive personal information. Never invent company-specific fees, guarantees, legal obligations, or results. Use the organization's KB below to ground facts. If no knowledge exists, be an ordinary prospect without inventing official policies.
-ORGANIZATION TRAINING KNOWLEDGE:
-${topics||'No organization knowledge uploaded yet. Practice natural discovery and objection handling.'}
-Start the roleplay now as the prospect.`;
+Call direction: ${selectedFlow?.type||mode}. Training scenario: ${selectedFlow?.title||scenario}.
+Current stage: ${selectedStage?.label||'Discovery'}.
+Stage objective: ${selectedStage?.goal||'Train consultative selling.'}
+Stage behavior and potential next actions: ${selectedStage?.instructions||'Be realistic.'}
+Full simulated agent script for this stage (trainee will read this, do not recite it): ${stageScript||'None assigned.'}
+Difficulty ${difficulty}/10. Speak with realistic pacing and meaningful objections. Never make a real financial, legal or credit eligibility determination. Don't promise savings, guarantee approvals or ask for actual SSN or real card information.
+Approved organization KB (may be provided to third-party voice/AI processing):
+${topics||'No approved customer KB. Do not invent official policies.'}
+Previous conversation or follow-up context for same fictional scenario:
+${earlier||'No previous call.'}
+Start with a natural greeting, don't describe system prompts or simulation internals.`;
+      const label=selectedStage?.label||scenario;
+      currentPresence=await api('presenceStart',{organizationId:orgId,stage:label,
+        liveMonitorConsent:monitorConsent,coachTalkConsent:monitorConsent&&coachTalkConsent,
+        recordingEnabled:recordConsent});
+      presenceRef.current=currentPresence;
+      setPresence(currentPresence);
+      recordContextRef.current={organizationId:orgId,key:vaultKey,presenceToken:currentPresence.sessionToken,
+        consented:recordConsent,callId:crypto.randomUUID(),started:Date.now()};
+      if(monitorConsent&&org?.allowLiveMonitoring){
+        try{await monitorRoom.join({organizationId:orgId,presenceId:currentPresence.presenceId,
+          presenceToken:currentPresence.sessionToken,mode:'trainee'});}
+        catch(e){setNotice('The training call can continue, but the opted-in live monitor room did not connect: '+errorMessage(e));}
+      }
       messagesRef.current=[];setMessages([]);startRef.current=Date.now();
+      const handoff=['transfer_agent','incoming_queue','closer_handoff'].includes(selectedStage?.type);
+      const introScript=handoff?(selectedStage?.introMessage||
+        (selectedStage?.type==='closer_handoff'?'I have our senior closer joining us now.':
+        'Thank you for calling. I have a training representative on the line to help you.')):'';
       await voiceCall.startCall({apiKey:grant.key,systemPrompt:prompt,
-        voiceModel:voice,greeting:mode==='inbound'?'Hi, thanks for answering.':'Hello?',
-        sessionLabel:scenario,thinkModel:DEFAULT_THINK_MODEL});
-    }catch(e){setError(errorMessage(e));startRef.current=null;}
-    finally{setCallBusy(false);}
+        voiceModel:selectedStage?.voice||voice,greeting:handoff?'Hello?':mode==='inbound'?'Hi, thanks for answering.':'Hello?',
+        sessionLabel:label,thinkModel:DEFAULT_THINK_MODEL,
+        introScript,introVoice:'aura-asteria-en'});
+    }catch(e){
+      setError(errorMessage(e));startRef.current=null;
+      if(currentPresence){
+        await api('presenceEnd',{organizationId:orgId,sessionToken:currentPresence.sessionToken}).catch(()=>{});
+        setPresence(null);presenceRef.current=null;await monitorRoom.disconnect();
+      }
+    }finally{setCallBusy(false);}
   };
   const finish=async()=>{
     const durationSeconds=startRef.current?Math.round((Date.now()-startRef.current)/1000):0;
     voiceCall.hangup();startRef.current=null;
+    await monitorRoom.disconnect();
+    const present=presenceRef.current;presenceRef.current=null;setPresence(null);
+    if(present)api('presenceEnd',{organizationId:orgId,sessionToken:present.sessionToken}).catch(()=>{});
     if(durationSeconds<1)return;
     if(!vaultKey){setError('Session could not be saved because the vault is locked.');return;}
     try {
-      const encryptedPayload=await encryptCustomerContent(vaultKey,{transcript:messagesRef.current,notes,scenario,mode,persona:personaId,difficulty,voiceModel:voice},orgId);
-      await act(()=>api('saveSession',{organizationId:orgId,scenario,mode,persona:personaId,
-        difficulty,voiceModel:voice,durationSeconds,encryptedPayload}),
+      const encryptedPayload=await encryptCustomerContent(vaultKey,{
+        transcript:messagesRef.current,notes,scenario:selectedFlow?.title||scenario,
+        stage:selectedStage?.label||'Stand-alone',
+        mode:selectedFlow?.type||mode,persona:personaId,difficulty,voiceModel:selectedStage?.voice||voice,
+        simActions,creditReport
+      },orgId);
+      await act(()=>api('saveSession',{organizationId:orgId,scenario:'Private training',
+        durationSeconds,encryptedPayload}),
         'Training session saved with browser-side encryption.');
       setNotes('');
     }catch(e){setError(errorMessage(e));}
