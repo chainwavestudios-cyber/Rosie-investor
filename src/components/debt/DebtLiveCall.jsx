@@ -34,6 +34,7 @@ import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
+import { useInlineDialer } from '@/hooks/useInlineDialer';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -87,7 +88,7 @@ function textSimilarity(a, b) {
   return common / Math.min(wa.size, wb.size);
 }
 
-export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange }) {
+export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange, launchAction }) {
   const { user: coachUser, can } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
@@ -119,6 +120,11 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
     hasSavedMode: !!(setupsLoaded && activeSetupLoaded && activeAudioMode?.saved),
   };
   const [phase, setPhase] = useState('idle');
+  const phaseRef = useRef('idle');
+  phaseRef.current = phase;
+  const twilioMediaRef = useRef(false);
+  const twilioDialerRef = useRef(null);
+  const [twilioWarning, setTwilioWarning] = useState('');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
   const [testingAgent, setTestingAgent] = useState(false);
@@ -444,6 +450,28 @@ Agent line: "${firstAgentLines}"`,
   const interimPaintTimeRef = useRef({});
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
+  const twilioDialer = useInlineDialer({
+    agentName: coachUser?.username || 'debt-agent',
+    leadId: lead?.id || null,
+    onCallStream: (streams) => {
+      if (!streams) {
+        if (twilioMediaRef.current) {
+          twilioMediaRef.current = false;
+          stopCallRef.current?.();
+        }
+        return;
+      }
+      if (!streams.localStream?.getAudioTracks?.().length || !streams.remoteStream?.getAudioTracks?.().length) {
+        setTwilioWarning('Twilio connected but both voice tracks are not available. The call may be connected; Live transcription has not started.');
+        return;
+      }
+      if (twilioMediaRef.current || phaseRef.current === 'live') return;
+      twilioMediaRef.current = true;
+      setTwilioWarning('');
+      startCallRef.current?.(false, false, {agentStream: streams.localStream, customerStream: streams.remoteStream});
+    },
+  });
+  twilioDialerRef.current = twilioDialer;
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
   useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
@@ -1373,11 +1401,16 @@ ${recentText}`,
     });
   }, [flushCustomerBuffer]);
 
-  const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
+  const startCall = useCallback(async (forceNew = false, testModeArg = false, twilioStreams = null) => {
+    if (phaseRef.current === 'live') return;
+    if (!twilioStreams && audioModes(audioSetups)[activeSetupIndex]?.transport === 'twilio') {
+      setError('Twilio Stream listens to a connected Twilio call. Use Dial + Live Coach; listening without dialing requires Computer or Cell mode.');
+      return;
+    }
     // Never start a saved mode with missing/mismatched hardware. In particular,
     // don't silently switch the customer line to an ordinary microphone.
     const selectedProfile = audioModes(audioSetups)[activeSetupIndex];
-    if (selectedProfile?.saved) {
+    if (selectedProfile?.saved && !twilioStreams && selectedProfile.transport !== 'twilio') {
       const resolved = resolveAudioMode(selectedProfile, micDevices, outputDevices, isLoopbackSource);
       const customerRequired = !!(selectedProfile.customerDeviceId || selectedProfile.customerLabel);
       if (!resolved.micId || (customerRequired && !resolved.customerId)) {
@@ -1485,11 +1518,19 @@ ${recentText}`,
     // would put the agent's own voice (and the room) on the customer channel.
     const customerLabel = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
     const customerSlotUsable = !!customerMicId && (!customerLabel || isLoopbackSource(customerLabel));
-    const dualMode = !!customerMicId && !!micDeviceId && !testModeArg && customerSlotUsable;
+    const dualMode = twilioStreams ? true : !!customerMicId && !!micDeviceId && !testModeArg && customerSlotUsable;
 
     let agentStream, customerStream;
     let feedDual = dualMode;
     try {
+      if (twilioStreams) {
+        // Agent and remote customer tracks are WebRTC MediaStreams from the
+        // active Twilio SDK call. Do not capture or substitute a local device.
+        agentStream = twilioStreams.agentStream;
+        customerStream = twilioStreams.customerStream;
+        streamRef.current = agentStream;
+        customerStreamRef.current = customerStream;
+      } else {
       agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
@@ -1515,6 +1556,7 @@ ${recentText}`,
         if (customerStream) customerStreamRef.current = customerStream;
         else feedDual = false; // customer slot really is gone — keep transcribing the mic
       }
+      }
     } catch (e) {
       setError('Microphone/audio access denied.');
       setPhase('idle'); setDgStatus('error'); return;
@@ -1535,7 +1577,7 @@ ${recentText}`,
     const fetchDgKey = async (fn) => { try { const r = await base44.functions.invoke(fn, {}); return r?.key || r?.data?.key || ''; } catch { return ''; } };
     let dgKey = (await fetchDgKey('deepgramToken2')) || (await fetchDgKey('deepgramToken'));
     if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop()); return; }
+    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); if (!twilioStreams) {agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop());} return; }
 
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
@@ -1615,8 +1657,11 @@ ${recentText}`,
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (agentQuestionTimeoutRef.current) { clearTimeout(agentQuestionTimeoutRef.current); agentQuestionTimeoutRef.current = null; }
     if (feedRef.current) { feedRef.current.close(); feedRef.current = null; }
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
-    if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
+    const wasTwilio = twilioMediaRef.current;
+    twilioMediaRef.current = false;
+    if (streamRef.current) { if (!wasTwilio) streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (customerStreamRef.current) { if (!wasTwilio) customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
+    if (wasTwilio) twilioDialerRef.current?.hangup();
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     if (recordingUri && transcriptRecordIdRef.current) {
       base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: recordingUri }).catch(() => {});
