@@ -158,6 +158,7 @@ export default function BobBrainTab({ onKBUpdated }) {
   };
 
   const deleteDuplicateEntry = async (id) => {
+    if (!window.confirm('This removes a published KB answer used by Live Q&A and BOB, not just a training duplicate. Delete permanently?')) return;
     try {
       await base44.entities.KnowledgeBase.delete(id);
       setDuplicateGroups(prev => prev.map(g => g.filter(e => e.id !== id)).filter(g => g.length > 1));
