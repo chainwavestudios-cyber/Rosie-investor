@@ -1,7 +1,7 @@
 /**
  * DebtCallBar.jsx — Compact Twilio call control bar for debt leads.
  * Uses useInlineDialer (Twilio Voice SDK) to place a real outbound call
- * to the lead's phone. Shows Live Call button, call status, timer, mute,
+ * to the lead's phone. Shows a Dial button, call status, timer, mute,
  * and Hang Up. Designed to sit in the ClientProfileModal / DebtLeadCard header.
  */
 import { useInlineDialer } from '@/hooks/useInlineDialer';
@@ -77,10 +77,10 @@ export default function DebtCallBar({ lead, onCallEnded }) {
 
       {/* Row 3: action buttons */}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        {/* IDLE — Live Call button */}
+        {/* IDLE — this is an outbound phone call, NOT the Live Call listening workflow. */}
         {(callStatus === 'idle' || callStatus === 'ready') && (
           <button onClick={handleDial} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px' }}>
-            📞 Live Call
+            📞 Dial Number
           </button>
         )}
 
@@ -99,7 +99,7 @@ export default function DebtCallBar({ lead, onCallEnded }) {
 
         {/* ENDED — redial */}
         {callStatus === 'ended' && (
-          <button onClick={() => dialer.reset()} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px' }}>↩ Redial</button>
+          <button onClick={() => dialer.reset()} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '7px 14px', cursor: 'pointer', fontSize: '11px' }}>↩ Dial Again</button>
         )}
       </div>
 
