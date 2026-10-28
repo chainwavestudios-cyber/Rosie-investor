@@ -17,6 +17,7 @@ import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
+import { preserveUnansweredAiCaller } from '../../shared/aiQueueProspect.ts';
 
 // Incoming calls ring twice before the AI picks up: Twilio holds the caller on
 // ringback while this handler is still working, so the caller hears two rings and
@@ -355,7 +356,7 @@ export default async function(req) {
             conferenceName,
             customerCallSid,
             routeType: 'ai_agent',
-            routeState: 'calling_chris_primary',
+            routeState: 'caller_queued',
             advisorAttempt: 0,
             queueStartedAt: queuedAtIso,
             lineKey: config.twilioLineKey || '',
@@ -370,28 +371,12 @@ export default async function(req) {
           });
         } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
 
-        // Ring Chris directly; the caller stays on the selected queue recording.
-        const primaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 1, appUrl);
-        let bookingImmediately = false;
-        if (!primaryStarted) {
-          const secondaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 2, appUrl);
-          if (!secondaryStarted) {
-            const alerts = await service.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
-            if (alerts?.[0]) await service.entities.FronterHeadsUp.update(alerts[0].id, { routeState: 'appointment_available', advisorAttempt: 2 });
-            bookingImmediately = config.callbackBookingEnabled !== false;
-          }
-        }
-
-        // If neither line can be dialed, enter the existing working voice
-        // appointment hold directly. Do not race a call redirect against the
-        // initial TwiML conference response.
-        if (bookingImmediately) {
-          const bookingUrl = `${appUrl}/functions/appointmentVoiceHandler?step=hold&source=ai&leadId=${encodeURIComponent(leadId)}`;
-          return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="GET">${xmlEscape(bookingUrl)}</Redirect></Response>`, { headers: { 'Content-Type': 'text/xml' } });
-        }
+        // Return the hold conference immediately. Dialing Chris happens on
+        // customer JOIN callback, after Twilio has begun the recorded waitUrl.
+        // Never block the customer's audio waiting on outbound Call creation.
 
         const skipSay = url.searchParams.get('SkipSay') === 'true';
-        const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">I'm transferring you to one of our senior debt advisors. Please hold for just a moment.</Say>`;
+        const sayTag = skipSay ? '' : `<Say voice="${pollyVoice}">I'm going to place you in Chris's queue. There may be a few seconds of silence while I connect you.</Say>`;
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   ${sayTag}
@@ -623,7 +608,7 @@ export default async function(req) {
           const headsUps = await base44.entities.FronterHeadsUp.filter({ conferenceName: conf, status: 'active' });
           const active = headsUps?.[0];
           if (active) {
-            const joiningSid = params.get('CallSid') || '';
+            const joiningSid = params.get('ParticipantCallSid') || params.get('CallSid') || '';
             const customerSid = active.customerCallSid || params.get('CallerCallSid') || '';
             const event = String(params.get('StatusCallbackEvent') || '').toLowerCase();
             // The customer joining an empty conference is not a completed
