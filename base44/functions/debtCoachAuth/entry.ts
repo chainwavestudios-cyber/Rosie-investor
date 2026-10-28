@@ -6,7 +6,7 @@ const ADMIN_FLAG_KEYS = new Set([
   'tabLiveCall','tabCalls','tabBob','tabPitches','tabKB','tabKBChat','tabProfile','tabCompliance',
   'canStartCall','canEndCall','canEditLead','canDeletePitch','complianceVisible','complianceSelfView',
 ]);
-const ACCOUNT_LINK_ORIGIN = 'https://debtsolutions.cc/debt-coach-login';
+const ACCOUNT_LINK_ORIGIN = 'https://debtsolutions.cc/debt-call-coach-login';
 const ACCOUNT_LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;
 function secureRandomHex(length = 32): string {
   const buffer = new Uint8Array(length);
