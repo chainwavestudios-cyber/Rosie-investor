@@ -19,26 +19,25 @@ export default function DebtCoachLogin() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loginMode, setLoginMode] = useState('password'); // 'password' | 'voice' | 'enroll'
-  const [setupLink, setSetupLink] = useState(null);
+  const [setupLink, setSetupLink] = useState(() => {
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const token = params.get('setup');
+    const userId = params.get('account');
+    return token && userId ? { token, userId } : null;
+  });
   const [setupDone, setSetupDone] = useState(false);
   // Never keep passwords in localStorage, including administrator passwords.
   useEffect(() => { try { localStorage.removeItem('debtCoachSavedCreds'); } catch {} }, []);
   // Setup secrets are in a URL fragment (not included in HTTP requests). Read
   // once, then immediately scrub them from the address bar and browser history.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-    const token = params.get('setup');
-    const userId = params.get('account');
-    if (token && userId) {
-      setSetupLink({ token, userId });
-      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    }
+    if (setupLink) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
   }, []);
 
   useEffect(() => {
     if (isAuthenticated && !mustResetPassword && !setupLink) navigate(user?.role === 'fronter' ? '/fronter' : '/debt-call-coach', { replace: true });
     if (isAuthenticated && mustResetPassword) setShowReset(true);
-  }, [isAuthenticated, mustResetPassword, navigate]);
+  }, [isAuthenticated, mustResetPassword, navigate, setupLink, user?.role]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -124,11 +123,11 @@ export default function DebtCoachLogin() {
             <div style={{ color: '#8a9ab8', fontSize: '12px', marginBottom: '20px' }}>This is your first login. Please set a new password to continue.</div>
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>New Password</label>
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" style={inp} autoFocus />
+              <input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password (12+ characters)" style={inp} autoFocus />
             </div>
             <div style={{ marginBottom: '18px' }}>
               <label style={{ display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Confirm Password</label>
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter new password" style={inp} />
+              <input type="password" autoComplete="new-password" required minLength={12} maxLength={256} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-enter new password" style={inp} />
             </div>
             {error && <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '12px' }}>⚠ {error}</div>}
             <button type="submit" disabled={loading} style={{ width: '100%', background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '12px', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: loading ? 0.5 : 1 }}>
