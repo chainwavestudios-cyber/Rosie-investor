@@ -141,7 +141,7 @@ export default function AdminFlagsTab() {
 
   if (loading) return <div style={{color:'#99b8b6',textAlign:'center',padding:30}}>Loading access settings…</div>;
 
-  return (<div>
+  return (<div className="dcc-admin-flags">
     <div style={{display:'flex',gap:9,justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap'}}>
       <div><strong style={{color:'#e5c780',fontSize:12}}>Feature access</strong><p style={{fontSize:11,color:'#9cafb6',margin:'4px 0'}}>Select an account, review its settings, then verify any changes.</p></div>
       <label style={{display:'flex',alignItems:'center',gap:7,border:'1px solid #375862',borderRadius:7,padding:'6px 9px',color:'#9ebaba',background:'#10202d'}}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Find users by name" placeholder="Find an account…" style={{background:'transparent',border:0,color:'#e1eae2',outline:0,fontSize:11,padding:4}}/></label>
