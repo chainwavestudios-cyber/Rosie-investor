@@ -133,7 +133,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
       <div className="dcc-contact-content" style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
         {tab === 'activity' && <LeadActivityTab lead={lead} />}
         {tab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          <div className="dcc-contact-fields-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
             <Field label="First" value={lead.firstName} onChange={v => update('firstName', v)} />
             <Field label="Last" value={lead.lastName} onChange={v => update('lastName', v)} />
             <Field label="Phone" value={lead.phone} onChange={v => update('phone', v)} />
