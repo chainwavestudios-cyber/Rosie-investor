@@ -606,7 +606,7 @@ export default async function(req) {
               });
               // Browser pickup may win while Chris's phone is still ringing.
               // Cancel that orphan leg so he doesn't get a second transfer call.
-              if (active.advisorCallSid && joiningSid !== active.advisorCallSid) {
+              if (active.advisorCallSid && active.browserCallSid && joiningSid === active.browserCallSid) {
                 try {
                   await twilioFetch(`/Calls/${active.advisorCallSid}.json`, {
                     method: 'POST', body: new URLSearchParams({ Status: 'completed' }),
