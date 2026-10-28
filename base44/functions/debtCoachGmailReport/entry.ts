@@ -60,7 +60,7 @@ export default async function (req: Request): Promise<Response> {
     const svc = base44.asServiceRole.entities;
     const [templatePage, messagePage, eventPage] = await Promise.all([
       readAll(svc.DebtEmailTemplate, {}, 'sortOrder'),
-      readAll(svc.EmailMessage, { contactKind: 'debt_lead', sentAt: { $gte: since } }, '-sentAt'),
+      readAll(svc.EmailMessage, { contactKind: 'debt_lead', created_date: { $gte: since } }, '-created_date'),
       readAll(svc.EmailTrackingEvent, { trackedAt: { $gte: since } }, '-trackedAt'),
     ]);
     const templates = new Map(templatePage.items.map((t: any) => [String(t.id), t]));
@@ -68,7 +68,15 @@ export default async function (req: Request): Promise<Response> {
     const coachMessage = (m: any) => m.contactKind === 'debt_lead'
       && m.source !== 'campaign' && (templates.has(String(m.templateId || '')) || m.sentBy === 'debt_coach');
     const messages = messagePage.items.filter(coachMessage);
-    const sends = messages.filter((m: any) => m.status === 'sent' && !!m.sentAt && !m.unsentAt);
+    const sentCandidates = messages.filter((m: any) => m.status === 'sent' && !!m.sentAt && !m.unsentAt);
+    const knownSendIds = new Set<string>();
+    const sends = sentCandidates.filter((m: any) => {
+      const id = String(m.sendId || m.id);
+      if (knownSendIds.has(id)) return false;
+      knownSendIds.add(id);
+      return true;
+    });
+    const failed = messages.filter((m: any) => m.status === 'failed');
     const sendById = new Map(sends.map((m: any) => [String(m.sendId || ''), m]).filter(([id]) => !!id));
     const eventBySend = new Map<string, any[]>();
     for (const ev of eventPage.items) {
@@ -140,7 +148,10 @@ export default async function (req: Request): Promise<Response> {
     return Response.json({
       scope: 'debt_call_coach_gmail_templates_only', days, generatedAt: new Date().toISOString(),
       truncated: { templates: templatePage.truncated, sends: messagePage.truncated, events: eventPage.truncated, legacy: legacyTruncated },
-      summary: { emailsSent: timeline.length, distinctRecipients: unique(timeline.map((x: any) => String(x.contactId || x.contactEmail))).length,
+      failedHistory: failed.map((m: any) => ({ id: m.id, contactName: m.contactName || '', contactEmail: m.contactEmail || '',
+        templateName: (templates.get(String(m.templateId)) as any)?.name || m.templateName || '', attemptedAt: m.created_date,
+        error: m.error || '', status: m.status })),
+      summary: { emailsSent: timeline.length, failedAttempts: failed.length, distinctRecipients: unique(timeline.map((x: any) => String(x.contactId || x.contactEmail))).length,
         withNonProxyOpens: timeline.filter((x: any) => x.nonProxyOpens > 0).length,
         withClicks: timeline.filter((x: any) => x.distinctLinks > 0).length,
         proxyOnlyOpens: timeline.filter((x: any) => x.proxyOnly).length,
