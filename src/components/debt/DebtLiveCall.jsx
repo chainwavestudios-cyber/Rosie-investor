@@ -2062,6 +2062,7 @@ ${recentText}`,
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🔊 Preferred Output</label>
             <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase==='live'} title="Stored as a preferred playback device; browser/system output routing remains in effect" style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+              <option value="">— System default output —</option>
               {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
             </select>
           </div>
