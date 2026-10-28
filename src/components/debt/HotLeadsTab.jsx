@@ -37,8 +37,11 @@ const isClosed = lead => ['completed','declined','enrolled'].includes(lead.statu
 const priorityFor = lead => {
   const now=Date.now(),callback=parseTime(lead.callbackAt),appointment=parseTime(lead.appointmentDate);
   const today=appointment!==null&&dayET(lead.appointmentDate)===todayET();
-  const callbackOverdue=callback!==null && callback<now && !isClosed(lead);
-  const apptPast=appointment!==null && appointment<now && !isClosed(lead) && !lead.rescheduleBookedAt;
+  const lastCall=parseTime(lead.lastCallAt);
+  // A newer call can satisfy an old callback; avoid perpetually escalating it.
+  const callbackOverdue=callback!==null && callback<now && (lastCall===null || lastCall<callback) && !isClosed(lead);
+  // A newer call may likewise have handled an old appointment; flag only unreviewed cases.
+  const apptPast=appointment!==null && appointment<now && (lastCall===null || lastCall<appointment) && !isClosed(lead) && !lead.rescheduleBookedAt;
   const change=Boolean(lead.appointmentChangeRequested) && !isClosed(lead);
   const engagementSignals=engagement(lead);
   let score=0;
@@ -135,9 +138,9 @@ export default function HotLeadsTab({onOpenLead,onOpenHeatMap}) {
   },[info,filter,sort]);
 
   useEffect(()=>{
-    if(!leads.length){setSelectedId(null);return;}
-    if(!leads.some(l=>l.id===selectedId))setSelectedId(leads[0].id);
-  },[leads,selectedId]);
+    const first=visible[0]?.lead.id || null;
+    if(!visible.some(({lead})=>lead.id===selectedId) && selectedId!==first)setSelectedId(first);
+  },[visible,selectedId]);
   const selected=leads.find(l=>l.id===selectedId);
   const selectedPriority=selected?priorityFor(selected):null;
   const selectedEngagement=selected?engagement(selected):null;
@@ -233,7 +236,7 @@ export default function HotLeadsTab({onOpenLead,onOpenHeatMap}) {
               <div className="hl-quick-actions">
                 <button className="hl-btn gold" type="button" onClick={()=>onOpenLead?.(selected)}><UserRound size={14}/>Open contact card</button>
                 {selected.phone&&<a className="hl-btn secondary" href={'tel:'+selected.phone.replace(/[^+\d]/g,'')} title="Dial using your device's phone handler"><Phone size={14}/>Call</a>}
-                {selected.email&&<a className="hl-btn secondary" href={'mailto:'+encodeURIComponent(selected.email)} title="Open your email app; tracked platform mailers are sent from the contact card"><Mail size={14}/>Email</a>}
+                {selected.email&&<a className="hl-btn secondary" href={'mailto:'+selected.email} title="Open your email app; tracked platform mailers are sent from the contact card"><Mail size={14}/>Email</a>}
               </div>
               <Section title="Contact snapshot">
                 <div className="hl-data-grid">
