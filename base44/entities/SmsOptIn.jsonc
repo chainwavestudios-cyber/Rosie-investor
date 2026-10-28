@@ -35,6 +35,14 @@
       "type": "boolean",
       "title": "Active (not opted out)",
       "default": true
+    },
+    "consentSource": {
+      "type": "string",
+      "title": "Consent Source"
+    },
+    "consentBy": {
+      "type": "string",
+      "title": "Consent Recorded By"
     }
   },
   "required": [

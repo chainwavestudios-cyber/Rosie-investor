@@ -21,13 +21,15 @@ export default function ClosingChecklist({ leadId, compact = false, done: contro
   });
 
   useEffect(() => {
+    if (controlledDone !== undefined) return;
     try { localStorage.setItem(storageKey, JSON.stringify(internalDone)); } catch {}
-  }, [internalDone, storageKey]);
+  }, [internalDone, storageKey, controlledDone]);
 
   // Reset when lead changes
   useEffect(() => {
+    if (controlledDone !== undefined) return;
     try { setInternalDone(JSON.parse(localStorage.getItem(storageKey) || '{}')); } catch { setInternalDone({}); }
-  }, [storageKey]);
+  }, [storageKey, controlledDone !== undefined]);
 
   const isControlled = controlledDone !== undefined;
   const done = isControlled ? controlledDone : internalDone;

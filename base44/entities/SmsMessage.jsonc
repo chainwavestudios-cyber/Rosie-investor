@@ -74,6 +74,22 @@
       "type": "string",
       "format": "date-time",
       "title": "Sent At"
+    },
+    "provider": {
+      "type": "string",
+      "title": "Transport Provider"
+    },
+    "gatewayMessageId": {
+      "type": "string",
+      "title": "Android SMS Gateway Message ID"
+    },
+    "gatewayDeviceId": {
+      "type": "string",
+      "title": "Android SMS Gateway Device ID"
+    },
+    "requestId": {
+      "type": "string",
+      "title": "Idempotency Request ID"
     }
   },
   "required": [
