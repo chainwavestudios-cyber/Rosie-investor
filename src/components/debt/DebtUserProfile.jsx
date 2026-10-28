@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import {
   Activity, ArrowUpRight, BarChart3, CalendarClock, CalendarDays, CheckCircle2,
-  ChevronDown, Clock3, FileText, Flame, Headphones, Mail, Phone, Plus,
+  ChevronDown, FileText, Flame, Headphones, Mail, Phone, Plus,
   RefreshCcw, Search, Sparkles, UserRound, Users, X
 } from 'lucide-react';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
@@ -378,8 +378,14 @@ export default function DebtUserProfile({ debtCoachUser, onGoToCalls }) {
                   <Insight label="Talk ratio" value={profile.talkRatioProspect!=null?profile.talkRatioProspect+'%':'—'}/>
                   <Insight label="Hesitations" value={profile.hesitationCount}/>
                   <Insight label="Animal type" value={profile.animalType||selected.animalType} note={profile.animalConfidence!=null?profile.animalConfidence+'% confidence':''}/>
+                  <Insight label="Call duration" value={profile.callDurationSeconds != null ? Math.floor(profile.callDurationSeconds/60)+'m '+(profile.callDurationSeconds%60)+'s' : '—'}/>
+                  <Insight label="Clarity / rapport" value={profile.rapportLevel!=null?profile.rapportLevel+'/100':'—'} note={profile.rapportNotes}/>
                 </div>
                 {profile.overallIntentLabel&&<p><strong>Overall intent:</strong> {profile.overallIntentLabel}</p>}
+                {profile.engagementNotes&&<p><strong>Engagement:</strong> {profile.engagementNotes}</p>}
+                {profile.emotionalNotes&&<p><strong>Emotional read:</strong> {profile.emotionalNotes}</p>}
+                {profile.commitmentDetails&&<p><strong>Commitment:</strong> {profile.commitmentDetails}</p>}
+                {profile.paceNotes&&<p><strong>Conversation pace:</strong> {profile.paceNotes}</p>}
                 {Array.isArray(profile.keyObservations)&&profile.keyObservations.length>0&&<div><strong>Key observations</strong>{profile.keyObservations.map((p,i)=><p key={i}>• {typeof p==='string'?p:JSON.stringify(p)}</p>)}</div>}
                 {profile.recommendedApproach&&<p><strong>Approach:</strong> {profile.recommendedApproach}</p>}
                 {profile.traits&&typeof profile.traits==='object'&&<div className="pic-traits">{Object.entries(profile.traits).filter(([,v])=>v).map(([key])=><span key={key}>{key.replace(/([A-Z])/g,' $1')}</span>)}</div>}
