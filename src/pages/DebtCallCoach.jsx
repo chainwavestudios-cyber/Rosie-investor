@@ -98,6 +98,16 @@ export default function DebtCallCoach() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Smart Close's search picker selects the same lead used throughout Closing.
+  useEffect(() => {
+    const selectLead = (event) => {
+      const id = typeof event.detail === 'string' ? event.detail : event.detail?.leadId;
+      if (id) { setClosingLeadId(id); setTab('closing'); }
+    };
+    window.addEventListener('smart_close_select_lead', selectLead);
+    return () => window.removeEventListener('smart_close_select_lead', selectLead);
+  }, []);
+
   // The script's "Completed Steps" button opens the Closing Flow for that lead
   useEffect(() => {
     const handler = (e) => {
@@ -174,7 +184,7 @@ export default function DebtCallCoach() {
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} zIndex={14500}>
-        <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
+        <SmartClose key={closingLeadId || 'no-lead'} leadId={closingLeadId} liveTranscript={scriptCallContext.lead?.id === closingLeadId && scriptCallContext.phase === 'live' ? scriptCallContext.liveTranscript : undefined} intentScore={scriptCallContext.lead?.id === closingLeadId ? scriptCallContext.intentScore : undefined} animalType={scriptCallContext.lead?.id === closingLeadId ? scriptCallContext.animalType : undefined} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Call Intelligence" icon="📞" active={tab === 'calls'} defaultSize={{ width: 1120, height: 820 }}>
         <CallIntelligenceTab />
