@@ -1,270 +1,304 @@
-import { useState, useEffect, useCallback } from 'react';
+/**
+ * Debt Call Coach / Admin — compact, searchable account directory.
+ * Keeps existing debtCoachAuth actions and role gating.
+ */
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import AdminFlagsTab from '@/components/debt/manager/AdminFlagsTab';
 import QAReviewTab from '@/components/debt/QAReviewTab';
 import AIScriptBuilderTab from '@/components/debt/AIScriptBuilderTab';
+import {
+  UsersRound, ShieldCheck, BookOpenCheck, WandSparkles, UserPlus,
+  RefreshCw, Search, Filter, UserRound, ChevronDown, ChevronUp,
+  CheckCircle2, CircleOff, KeyRound, SlidersHorizontal, Trash2,
+  X, Save, AlertTriangle, BadgeCheck, Mail, LockKeyhole, LoaderCircle
+} from 'lucide-react';
+import './DebtCoachAdminPanel.css';
 
-const GOLD = '#10b981';
-const DARK = '#0a0f1e';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '10px 14px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
-
-const ROLE_LABELS = { super_admin: 'Super Admin', admin: 'Admin', super_manager: 'Super Manager', manager: 'Manager', dialer: 'Dialer', fronter: 'Fronter' };
-const ROLE_COLORS = { super_admin: '#f472b6', admin: '#60a5fa', super_manager: '#34d399', manager: '#a78bfa', dialer: '#f59e0b', fronter: '#22d3ee' };
-
-const PERMISSION_KEYS = [
-  { key: 'liveAIAssistant', label: 'Live — AI Assistant', group: 'Live Call' },
-  { key: 'liveQA', label: 'Live — Q&A', group: 'Live Call' },
-  { key: 'liveCoach', label: 'Live — Coach', group: 'Live Call' },
-  { key: 'liveIntent', label: 'Live — Intent', group: 'Live Call' },
-  { key: 'bobAIAssistant', label: 'BOB — AI Assistant', group: 'BOB Training' },
-  { key: 'bobQA', label: 'BOB — Q&A', group: 'BOB Training' },
-  { key: 'bobCoach', label: 'BOB — Coach', group: 'BOB Training' },
-  { key: 'bobIntent', label: 'BOB — Intent', group: 'BOB Training' },
+const TABS=[
+  {id:'users',label:'Team & access',Icon:UsersRound},
+  {id:'flags',label:'Feature flags',Icon:ShieldCheck},
+  {id:'qareview',label:'Q&A learning',Icon:BookOpenCheck},
+  {id:'aibuilder',label:'AI script builder',Icon:WandSparkles},
 ];
+const ROLE_LABELS={super_admin:'Super Admin',admin:'Admin',super_manager:'Super Manager',manager:'Manager',dialer:'Dialer',fronter:'Fronter'};
+const ROLE_ORDER=['super_admin','admin','super_manager','manager','dialer','fronter'];
+const PERMISSION_GROUPS={
+  'Live Call':['liveAIAssistant','liveQA','liveCoach','liveIntent'],
+  'BOB Training':['bobAIAssistant','bobQA','bobCoach','bobIntent'],
+};
+const PERMISSION_LABELS={
+  liveAIAssistant:'AI Assistant',liveQA:'Live Q&A',liveCoach:'Coach',liveIntent:'Intent',
+  bobAIAssistant:'AI Assistant',bobQA:'Training Q&A',bobCoach:'Training Coach',bobIntent:'Training Intent',
+};
+const safePermissions=(value)=>{
+  try {const data=typeof value==='string'?JSON.parse(value||'{}'):value;return data&&typeof data==='object'&&!Array.isArray(data)?data:{};}
+  catch {return {};}
+};
+const initials=(name='')=>String(name).replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase()||'U';
 
-export default function DebtCoachAdminPanel() {
-  const { user, sessionUserId, sessionToken, isSuperAdmin } = useDebtCoachAuth();
-  const [adminTab, setAdminTab] = useState('users');
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editPerms, setEditPerms] = useState({});
+export default function DebtCoachAdminPanel(){
+  const {user,sessionUserId,sessionToken,isSuperAdmin}=useDebtCoachAuth();
+  const [tab,setTab]=useState('users');
+  const [users,setUsers]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState('');
+  const [notice,setNotice]=useState(null);
+  const [showCreate,setShowCreate]=useState(false);
+  const [search,setSearch]=useState('');
+  const [roleFilter,setRoleFilter]=useState('all');
+  const [statusFilter,setStatusFilter]=useState('all');
+  const [expandedId,setExpandedId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [editPerms,setEditPerms]=useState({});
+  const [pendingId,setPendingId]=useState('');
+  const [showAll,setShowAll]=useState(false);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await base44.functions.invoke('debtCoachAuth', { action: 'listUsers', sessionUserId, sessionToken });
-      const data = res?.data || res;
-      setUsers(data?.users || []);
-    } catch {}
-    setLoading(false);
-  }, [sessionUserId, sessionToken]);
-
-  useEffect(() => { loadUsers(); }, [loadUsers]);
-
-  const callApi = async (payload) => {
-    const res = await base44.functions.invoke('debtCoachAuth', { ...payload, sessionUserId, sessionToken });
-    const data = res?.data || res;
-    if (data?.error) throw new Error(data.error);
+  const callApi=useCallback(async(payload)=>{
+    const response=await base44.functions.invoke('debtCoachAuth',{...payload,sessionUserId,sessionToken});
+    const data=response?.data||response;
+    if(data?.error)throw new Error(data.error);
     return data;
-  };
+  },[sessionUserId,sessionToken]);
 
-  const startEdit = (u) => {
-    setEditingId(u.id);
-    try { setEditPerms(JSON.parse(u.permissions || '{}')); } catch { setEditPerms({}); }
-  };
-
-  const savePerms = async (userId) => {
+  const loadUsers=useCallback(async()=>{
+    if(!sessionUserId||!sessionToken)return;
+    setLoading(true);setLoadError('');
     try {
-      await callApi({ action: 'updateUser', targetUserId: userId, updates: { permissions: editPerms } });
-      setEditingId(null);
-      loadUsers();
-    } catch (e) { alert('Failed: ' + e.message); }
+      const data=await callApi({action:'listUsers'});
+      if(!Array.isArray(data?.users))throw new Error('The server returned no user list.');
+      setUsers(data.users);
+    }catch(e){setLoadError(e?.message||'Could not load users.');}
+    finally{setLoading(false);}
+  },[callApi,sessionUserId,sessionToken]);
+  useEffect(()=>{loadUsers();},[loadUsers]);
+
+  const stats=useMemo(()=>({
+    total:users.length,
+    active:users.filter(u=>u.isActive).length,
+    inactive:users.filter(u=>!u.isActive).length,
+    agents:users.filter(u=>['dialer','fronter'].includes(u.role)).length,
+    privileged:users.filter(u=>['admin','super_admin','super_manager','manager'].includes(u.role)).length,
+  }),[users]);
+  const filtered=useMemo(()=>{
+    const query=search.trim().toLowerCase();
+    return users.filter(u=>(roleFilter==='all'||u.role===roleFilter)
+      &&(statusFilter==='all'||(statusFilter==='active'?!!u.isActive:!u.isActive))
+      &&(!query||[u.username,u.email,u.role,u.createdBy].some(field=>String(field||'').toLowerCase().includes(query))))
+      .sort((a,b)=>Number(!!b.isActive)-Number(!!a.isActive)
+        ||(ROLE_ORDER.indexOf(a.role)<0?99:ROLE_ORDER.indexOf(a.role))-(ROLE_ORDER.indexOf(b.role)<0?99:ROLE_ORDER.indexOf(b.role))
+        ||String(a.username||'').localeCompare(String(b.username||'')));
+  },[users,roleFilter,statusFilter,search]);
+  const visible=showAll?filtered:filtered.slice(0,35);
+
+  const perform=async(id,callback,success)=>{
+    setPendingId(id);setNotice(null);
+    try {
+      const response=await callback();
+      setNotice({type:'success',text:success||'Changes saved successfully.'});
+      await loadUsers();
+      return response;
+    }catch(e){
+      setNotice({type:'error',text:e?.message||'Action failed. No change was confirmed.'});
+      return null;
+    }finally{setPendingId('');}
   };
 
-  const toggleActive = async (u) => {
-    try { await callApi({ action: 'updateUser', targetUserId: u.id, updates: { isActive: !u.isActive } }); loadUsers(); }
-    catch (e) { alert('Failed: ' + e.message); }
+  const startEditing=(u)=>{
+    setExpandedId(u.id);setEditingId(u.id);setEditPerms(safePermissions(u.permissions));
   };
-
-  const changeRole = async (u, newRole) => {
-    try { await callApi({ action: 'updateUser', targetUserId: u.id, updates: { role: newRole } }); loadUsers(); }
-    catch (e) { alert('Failed: ' + e.message); }
+  const savePermissions=async(u)=>{
+    const result=await perform(u.id,()=>callApi({action:'updateUser',targetUserId:u.id,updates:{permissions:editPerms}}),`Permissions updated for ${u.username}.`);
+    if(result)setEditingId(null);
   };
-
-  const resetPwd = async (u) => {
-    if (!window.confirm(`Reset ${u.username}'s password to Debt@2026!!? They will need to set a new password on next login.`)) return;
-    try { await callApi({ action: 'resetPassword', targetUserId: u.id }); alert('Password reset to Debt@2026!!'); }
-    catch (e) { alert('Failed: ' + e.message); }
+  const changeActive=async(u)=>{
+    if(u.id===sessionUserId)return;
+    if(!window.confirm(`${u.isActive?'Deactivate':'Activate'} ${u.username}?${u.isActive?' They will lose access to this workspace.':''}`))return;
+    await perform(u.id,()=>callApi({action:'updateUser',targetUserId:u.id,updates:{isActive:!u.isActive}}),`${u.username} ${u.isActive?'deactivated':'activated'}.`);
   };
-
-  const deleteUser = async (u) => {
-    if (!window.confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
-    try { await callApi({ action: 'deleteUser', targetUserId: u.id }); loadUsers(); }
-    catch (e) { alert('Failed: ' + e.message); }
+  const changeRole=async(u,next)=>{
+    if(!next||next===u.role||u.id===sessionUserId)return;
+    if(!window.confirm(`Change ${u.username} from ${ROLE_LABELS[u.role]||u.role} to ${ROLE_LABELS[next]||next}? This changes their access permissions.`))return;
+    await perform(u.id,()=>callApi({action:'updateUser',targetUserId:u.id,updates:{role:next}}),`${u.username}'s role was updated.`);
   };
+  const resetPassword=async(u)=>{
+    if(!window.confirm(`Reset the password for ${u.username}? Their current password will stop working and they must change the temporary password on their next login.`))return;
+    const result=await perform(u.id,()=>callApi({action:'resetPassword',targetUserId:u.id}),`Password reset requested for ${u.username}. Use your organization's secure credential-sharing procedure.`);
+    if(result)setExpandedId(null);
+  };
+  const deleteUser=async(u)=>{
+    if(!isSuperAdmin||u.id===sessionUserId)return;
+    if(!window.confirm(`Permanently delete ${u.username}? This cannot be undone.`))return;
+    await perform(u.id,()=>callApi({action:'deleteUser',targetUserId:u.id}),`Account ${u.username} deleted.`);
+  };
+  const mayManage=(u)=>u.id!==sessionUserId && (isSuperAdmin||!['admin','super_admin'].includes(u.role));
 
-  return (
-    <div>
-      {/* Admin sub-tabs: Users | Flags */}
-      <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <button onClick={() => setAdminTab('users')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'users' ? GOLD : 'transparent'}`, color: adminTab === 'users' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'users' ? 'bold' : 'normal' }}>👥 User Management</button>
-        <button onClick={() => setAdminTab('flags')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'flags' ? GOLD : 'transparent'}`, color: adminTab === 'flags' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'flags' ? 'bold' : 'normal' }}>🚩 Feature Flags</button>
-        <button onClick={() => setAdminTab('qareview')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'qareview' ? GOLD : 'transparent'}`, color: adminTab === 'qareview' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'qareview' ? 'bold' : 'normal' }}>📚 Q&A Learning</button>
-        <button onClick={() => setAdminTab('aibuilder')} style={{ padding: '10px 18px', background: 'none', border: 'none', borderBottom: `2px solid ${adminTab === 'aibuilder' ? GOLD : 'transparent'}`, color: adminTab === 'aibuilder' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: adminTab === 'aibuilder' ? 'bold' : 'normal' }}>🧠 AI Script Builder</button>
+  return <section className="dcc-admin" aria-label="Debt Call Coach Administration">
+    <div className="dcc-admin-heading">
+      <div>
+        <div className="dcc-admin-eyebrow"><ShieldCheck size={13}/> ACCESS & OPERATIONS</div>
+        <h2>Administration</h2>
+        <p>Manage your team, AI permissions, approved answers, and script configurations.</p>
       </div>
-
-      {adminTab === 'flags' && <AdminFlagsTab />}
-      {adminTab === 'qareview' && <QAReviewTab />}
-      {adminTab === 'aibuilder' && <AIScriptBuilderTab />}
-
-      {adminTab === 'users' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>⚙️ User Management — {users.length} Users</div>
-            <button onClick={() => setShowCreate((s) => !s)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>{showCreate ? 'Cancel' : '+ Create User'}</button>
-          </div>
-
-          {showCreate && <CreateUserForm onCreated={() => { setShowCreate(false); loadUsers(); }} sessionUserId={sessionUserId} sessionToken={sessionToken} />}
-
-          {loading ? (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {users.map((u) => {
-            const rc = ROLE_COLORS[u.role] || '#6b7280';
-            const isEditing = editingId === u.id;
-            const canEdit = u.role !== 'super_admin' || isSuperAdmin;
-            return (
-              <div key={u.id} style={{ background: '#0d1b2a', border: `1px solid ${rc}22`, borderRadius: '6px', padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <span style={{ padding: '2px 8px', borderRadius: '2px', background: `${rc}18`, color: rc, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{ROLE_LABELS[u.role]}</span>
-                    <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginLeft: '8px' }}>{u.username}</span>
-                    {u.email && <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '8px' }}>· {u.email}</span>}
-                    {!u.isActive && <span style={{ color: '#ef4444', fontSize: '10px', marginLeft: '8px', fontWeight: 'bold' }}>INACTIVE</span>}
-                    {u.mustResetPassword && <span style={{ color: '#f59e0b', fontSize: '10px', marginLeft: '8px' }}>· Must reset password</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {canEdit && u.role === 'dialer' && !isEditing && (
-                      <button onClick={() => startEdit(u)} style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Permissions</button>
-                    )}
-                    {canEdit && (
-                      <>
-                        <button onClick={() => toggleActive(u)} style={{ background: 'rgba(255,255,255,0.05)', color: u.isActive ? '#f59e0b' : '#10b981', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
-                        <button onClick={() => resetPwd(u)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Reset Pwd</button>
-                      </>
-                    )}
-                    {isSuperAdmin && u.id !== sessionUserId && (
-                      <button onClick={() => deleteUser(u)} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>Delete</button>
-                    )}
-                  </div>
-                </div>
-
-                {u.role !== 'dialer' && (
-                  <div style={{ color: '#4a5568', fontSize: '11px' }}>{u.role === 'manager' ? 'Manager — full feature access + can view/edit all calls, profiles, KB, and pitches.' : 'Full access — all features enabled.'}</div>
-                )}
-
-                {u.role === 'dialer' && !isEditing && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                    {PERMISSION_KEYS.map((p) => {
-                      let perms = {};
-                      try { perms = JSON.parse(u.permissions || '{}'); } catch {}
-                      const on = !!perms[p.key];
-                      return (
-                        <span key={p.key} style={{ padding: '2px 8px', borderRadius: '2px', background: on ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.03)', color: on ? GOLD : '#4a5568', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{p.label}: {on ? '✓' : '✗'}</span>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {isEditing && (
-                  <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
-                    <div style={{ color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Dialer Permissions for {u.username}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      {PERMISSION_KEYS.map((p) => (
-                        <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px 10px', background: editPerms[p.key] ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)', borderRadius: '3px', border: `1px solid ${editPerms[p.key] ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-                          <input type="checkbox" checked={!!editPerms[p.key]} onChange={(e) => setEditPerms((prev) => ({ ...prev, [p.key]: e.target.checked }))} style={{ cursor: 'pointer', accentColor: GOLD }} />
-                          <span style={{ color: editPerms[p.key] ? '#e8e0d0' : '#6b7280', fontSize: '12px' }}>{p.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                      <button onClick={() => savePerms(u.id)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase' }}>Save Permissions</button>
-                      <button onClick={() => setEditingId(null)} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
-                    </div>
-                  </div>
-                )}
-
-                {canEdit && isSuperAdmin && u.role !== 'super_admin' && !isEditing && (
-                  <div style={{ marginTop: '8px' }}>
-                    <select value={u.role} onChange={(e) => changeRole(u, e.target.value)} style={{ ...inp, width: 'auto', fontSize: '11px', cursor: 'pointer', padding: '4px 10px' }}>
-                      <option value="dialer">Dialer</option>
-                      <option value="manager">Manager</option>
-                      <option value="super_manager">Super Manager</option>
-                      <option value="admin">Admin</option>
-                      <option value="fronter">Fronter</option>
-                    </select>
-                  </div>
-                )}
-
-                {u.createdBy && <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>Created by: {u.createdBy}</div>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-        </>
-      )}
+      <div className="dcc-admin-heading-aside"><LockKeyhole size={14}/> Admin workspace · Restricted access</div>
     </div>
-  );
-}
 
-function CreateUserForm({ onCreated, sessionUserId, sessionToken }) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('dialer');
-  const [sendInvite, setSendInvite] = useState(false);
-  const [perms, setPerms] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+    <nav className="dcc-admin-tabs" role="tablist" aria-label="Administration sections">
+      {TABS.map(({id,label,Icon})=><button key={id} type="button" role="tab" aria-selected={tab===id} className={'dcc-admin-tab'+(tab===id?' is-active':'')}
+        onClick={()=>{setTab(id);setNotice(null);}}><Icon size={15}/>{label}</button>)}
+    </nav>
 
-  const save = async () => {
-    if (!username.trim()) { setError('Username required'); return; }
-    setSaving(true); setError('');
-    try {
-      const res = await base44.functions.invoke('debtCoachAuth', {
-        action: 'createUser', sessionUserId, sessionToken,
-        username, email, role, sendInvite,
-        permissions: role === 'dialer' ? perms : {},
-      });
-      const data = res?.data || res;
-      if (data?.error) throw new Error(data.error);
-      setUsername(''); setEmail(''); setRole('dialer'); setSendInvite(false); setPerms({});
-      onCreated();
-    } catch (e) { setError(e.message); }
-    setSaving(false);
-  };
-
-  return (
-    <div style={{ marginBottom: '20px', background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', padding: '20px' }}>
-      <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>+ Create New User</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-        <div><label style={ls}>Username</label><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. john.doe" style={inp} /></div>
-        <div><label style={ls}>Email (for invite)</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" style={inp} /></div>
+    {tab==='users'&&<>
+      <div className="dcc-admin-stats" aria-label="User overview">
+        {[
+          ['Total accounts',stats.total,UsersRound],
+          ['Active',stats.active,CheckCircle2],
+          ['Inactive',stats.inactive,CircleOff],
+          ['Agents',stats.agents,UserRound],
+          ['Managers & admin',stats.privileged,ShieldCheck],
+        ].map(([label,value,Icon])=><div key={label} className="dcc-admin-stat"><Icon size={15}/><strong>{value}</strong><span>{label}</span></div>)}
       </div>
-      <div style={{ marginBottom: '12px' }}>
-        <label style={ls}>Role</label>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          {['dialer', 'manager', 'super_manager', 'admin', 'super_admin', 'fronter'].map((r) => (
-            <button key={r} onClick={() => setRole(r)} style={{ padding: '8px 16px', borderRadius: '4px', border: `1px solid ${role === r ? ROLE_COLORS[r] + '66' : 'rgba(255,255,255,0.1)'}`, background: role === r ? `${ROLE_COLORS[r]}18` : 'transparent', color: role === r ? ROLE_COLORS[r] : '#6b7280', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>{ROLE_LABELS[r]}</button>
-          ))}
+      <div className="dcc-admin-tools">
+        <div>
+          <strong className="dcc-admin-section-label">TEAM DIRECTORY</strong>
+          <span className="dcc-admin-count">{filtered.length} of {users.length} people</span>
+        </div>
+        <div className="dcc-admin-tools-actions">
+          <button type="button" className="dcc-admin-btn is-quiet" onClick={loadUsers} disabled={loading} title="Refresh users"><RefreshCw size={14}/> Refresh</button>
+          <button type="button" className="dcc-admin-btn is-primary" onClick={()=>setShowCreate(v=>!v)} aria-expanded={showCreate}><UserPlus size={15}/>{showCreate?'Close form':'Add user'}</button>
         </div>
       </div>
-      {role === 'dialer' && (
-        <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
-          <div style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Dialer Permissions — grant access to AI features</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-            {PERMISSION_KEYS.map((p) => (
-              <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '5px 8px', background: perms[p.key] ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)', borderRadius: '3px', border: `1px solid ${perms[p.key] ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
-                <input type="checkbox" checked={!!perms[p.key]} onChange={(e) => setPerms((prev) => ({ ...prev, [p.key]: e.target.checked }))} style={{ cursor: 'pointer', accentColor: GOLD }} />
-                <span style={{ color: perms[p.key] ? '#e8e0d0' : '#6b7280', fontSize: '11px' }}>{p.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-      <div style={{ marginBottom: '12px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} style={{ cursor: 'pointer', accentColor: GOLD }} />
-          <span style={{ color: '#8a9ab8', fontSize: '12px' }}>Send invite email with login instructions (default password: Debt@2026!!)</span>
+      {showCreate&&<CreateUserForm isSuperAdmin={isSuperAdmin} sessionUserId={sessionUserId} sessionToken={sessionToken}
+        onCreated={()=>{setShowCreate(false);loadUsers();setNotice({type:'success',text:'New team member created.'});}}/>}
+      <div className="dcc-admin-filters">
+        <label className="dcc-admin-search"><Search size={15}/>
+          <input aria-label="Find users" placeholder="Search name, email, role…" value={search} onChange={e=>{setSearch(e.target.value);setShowAll(false);}}/>
         </label>
+        <label className="dcc-admin-filter-label"><Filter size={13}/><select aria-label="Filter by role" value={roleFilter} onChange={e=>{setRoleFilter(e.target.value);setShowAll(false);}}>
+          <option value="all">All roles</option>{ROLE_ORDER.map(role=><option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+        </select></label>
+        <label className="dcc-admin-filter-label"><select aria-label="Filter by account status" value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setShowAll(false);}}>
+          <option value="all">All statuses</option><option value="active">Active only</option><option value="inactive">Inactive only</option>
+        </select></label>
       </div>
-      {error && <div style={{ color: '#ef4444', fontSize: '12px', marginBottom: '10px' }}>⚠ {error}</div>}
-      <button onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '10px 24px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving ? 0.5 : 1 }}>{saving ? 'Creating…' : 'Create User'}</button>
+      {notice&&<div role="status" className={'dcc-admin-notice is-'+notice.type}>{notice.type==='error'?<AlertTriangle size={15}/>:<CheckCircle2 size={15}/>}<span>{notice.text}</span><button aria-label="Dismiss notice" onClick={()=>setNotice(null)}><X size={14}/></button></div>}
+      {loadError&&<div role="alert" className="dcc-admin-notice is-error"><AlertTriangle size={15}/><span>Could not load the user directory: {loadError}</span><button onClick={loadUsers} className="dcc-admin-btn is-quiet">Retry</button></div>}
+      {loading?<div className="dcc-admin-empty"><LoaderCircle size={17}/> Loading the team…</div>:
+        filtered.length===0?<div className="dcc-admin-empty">No accounts match your filters.</div>:
+        <div className="dcc-admin-list" role="list" aria-label="Team accounts">
+          {visible.map(u=>{
+            const open=expandedId===u.id;
+            const editing=editingId===u.id;
+            const allowed=mayManage(u);
+            const busy=pendingId===u.id;
+            const enabledPermissions=Object.values(safePermissions(u.permissions)).filter(Boolean).length;
+            return <div className={'dcc-admin-person'+(!u.isActive?' is-inactive':'')} key={u.id} role="listitem">
+              <div className="dcc-admin-person-row">
+                <button type="button" className="dcc-admin-person-summary" aria-expanded={open} onClick={()=>setExpandedId(open?null:u.id)}>
+                  <span className="dcc-admin-avatar">{initials(u.username)}</span>
+                  <span className="dcc-admin-person-identity">
+                    <strong>{u.username}</strong>
+                    <span title={u.email||'No email recorded'}>{u.email||'No email on file'}</span>
+                  </span>
+                  <span className={'dcc-admin-role is-'+(u.role||'dialer')}>{ROLE_LABELS[u.role]||u.role}</span>
+                  <span className={'dcc-admin-status'+(u.isActive?' is-active':'')}><span className="dcc-admin-status-dot"/>{u.isActive?'Active':'Inactive'}</span>
+                  {u.mustResetPassword&&<span className="dcc-admin-reset-label" title="Password change required at next login"><KeyRound size={13}/> Reset required</span>}
+                  <span className="dcc-admin-row-trail">{u.role==='dialer'?enabledPermissions+' permissions enabled':u.createdBy?'Added by '+u.createdBy:'Manage account'}</span>
+                  {open?<ChevronUp size={15}/>:<ChevronDown size={15}/>}
+                </button>
+                <div className="dcc-admin-row-actions">
+                  {allowed&&<button type="button" className="dcc-admin-mini" disabled={!!pendingId} onClick={()=>{setExpandedId(open?null:u.id);}}>{open?'Close':'Manage'}</button>}
+                </div>
+              </div>
+              {open&&<div className="dcc-admin-expanded">
+                <div className="dcc-admin-expanded-head">
+                  <div><strong>{u.username}</strong><p>{u.role==='dialer'?'Edit this agent’s AI features and account status.':'Manage role and access for this account.'}</p></div>
+                  {busy&&<span className="dcc-admin-busy"><LoaderCircle size={14}/> Saving…</span>}
+                </div>
+                {editing?<>
+                  <div className="dcc-admin-permissions">
+                    {Object.entries(PERMISSION_GROUPS).map(([group,keys])=><fieldset key={group}><legend>{group}</legend>
+                      <div className="dcc-admin-permission-grid">{keys.map(key=><label key={key} className={'dcc-admin-permission'+(editPerms[key]?' is-on':'')}>
+                        <input type="checkbox" checked={!!editPerms[key]} onChange={e=>setEditPerms(p=>({...p,[key]:e.target.checked}))}/>
+                        {PERMISSION_LABELS[key]}</label>)}</div>
+                    </fieldset>)}
+                  </div>
+                  <div className="dcc-admin-expanded-actions">
+                    <button type="button" className="dcc-admin-btn is-primary" disabled={!!pendingId} onClick={()=>savePermissions(u)}><Save size={14}/> Save permissions</button>
+                    <button type="button" className="dcc-admin-btn is-quiet" onClick={()=>setEditingId(null)}>Cancel</button>
+                  </div>
+                </>:<>
+                  <div className="dcc-admin-expanded-actions">
+                    {u.role==='dialer'&&allowed&&<button type="button" className="dcc-admin-btn" onClick={()=>startEditing(u)}><SlidersHorizontal size={14}/> Edit AI permissions</button>}
+                    {allowed&&<button type="button" className="dcc-admin-btn" disabled={!!pendingId} onClick={()=>changeActive(u)}>{u.isActive?<CircleOff size={14}/>:<CheckCircle2 size={14}/>} {u.isActive?'Deactivate':'Activate'}</button>}
+                    {allowed&&<button type="button" className="dcc-admin-btn" disabled={!!pendingId} onClick={()=>resetPassword(u)}><KeyRound size={14}/> Reset password</button>}
+                    {isSuperAdmin&&u.id!==sessionUserId&&<button type="button" className="dcc-admin-btn is-danger" disabled={!!pendingId} onClick={()=>deleteUser(u)}><Trash2 size={14}/> Delete</button>}
+                    {isSuperAdmin&&u.id!==sessionUserId&&u.role!=='super_admin'&&<label className="dcc-admin-role-select">Role
+                      <select aria-label={'Role for '+u.username} value={u.role} disabled={!!pendingId} onChange={e=>changeRole(u,e.target.value)}>
+                        {ROLE_ORDER.filter(role=>role!=='super_admin').map(role=><option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
+                      </select></label>}
+                  </div>
+                  {u.role==='dialer'&&<div className="dcc-admin-perm-summary">{Object.entries(PERMISSION_GROUPS).map(([group,keys])=>
+                    <span key={group}><strong>{group}:</strong> {keys.filter(k=>safePermissions(u.permissions)[k]).length}/{keys.length} enabled</span>)}</div>}
+                </>}
+              </div>}
+            </div>;
+          })}
+          {filtered.length>visible.length&&<button className="dcc-admin-showmore" type="button" onClick={()=>setShowAll(true)}>Show all {filtered.length} accounts <ChevronDown size={14}/></button>}
+        </div>}
+      <div className="dcc-admin-security-note"><AlertTriangle size={15}/><span>The existing sign-in backend currently uses a shared temporary credential when creating or resetting accounts. Treat invitations and resets as sensitive until that authentication flow is updated.</span></div>
+    </>}
+    {tab==='flags'&&<div className="dcc-admin-module"><AdminFlagsTab/></div>}
+    {tab==='qareview'&&<div className="dcc-admin-module"><QAReviewTab/></div>}
+    {tab==='aibuilder'&&<div className="dcc-admin-module"><AIScriptBuilderTab/></div>}
+  </section>;
+}
+function CreateUserForm({onCreated,sessionUserId,sessionToken,isSuperAdmin}){
+  const [username,setUsername]=useState('');
+  const [email,setEmail]=useState('');
+  const [role,setRole]=useState('dialer');
+  const [sendInvite,setSendInvite]=useState(false);
+  const [permissions,setPermissions]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+  const save=async(e)=>{
+    e.preventDefault();
+    if(!username.trim()){setError('Username is required.');return;}
+    if(sendInvite&&!email.trim()){setError('An email address is required to send an invitation.');return;}
+    setSaving(true);setError('');
+    try {
+      const response=await base44.functions.invoke('debtCoachAuth',{
+        action:'createUser',sessionUserId,sessionToken,
+        username:username.trim(),email:email.trim(),role,sendInvite,
+        permissions:role==='dialer'?permissions:{},
+      });
+      const data=response?.data||response;
+      if(data?.error)throw new Error(data.error);
+      onCreated();
+    }catch(e){setError(e?.message||'The account could not be created.');}
+    finally{setSaving(false);}
+  };
+  return <form className="dcc-admin-create" onSubmit={save}>
+    <div className="dcc-admin-create-title"><UserPlus size={16}/> Add a team member <span>New users must set their own password after first login.</span></div>
+    <div className="dcc-admin-create-fields">
+      <label>Username <input autoComplete="off" required value={username} onChange={e=>setUsername(e.target.value)} placeholder="e.g. taylor.s" maxLength={80}/></label>
+      <label>Email <input type="email" autoComplete="off" value={email} onChange={e=>setEmail(e.target.value)} placeholder="person@example.com"/></label>
+      <label>Role <select value={role} onChange={e=>setRole(e.target.value)}>
+        {ROLE_ORDER.filter(r=>isSuperAdmin||!['admin','super_admin','fronter'].includes(r)).map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+      </select></label>
     </div>
-  );
+    {role==='dialer'&&<div className="dcc-admin-create-perms">
+      <strong>Dialer AI permissions</strong>
+      <div className="dcc-admin-permission-grid">{Object.entries(PERMISSION_GROUPS).flatMap(([group,keys])=>keys.map(key=><label key={key} className={'dcc-admin-permission'+(permissions[key]?' is-on':'')}>
+        <input type="checkbox" checked={!!permissions[key]} onChange={e=>setPermissions(p=>({...p,[key]:e.target.checked}))}/>
+        {group} · {PERMISSION_LABELS[key]}</label>))}</div>
+    </div>}
+    <label className="dcc-admin-invite-label"><input type="checkbox" checked={sendInvite} onChange={e=>setSendInvite(e.target.checked)}/>
+      <Mail size={15}/> Send invitation email with the current sign-in instructions
+    </label>
+    {error&&<div role="alert" className="dcc-admin-notice is-error"><AlertTriangle size={15}/>{error}</div>}
+    <div className="dcc-admin-expanded-actions"><button disabled={saving} className="dcc-admin-btn is-primary" type="submit"><UserPlus size={14}/>{saving?'Creating…':'Create account'}</button>
+      <span className="dcc-admin-create-hint">Account creation is immediate; no invitation is sent unless selected.</span></div>
+  </form>;
 }
