@@ -244,12 +244,13 @@ export default function DebtEmailCampaignAnalytics(){
          {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}{actionNote&&<div role="status" className="dca-note">{actionNote}</div>}
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
          <div className="dca-table-scroll"><table className="dca-table">
-           <thead><tr><th>Recipient / Phone</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
+           <thead><tr><th>Recipient</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
            <tbody>{orderedRows.map(row=><tr key={row.id}>
-             <td style={{minWidth:290}}><strong style={{fontSize:14}}>{row.name}</strong><span>{row.email}</span><div style={{fontSize:21,fontWeight:850,color:'#efd09a',letterSpacing:'.2px',marginTop:6,whiteSpace:'nowrap'}}>{contactMeta[row.leadId]?.phone||row.phone||'No phone available'}</div><div style={{fontSize:11,color:'#c3cfcb',marginTop:5}}>Last called: <strong>{contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never / not recorded'}</strong></div></td>
+             <td style={{minWidth:160}}><strong style={{fontSize:12}}>{row.name}</strong><span style={{fontSize:10}}>{row.email}</span></td>
              <td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td>
              <td className="dca-row-note">{row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':row.error||row.reason||'—'}</td>
-             <td style={{minWidth:370}}><div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+             <td style={{minWidth:970,padding:'5px 8px'}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'nowrap',whiteSpace:'nowrap'}}>
+               <div style={{display:'flex',flexDirection:'column',flexShrink:0,minWidth:165,marginRight:5}}><span style={{fontSize:17,fontWeight:850,color:'#efd09a',lineHeight:1.2}}>{contactMeta[row.leadId]?.phone||row.phone||'No phone available'}</span><small style={{fontSize:10,color:'#b5c6c5',marginTop:3}}>Last called: {contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never / not recorded'}</small></div>
                <button className="dca-row-action" style={{fontWeight:800,color:'#efd09a'}} disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button>
                <button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>Called · No Answer</button>
                <button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Left Voicemail</button>
