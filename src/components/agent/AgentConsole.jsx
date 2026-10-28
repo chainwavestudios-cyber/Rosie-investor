@@ -24,6 +24,7 @@ const VISITOR_PATHS = ['/', '/welcome', '/qualify', '/email-optin', '/stories', 
 const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 
 function isVisitorPath(path) {
+  if (path === '/bob' || path.startsWith('/bob/')) return true;
   return VISITOR_PATHS.some((p) => path === p || (p !== '/' && path.startsWith(p + '/')));
 }
 

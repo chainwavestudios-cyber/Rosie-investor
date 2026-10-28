@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AudioLines, BookOpen, Building2, ChartNoAxesCombined, Check, ChevronDown,
+  AudioLines, BookOpen, Building2, ChartNoAxesCombined, Check,
   CircleHelp, Clock3, GraduationCap, Headphones, KeyRound, LayoutDashboard,
   LogOut, Mic2, Pause, Play, Plus, Settings2, ShieldCheck, Square,
   Trash2, UserRoundPlus, Users, Volume2
@@ -60,7 +60,7 @@ export default function BobPortal(){
     messagesRef.current=[...messagesRef.current,entry];
     setMessages(messagesRef.current);
   },[]);
-  const voiceCall=useDebtBobVoice({onTranscript});
+  const voiceCall=useDebtBobVoice({onTranscript,recordingPolicy:'disabled'});
   const org=ctx?.organizations?.find(o=>o.id===orgId);
   const isPlatform=!!ctx?.isPlatformAdmin;
   const isAdmin=!!org && (isPlatform||['admin','owner'].includes(org.myRole));

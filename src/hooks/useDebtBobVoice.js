@@ -145,7 +145,7 @@ async function playTransferSequence(mode, closerName, scenario, transferVoice, a
   }
 }
 
-export function useDebtBobVoice({ onTranscript, onLog } = {}) {
+export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy-upload' } = {}) {
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [agentSpeaking, setAgentSpeaking] = useState(false);
@@ -346,13 +346,16 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
               const silence = ctx.createGain(); silence.gain.value = 0;
               processor.connect(silence); silence.connect(ctx.destination);
               try {
+                // Commercial tenants keep voice media out of the legacy public upload path.
+                // Session text is saved separately through the authenticated tenant gateway.
+                if (recordingPolicy === 'disabled') throw new Error('Recording disabled for commercial tenant isolation');
                 const recorder = new MediaRecorder(recordDestRef.current.stream, { audioBitsPerSecond: 32000 });
                 chunksRef.current = [];
                 recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
                 recorder.start(1000);
                 recorderRef.current = recorder;
                 setIsRecording(true);
-              } catch (e) { console.warn('[BOB] Recording failed:', e); }
+              } catch (e) { if (recordingPolicy !== 'disabled') console.warn('[BOB] Recording failed:', e); }
               setPhase('active');
               break;
             }
@@ -416,7 +419,7 @@ export function useDebtBobVoice({ onTranscript, onLog } = {}) {
         onLogRef.current?.('session_end', `📵 Call ended. ${codeMsg}. Reason: ${e.reason || '(none)'}`);
       };
     });
-  }, [micDeviceId, outputDeviceId, playChunk, ring, onTranscript, cleanup]);
+  }, [micDeviceId, outputDeviceId, playChunk, ring, onTranscript, cleanup, recordingPolicy]);
 
   const injectObjection = useCallback((text) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
