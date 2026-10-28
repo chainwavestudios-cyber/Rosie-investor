@@ -1467,7 +1467,14 @@ ${recentText}`,
       setPhase('idle'); setDgStatus('error'); return;
     }
     if (dualMode && !feedDual) {
-      setError('Customer audio device is not available — transcribing your microphone only and separating the two voices by speaker. Re-scan and pick the device again to restore the split.');
+      if (selectedProfile?.saved) {
+        // A saved dual-channel mode must not silently become microphone-only.
+        try { agentStream?.getTracks().forEach(t => t.stop()); } catch {}
+        setError('Saved customer input disconnected during call startup. The call was not started. Re-scan and restore the correct audio mode.');
+        setPhase('idle'); setDgStatus('error');
+        return;
+      }
+      setError('Customer audio device is unavailable — using microphone-only transcription. Re-scan the customer input to restore dual-channel audio.');
     }
 
     // Server-held key first (its secret is always the current one); the compiled
