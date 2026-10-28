@@ -1873,42 +1873,77 @@ ${recentText}`,
 
   useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
 
-  // Only loopback-style inputs can be the customer channel — microphones are kept
-  // out of this list entirely so the room can never end up labelled "customer".
+  // The customer channel must be a loopback/line source, never an ordinary mic.
   const customerInputs = micDevices.filter(m => isLoopbackSource(m.label || ''));
   const customerLabelSelected = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
   const micLabelSelected = micDevices.find(m => m.deviceId === micDeviceId)?.label || '';
-  const activeSetup = (audioSetups || DEFAULT_AUDIO_SETUPS)[activeSetupIndex] || null;
+  const currentAudioSelection = { micDeviceId, customerMicId, outputDeviceId, agentGain, customerGain };
+  const audioModeDirty = isAudioModeEdited(activeAudioMode, currentAudioSelection, micDevices, outputDevices);
+  const audioModeReady = setupsLoaded && activeSetupLoaded && micLoaded && customerMicLoaded
+    && outputLoaded && agentGainLoaded && customerGainLoaded && deviceScanCompleted;
 
-  // Load a saved setup. Devices are matched by label first, because Windows hands
-  // out new device ids on every reboot / re-plug; the saved id is the fallback.
+  // One-time restoration after both settings and device enumeration load.
+  // Never overwrite a user's live edits on every render or each device scan.
+  useEffect(() => {
+    if (!audioModeReady || !coachUser?.username || restoredAudioModeRef.current === coachUser.username) return;
+    restoredAudioModeRef.current = coachUser.username;
+    if (!activeAudioMode?.saved) {
+      setAudioModeMessage('No hardware profile saved for this mode yet. Select devices and Save Setup.');
+      return;
+    }
+    const r = resolveAudioMode(activeAudioMode, micDevices, outputDevices, isLoopbackSource);
+    setMicDeviceId(r.micId);
+    setCustomerMicId(r.customerId);
+    setOutputDeviceId(r.outputId);
+    setAgentGain(r.agentGain);
+    setCustomerGain(r.customerGain);
+    setAudioModeMessage(r.valid
+      ? `Restored ${activeAudioMode.name}. Check your audio meters before a call.`
+      : `Saved setup needs attention: ${r.problems.join(' ')}`);
+  }, [audioModeReady, coachUser?.username, activeSetupIndex, activeAudioMode?.saved, micDevices, outputDevices]);
+
+  // Use a saved computer/cell profile. An unsaved slot starts blank so it
+  // cannot misleadingly appear to be running another mode's hardware.
   const useAudioSetup = (idx) => {
-    if (phase === 'live') return;
+    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady) return;
+    const s = modes[idx];
+    if (!s) return;
     setActiveSetupIndex(idx);
-    const s = (audioSetups || [])[idx];
-    if (!s?.saved) return;
-    const mic = s.micLabel ? micDevices.find(m => m.label === s.micLabel) : null;
-    const cust = s.customerLabel ? micDevices.find(m => m.label === s.customerLabel) : null;
-    if (mic) setMicDeviceId(mic.deviceId);
-    if (cust) setCustomerMicId(cust.deviceId);
-    else if (!s.customerLabel) setCustomerMicId('');
-    if (s.micLabel && !mic) setError(`“${s.name}” was saved with “${s.micLabel}”, which isn't connected right now — plug it in and hit 🔄 to re-scan.`);
+    setError('');
+    if (!s.saved) {
+      setMicDeviceId(''); setCustomerMicId(''); setOutputDeviceId('');
+      setAgentGain(1); setCustomerGain(1);
+      setAudioModeMessage(`${s.name} is not configured. Choose your devices, test them, then Save Setup.`);
+      return;
+    }
+    const r = resolveAudioMode(s, micDevices, outputDevices, isLoopbackSource);
+    setMicDeviceId(r.micId);
+    setCustomerMicId(r.customerId);
+    setOutputDeviceId(r.outputId);
+    setAgentGain(r.agentGain);
+    setCustomerGain(r.customerGain);
+    const msg = r.valid ? `${s.name} loaded. Verify your levels before the call.` : `${s.name}: ${r.problems.join(' ')}`;
+    setAudioModeMessage(msg);
+    if (!r.valid) setError(msg);
   };
 
   const renameAudioSetup = (idx, name) => {
-    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === idx ? { ...s, name } : s)));
+    if (phase === 'live') return;
+    setAudioSetups(modes.map((s, i) => i === idx ? { ...s, name: name.slice(0, 38) } : s));
   };
 
-  // Whatever you pick while a setup is active is saved into that setup.
-  useEffect(() => {
-    if (!setupsLoaded || !micLoaded || !customerMicLoaded || !activeSetupLoaded) return;
-    if (phase === 'live' || !activeSetup) return;
-    if (!micDeviceId && !customerMicId) return;
-    if (activeSetup.micLabel === micLabelSelected && activeSetup.customerLabel === customerLabelSelected && activeSetup.saved) return;
-    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === activeSetupIndex
-      ? { ...s, saved: true, micDeviceId, micLabel: micLabelSelected, customerDeviceId: customerMicId, customerLabel: customerLabelSelected }
-      : s)));
-  }, [setupsLoaded, micLoaded, customerMicLoaded, activeSetupLoaded, phase, activeSetupIndex, micDeviceId, customerMicId, micLabelSelected, customerLabelSelected]);
+  // Save is an explicit action, never triggered by changing a dropdown.
+  const saveAudioSetup = () => {
+    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady) return;
+    const result = captureAudioMode(activeAudioMode, currentAudioSelection, micDevices, outputDevices, isLoopbackSource);
+    if (!result.valid) {
+      setAudioModeMessage(result.problems.join(' '));
+      return;
+    }
+    setAudioSetups(modes.map((s, i) => i === activeSetupIndex ? result.mode : s));
+    setError('');
+    setAudioModeMessage(`Saved ${result.mode.name}: agent, customer input, preferred output, and both gain levels.`);
+  };
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
