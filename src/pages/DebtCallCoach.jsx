@@ -58,6 +58,19 @@ export default function DebtCallCoach() {
   const { user, loading, isAuthenticated, logout, isDialerRole, isAdmin, isManager, isSuperManager, isSuperAdmin, canManage, mustResetPassword, isFronter } = useDebtCoachAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState('live');
+  const [liveLaunch, setLiveLaunch] = useState(null);
+  // Contact cards request listening or an outbound Twilio-assisted call.
+  // The Live Call workspace owns both flows and the shared Q&A/Coach UI.
+  useEffect(() => {
+    const launch = (event) => {
+      const { leadId, mode } = event.detail || {};
+      if (!leadId || !['listen','dial'].includes(mode)) return;
+      setLiveLaunch({ leadId, mode, token: Date.now() });
+      setTab('live');
+    };
+    window.addEventListener('debt_launch_live', launch);
+    return () => window.removeEventListener('debt_launch_live', launch);
+  }, []);
   useEffect(() => { if (isFronter) navigate('/fronter', { replace: true }); }, [isFronter, navigate]);
   const [timerLead, setTimerLead] = useState(null);
   const [hotLead, setHotLead] = useState(null);
@@ -178,7 +191,7 @@ export default function DebtCallCoach() {
 
       <div className="dcc-current-section" aria-live="polite"><span className="dcc-path">Debt Call Coach /</span><strong>{friendlyTab(tabMap[tab]?.label||'Live Call')}</strong></div>
       <main className="dcc-workspace-body" aria-label={friendlyTab(tabMap[tab]?.label||'Live Call')}>
-      {tab === 'live' && <DebtLiveCall debtCoachUser={user} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
+      {tab === 'live' && <DebtLiveCall launchAction={liveLaunch} debtCoachUser={user} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
