@@ -245,11 +245,16 @@ export default function DebtCallCoach() {
       <WCRChecklist username={user?.username} showLauncher={false} />
 
       {/* Profile Timer Watcher — shows popup reminders, can reopen profile */}
-      <ProfileTimerWatcher onOpenProfile={(lead) => setTimerLead(lead)} />
+      <ProfileTimerWatcher username={user?.username} onOpenProfile={async (lead) => {
+        try {
+          const fullLead = lead?.id ? await base44.entities.DebtLead.get(lead.id) : null;
+          setTimerLead(fullLead?.id ? fullLead : lead);
+        } catch { setTimerLead(lead); }
+      }} />
 
       {/* Profile opened from timer popup */}
       {timerLead && (
-        <ClientProfileModal lead={timerLead} onClose={() => setTimerLead(null)} onSave={() => {}} />
+        <ClientProfileModal lead={timerLead} username={user?.username} onClose={() => setTimerLead(null)} onSave={(updated) => setTimerLead(updated)} />
       )}
 
       {/* Profile opened from Hot Leads tab */}
