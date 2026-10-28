@@ -8,7 +8,20 @@
 
 const MAX = 5000;
 const PAGE = 200;
-const automated = (agent: unknown) => /base44-backend|ggpht\.com|googleimageproxy|googlebot|bingbot|crawler|spider|headless|linkpreview|proofpoint|barracuda|mimecast/i.test(String(agent || '').toLowerCase());
+// Backend-forwarded redirect clicks frequently arrive as "Base44-Backend".
+// That string identifies the relay, not the person who opened the link.
+// Count these as UNVERIFIED tracked clicks; do not mislabel them as bots.
+// Open pixels remain proxy/unknown because mail services fetch them automatically.
+const knownBot = (agent: unknown) => /ggpht\.com|googleimageproxy|googlebot|bingbot|crawler|spider|headless|linkpreview|proofpoint|barracuda|mimecast|safe.?links|urlscan/i.test(String(agent || '').toLowerCase());
+const relay = (agent: unknown) => /base44-backend/i.test(String(agent || ''));
+const automatedOpen = (agent: unknown) => relay(agent) || knownBot(agent);
+const countedClick = (event: any) => event.eventType === 'click' && !!event.url && !knownBot(event.userAgent);
+const eventQuality = (event: any) => {
+  if (knownBot(event.userAgent)) return 'proxy_or_automated';
+  if (event.eventType === 'click' && relay(event.userAgent)) return 'unverified_relay_click';
+  if (event.eventType === 'open' && relay(event.userAgent)) return 'proxy_or_automated';
+  return 'unverified_nonproxy';
+};
 const rows = (page: any): any[] => Array.isArray(page) ? page : (page?.items || []);
 const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
 const clock = (value: any): number => new Date(value || 0).getTime() || 0;
@@ -29,15 +42,14 @@ async function readAll(entity: any, filter: any, sort: string) {
 }
 
 function intentScore(events: any[]) {
-  const confident = events.filter((e) => !automated(e.userAgent));
-  const opens = confident.filter((e) => e.eventType === 'open');
-  const clickEvents = confident.filter((e) => e.eventType === 'click' && e.url);
+  const opens = events.filter((e) => e.eventType === 'open' && !automatedOpen(e.userAgent));
+  const clickEvents = events.filter(countedClick);
   const links = unique(clickEvents.map((e) => String(e.url)));
-  const visits = confident.filter((e) => e.eventType === 'qualify_visit');
+  const visits = events.filter((e) => e.eventType === 'qualify_visit' && !knownBot(e.userAgent));
   const score = Math.min(100, (opens.length ? 3 : 0) + Math.min(Math.max(opens.length - 1, 0), 2) * 2 + Math.min(links.length, 4) * 17 + (visits.length ? 35 : 0));
   const actionable = links.length > 0 || visits.length > 0;
   return { score, tier: score >= 60 && actionable ? 'high' : score >= 25 && actionable ? 'engaged' : opens.length ? 'open_only' : 'none',
-    reasons: [visits.length ? 'Qualification page visited' : '', links.length ? String(links.length) + ' distinct link(s) clicked' : '', opens.length ? String(opens.length) + ' non-proxy open(s)' : ''].filter(Boolean) };
+    reasons: [visits.length ? 'Qualification page visited' : '', links.length ? String(links.length) + ' distinct link destination(s) recorded (not proof of a human visit)' : '', opens.length ? String(opens.length) + ' non-proxy open(s)' : ''].filter(Boolean) };
 }
 
 async function authenticate(base44: any, body: any) {
@@ -106,12 +118,16 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
       const events = eventBySend.get(String(m.sendId)) || [];
       const opens = events.filter((ev) => ev.eventType === 'open');
       const clicks = events.filter((ev) => ev.eventType === 'click');
-      const proxyOpens = opens.filter((ev) => automated(ev.userAgent));
+      const proxyOpens = opens.filter((ev) => automatedOpen(ev.userAgent));
       const intent = intentScore(events);
       const sessions = audioBySend.get(String(m.sendId)) || [];
       const audioPlays = sessions.reduce((n: number, s: any) => n + Number(s.playCount || 0), 0);
       const audioBestPercent = Math.max(0, ...sessions.map((s: any) => Number(s.percentListened || 0)));
-      const audioCompleted = sessions.some((s: any) => s.completed === true);
+      const audioCompletionRecorded = sessions.some((s: any) => s.completed === true);
+      // The browser may miss the ended event even after almost all the audio played.
+      // Record that as estimated full playback, not as an ended event.
+      const audioCompletionEstimated = !audioCompletionRecorded && sessions.some((s: any) => Number(s.durationSeconds || 0) >= 10 && Number(s.playedSeconds || 0) / Number(s.durationSeconds || 1) >= 0.98);
+      const audioCompleted = audioCompletionRecorded || audioCompletionEstimated;
       const calendarOpened = sessions.some((s: any) => !!s.calendarOpenedAt);
       const calendarExternalClicks = sessions.reduce((n: number, s: any) => n + Number(s.calendarExternalClicks || 0), 0);
       const websiteClicked = sessions.some((s: any) => !!s.websiteClickedAt);
@@ -124,13 +140,14 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         sentAt: m.sentAt, subject: m.subject || '', senderEmail: m.senderEmail || '',
         status: m.status, firstOpenAt: m.openedAt || null,
         opens: opens.length, nonProxyOpens: opens.length - proxyOpens.length, proxyOpens: proxyOpens.length,
-        clicks: clicks.length, distinctLinks: unique(clicks.filter((e) => !automated(e.userAgent)).map((e) => String(e.url || ''))).length,
+        clicks: clicks.length, distinctLinks: unique(clicks.filter(countedClick).map((e) => String(e.url || ''))).length,
+        clickedDestinations: unique(clicks.filter(countedClick).map((e) => String(e.url || ''))),
         lastEventAt: events.reduce((a, e) => clock(e.trackedAt) > clock(a) ? e.trackedAt : a, null),
         intentScore: intent.score, tier: intent.tier, reasons: intent.reasons,
-        audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted,
+        audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted, audioCompletionEstimated,
         calendarOpened, calendarExternalClicks, websiteClicked, websiteClicks,
         audioPlayedSeconds: Math.max(0, ...sessions.map((s: any) => Number(s.playedSeconds || 0))),
-        events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: automated(e.userAgent) ? 'proxy_or_automated' : 'unverified_nonproxy' })),
+        events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: eventQuality(e) })),
       };
     }).sort((a: any, b: any) => clock(b.sentAt) - clock(a.sentAt));
 
