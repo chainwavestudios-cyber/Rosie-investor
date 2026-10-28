@@ -1,0 +1,60 @@
+{
+  "name": "BOBInquiry",
+  "type": "object",
+  "properties": {
+    "contactName": {
+      "type": "string",
+      "title": "contactName"
+    },
+    "email": {
+      "type": "string",
+      "title": "email"
+    },
+    "company": {
+      "type": "string",
+      "title": "company"
+    },
+    "seatEstimate": {
+      "type": "number",
+      "title": "seatEstimate"
+    },
+    "message": {
+      "type": "string",
+      "title": "message"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    },
+    "status": {
+      "type": "string",
+      "title": "status"
+    }
+  },
+  "required": [
+    "contactName",
+    "email"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

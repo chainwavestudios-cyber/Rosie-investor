@@ -1,0 +1,69 @@
+{
+  "name": "BOBOrganization",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "name"
+    },
+    "slug": {
+      "type": "string",
+      "title": "slug"
+    },
+    "ownerEmail": {
+      "type": "string",
+      "title": "ownerEmail"
+    },
+    "seatLimit": {
+      "type": "number",
+      "title": "seatLimit"
+    },
+    "status": {
+      "type": "string",
+      "title": "status"
+    },
+    "industry": {
+      "type": "string",
+      "title": "industry"
+    },
+    "preferredVoice": {
+      "type": "string",
+      "title": "preferredVoice"
+    },
+    "encryptedDeepgramKey": {
+      "type": "string",
+      "title": "encryptedDeepgramKey"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    }
+  },
+  "required": [
+    "name",
+    "ownerEmail",
+    "seatLimit"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

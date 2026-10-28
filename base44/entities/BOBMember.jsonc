@@ -1,0 +1,57 @@
+{
+  "name": "BOBMember",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organization ID"
+    },
+    "email": {
+      "type": "string",
+      "title": "email"
+    },
+    "displayName": {
+      "type": "string",
+      "title": "displayName"
+    },
+    "role": {
+      "type": "string",
+      "title": "role"
+    },
+    "status": {
+      "type": "string",
+      "title": "status"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    }
+  },
+  "required": [
+    "organizationId",
+    "email",
+    "role"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

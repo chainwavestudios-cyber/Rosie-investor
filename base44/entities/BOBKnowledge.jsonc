@@ -1,0 +1,57 @@
+{
+  "name": "BOBKnowledge",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organization ID"
+    },
+    "title": {
+      "type": "string",
+      "title": "title"
+    },
+    "content": {
+      "type": "string",
+      "title": "content"
+    },
+    "category": {
+      "type": "string",
+      "title": "category"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "createdBy"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    }
+  },
+  "required": [
+    "organizationId",
+    "title",
+    "content"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

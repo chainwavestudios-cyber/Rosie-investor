@@ -1,0 +1,76 @@
+{
+  "name": "BOBTrainingSession",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organization ID"
+    },
+    "traineeEmail": {
+      "type": "string",
+      "title": "traineeEmail"
+    },
+    "scenario": {
+      "type": "string",
+      "title": "scenario"
+    },
+    "mode": {
+      "type": "string",
+      "title": "mode"
+    },
+    "persona": {
+      "type": "string",
+      "title": "persona"
+    },
+    "difficulty": {
+      "type": "number",
+      "title": "difficulty"
+    },
+    "voiceModel": {
+      "type": "string",
+      "title": "voiceModel"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "durationSeconds"
+    },
+    "transcriptJson": {
+      "type": "string",
+      "title": "transcriptJson"
+    },
+    "notes": {
+      "type": "string",
+      "title": "notes"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    }
+  },
+  "required": [
+    "organizationId",
+    "traineeEmail"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
