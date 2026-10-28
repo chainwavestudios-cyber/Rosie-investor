@@ -11,10 +11,11 @@ import NonAcceptedCreditorsTab from '@/components/debt/NonAcceptedCreditorsTab';
 import AcceptedCreditorRulesRef from '@/components/debt/AcceptedCreditorRulesRef';
 import FullCreditorListTab from '@/components/debt/FullCreditorListTab';
 import { matchCreditorRule } from '@/components/debt/creditorRules';
+import './ContactCardPolish.css';
 
 const GOLD = '#10b981';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+const ls = { display: 'block', color: '#aec4bd', fontSize: '10px', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 650 };
+const inp = { width: '100%', background: 'rgba(7,21,32,.72)', border: '1px solid rgba(140,190,173,.24)', borderRadius: '8px', padding: '8px 10px', color: '#edf4ee', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' };
 
 const STATUS_COLORS = {
   new: '#60a5fa', contacted: '#f59e0b', qualified: '#a78bfa', enrolled: '#4ade80', declined: '#ef4444', completed: '#6b7280', callback: '#f59e0b',
@@ -84,44 +85,52 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
   const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['fulllist', '📋 Full List'], ['ledger', '💳 Debt Ledger'], ['nonaccepted', '❌ Non-Accepted'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
 
   return (
-    <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="dcc-contact-card" style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-          <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'linear-gradient(135deg,rgba(16,185,129,0.3),rgba(16,185,129,0.1))', border: '2px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>💳</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: '#e8e0d0', fontSize: '16px' }}>{lead.firstName} {lead.lastName}</div>
-            <div style={{ color: '#6b7280', fontSize: '11px' }}>
-              {lead.leadNumber && <span style={{ color: GOLD, fontWeight: 'bold' }}>{lead.leadNumber}</span>}
-              {lead.leadNumber && (lead.phone || lead.email) ? ' · ' : ''}
-              {[lead.phone, lead.email].filter(Boolean).join(' · ')}
+      <div className="dcc-contact-header" style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(0,0,0,0.2)' }}>
+        <div className="dcc-contact-header-top">
+          <div className="dcc-contact-identity">
+            <div className="dcc-contact-avatar" style={{ width: '38px', height: '38px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }} aria-hidden="true">
+              {(lead.firstName?.trim()?.[0] || '?').toUpperCase()}{(lead.lastName?.trim()?.[0] || '').toUpperCase()}
+            </div>
+            <div className="dcc-contact-identity-copy">
+              <div className="dcc-contact-name" style={{ fontSize: '15px' }}>{[lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'New Contact'}</div>
+              <div className="dcc-contact-meta" style={{ fontSize: '10px', lineHeight: 1.5, marginTop: '2px' }}>
+                {lead.leadNumber && <span style={{ color: '#dfc38d', fontWeight: 700 }}>{lead.leadNumber}</span>}
+                {lead.leadNumber && (lead.phone || lead.email) ? ' · ' : ''}
+                {[lead.phone, lead.email].filter(Boolean).join(' · ')}
+              </div>
             </div>
           </div>
-          <button onClick={() => setShowProfile(true)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-            👤 Client Profile
+          <button className="dcc-contact-primary-action" type="button" onClick={() => setShowProfile(true)} style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 750, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            Open Full Profile
           </button>
-          <span style={{ padding: '3px 10px', borderRadius: '2px', background: `${STATUS_COLORS[lead.status] || '#6b7280'}22`, color: STATUS_COLORS[lead.status] || '#6b7280', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>{STATUS_LABELS[lead.status] || lead.status}</span>
         </div>
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {Object.entries(STATUS_LABELS).map(([s, l]) => (
-            <button key={s} onClick={() => update('status', s)} style={{ padding: '3px 8px', borderRadius: '20px', border: `1px solid ${lead.status === s ? STATUS_COLORS[s] + '66' : 'rgba(255,255,255,0.1)'}`, background: lead.status === s ? `${STATUS_COLORS[s]}18` : 'transparent', color: lead.status === s ? STATUS_COLORS[s] : '#6b7280', cursor: 'pointer', fontSize: '10px', whiteSpace: 'nowrap' }}>{l}</button>
-          ))}
+        <div className="dcc-contact-status-strip">
+          <label className="dcc-contact-status-label" htmlFor="dcc-live-contact-status">Status</label>
+          <select id="dcc-live-contact-status" className="dcc-contact-status-select" aria-label="Contact status" value={lead.status || 'new'} onChange={e => update('status', e.target.value)} style={{ color: STATUS_COLORS[lead.status] || '#b9e7d0' }}>
+            {!STATUS_LABELS[lead.status] && lead.status && <option value={lead.status}>{lead.status}</option>}
+            {Object.entries(STATUS_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+          </select>
+          {lead.debtAmount != null && lead.debtAmount !== '' && <span className="dcc-contact-mini-stat">Debt <strong>{Number(lead.debtAmount).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}</strong></span>}
+          {lead.creditorCount > 0 && <span className="dcc-contact-mini-stat">Creditors <strong>{lead.creditorCount}</strong></span>}
+          {(intentScore ?? lead.intentScore) != null && <span className="dcc-contact-mini-stat">Intent <strong>{intentScore ?? lead.intentScore}/100</strong></span>}
         </div>
       </div>
 
       {/* Live Call bar */}
-      <div style={{ padding: '0 18px 10px' }}>
+      <div className="dcc-contact-callbar" style={{ padding: '0 18px 10px' }}>
         <DebtCallBar lead={lead} />
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto' }}>
+      <div className="dcc-contact-tabs" role="tablist" aria-label="Contact card sections" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', overflowX: 'auto' }}>
         {CARD_TABS.map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? GOLD : 'transparent'}`, color: tab === id ? GOLD : '#6b7280', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>{label}</button>
+          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} style={{ background: 'none', border: 'none', borderBottom: `2px solid ${tab === id ? GOLD : 'transparent'}`, color: tab === id ? GOLD : '#6b7280', padding: '10px 14px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>{label}</button>
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
+      <div className="dcc-contact-content" style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
         {tab === 'activity' && <LeadActivityTab lead={lead} />}
         {tab === 'overview' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -254,8 +263,8 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
       </div>
 
       {/* Save bar */}
-      <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '10px', alignItems: 'center' }}>
-        <button onClick={save} disabled={saving || !lead.firstName || !lead.lastName} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !lead.firstName || !lead.lastName ? 0.5 : 1 }}>
+      <div className="dcc-contact-savebar" style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <button className="dcc-contact-primary-action" onClick={save} disabled={saving || !lead.firstName || !lead.lastName} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !lead.firstName || !lead.lastName ? 0.5 : 1 }}>
           {saving ? '⏳ Saving…' : lead.id ? '💾 Save Lead' : '💾 Save & Open Profile'}
         </button>
         {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓ Saved</span>}
