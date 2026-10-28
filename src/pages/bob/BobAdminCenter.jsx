@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowRight, AudioLines, BarChart3, BookLock, Building2,
-  CheckCircle2, Clock3, CreditCard, FileCode2, Headphones,
+  Clock3, CreditCard, FileCode2, Headphones,
   KeyRound, LockKeyhole, MessageSquare, RefreshCcw, Search,
   Settings2, ShieldCheck, SlidersHorizontal, UserCog, Users, UserRoundPlus
 } from 'lucide-react';

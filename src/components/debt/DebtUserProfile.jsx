@@ -170,6 +170,8 @@ export default function DebtUserProfile({ debtCoachUser, onGoToCalls }) {
   const latestReport = calls.find(c=>safe(c.intentReport)) || null;
   const next = nextStep(latest) || safe(profile.recommendedApproach);
   const summary = callSummary(latest) || safe(profile.lastCallSummary);
+  const objections = Array.isArray(parseJson(latest?.intentPlaybookJson).objections)
+    ? parseJson(latest?.intentPlaybookJson).objections : [];
   const outstanding = leads.filter(needsAction).length;
 
   useEffect(()=>{
@@ -352,6 +354,9 @@ export default function DebtUserProfile({ debtCoachUser, onGoToCalls }) {
                 {callsError&&<div className="pic-muted" role="status">{callsError}</div>}
               </article>
             </div>
+            {objections.length>0&&<article className="pic-info-card"><h4><Activity size={15}/> Objections to address</h4>
+              {objections.slice(0,4).map((objection,index)=><p key={index}>• {typeof objection==='string'?objection:safe(objection?.objection)||safe(objection?.text)||'Objection recorded'}</p>)}
+            </article>}
             <article className="pic-info-card"><h4><CalendarClock size={15}/> Contact & follow-up</h4>
               <div className="pic-followup-grid">
                 <LabelValue label="Last contacted" value={dateText(selected.lastCallAt)}/>

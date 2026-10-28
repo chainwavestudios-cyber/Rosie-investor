@@ -126,6 +126,7 @@ function App() {
               <Route path="/bob/security" element={<BobSecurity />} />
               <Route path="/bob/live-products" element={<BobLiveProducts />} />
               <Route path="/bob/portal" element={<BobPortal />} />
+              <Route path="/bob/admin" element={<BobPortal initialAdmin />} />
               <Route path="/bob/internal" element={<DebtCoachAuthProvider><BobInternalPage /></DebtCoachAuthProvider>} />
               {/* Protected */}
               <Route path="/" element={<Home />} />
