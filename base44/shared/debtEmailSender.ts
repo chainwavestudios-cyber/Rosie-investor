@@ -20,7 +20,8 @@ export interface SendResult {
 export async function sendTemplateEmail(
   base44: any,
   template: any,
-  lead: any
+  lead: any,
+  options: { testSend?: boolean } = {}
 ): Promise<SendResult> {
   const policyIssue=daaTemplateIssue(template);
   if (policyIssue) throw new Error(policyIssue);
@@ -98,8 +99,9 @@ export async function sendTemplateEmail(
     templateId: template.id,
     templateName: template.name,
     sentBy: 'debt_coach',
-    source: 'contact_card',
-    track: template.trackingEnabled !== false,
+    source: options.testSend ? 'template_test' : 'contact_card',
+    track: true,
+    allowDuplicate: options.testSend === true,
   });
 
   return { sendId: result.sendId, subject, duplicate: result.duplicate === true };
