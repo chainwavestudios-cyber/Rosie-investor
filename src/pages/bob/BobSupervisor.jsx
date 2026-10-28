@@ -3,7 +3,7 @@ import { AudioLines, Ear, Headphones, Lock, Mic, MicOff, RefreshCw, ShieldAlert,
 import { openRecording } from '@/lib/bobAudioCrypto';
 import useBobLiveMonitor from '@/hooks/useBobLiveMonitor';
 import './BobSite.css';
-export default function BobSupervisor({org,vaultKey,api}){
+export default function BobSupervisor({org,vaultKey,api,canManageRecording=false,onRecordingChanged}){
  const [sessions,setSessions]=useState([]),[recordings,setRecordings]=useState([]),[error,setError]=useState(''),[playing,setPlaying]=useState(null),
  [selected,setSelected]=useState(null),[busy,setBusy]=useState(false),[talkAllowed,setTalkAllowed]=useState(false);
  const live=useBobLiveMonitor(),urls=useRef([]);
@@ -48,6 +48,18 @@ export default function BobSupervisor({org,vaultKey,api}){
   </div>
   <div className="bob-panel"><div className="bob-panel-title"><h3><AudioLines size={17} color="#d7b978" style={{display:'inline',marginRight:8}}/>Previously recorded practice calls</h3><span className="bob-pill">{recordings.length} private recordings</span></div>
    <p className="bob-tiny">Audio is stored encrypted in private storage. To replay, a manager must have the organization vault passphrase. Sessions are recorded only when both the organization recording policy and the trainee's call-specific consent are enabled.</p>
+   {canManageRecording&&<div className="bob-panel" style={{background:'#0b2230',padding:16,marginBottom:18}}>
+    <div className="bob-panel-title"><h3>Recording policy</h3><span className="bob-pill">Separate trainee opt-in required</span></div>
+    <label style={{display:'flex',gap:10,alignItems:'center',fontSize:13,color:'#dce9ed'}}><input type="checkbox" checked={!!org.allowSessionRecording} disabled={busy} onChange={async e=>{
+      setBusy(true);setError('');
+      try{
+        await api('setRecordingPolicy',{organizationId:org.id,allowSessionRecording:e.target.checked});
+        await onRecordingChanged?.();
+      }catch(err){setError(err.message||'Could not update recording policy.');}
+      finally{setBusy(false);}
+    }}/> Enable optional encrypted practice-call recording for this organization</label>
+    <p className="bob-tiny">This setting only makes recording available. Each trainee must still consent separately for every call. Recordings are encrypted with the customer's browser-held key.</p>
+   </div>}
    {!org.allowSessionRecording&&<div className="bob-message">Audio recording is currently disabled for this company.</div>}
    {recordings.length===0?<div className="bob-empty">No opt-in encrypted call recordings have been saved.</div>:<div className="bob-table-wrap"><table className="bob-table"><thead><tr><th>Trainee</th><th>Recorded</th><th>Duration</th><th>Size</th><th/></tr></thead><tbody>{recordings.map(r=><tr key={r.id}><td>{r.traineeEmail}</td><td>{new Date(r.createdAt).toLocaleString()}</td><td>{Math.ceil((r.durationSeconds||0)/60)} min</td><td>{Math.round((r.sizeBytes||0)/1024)} KB</td><td><button disabled={busy||!vaultKey} onClick={()=>playback(r)} className="bob-btn bob-btn-ghost"><Volume2 size={14}/> Decrypt & listen</button></td></tr>)}</tbody></table></div>}
    {playing&&<div className="bob-panel" style={{marginTop:18,background:'#0e2835'}}><div className="bob-panel-title"><h3>Private audio playback</h3><button className="bob-btn bob-btn-ghost" onClick={()=>{URL.revokeObjectURL(playing.url);setPlaying(null);}}>Close</button></div><audio controls style={{width:'100%'}} src={playing.url}/><p className="bob-tiny">Decryption occurs in this browser only. Plaintext audio is held transiently in this tab.</p></div>}

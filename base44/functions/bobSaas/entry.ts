@@ -201,6 +201,14 @@ const secureGateway = async (req: Request) => {
     const inquiries=await db.BOBInquiry.list('-created_date',100);
     return Response.json({success:true,inquiries});
   }
+  if(action==='setRecordingPolicy'){
+    requireOrg();
+    if(!mayControlRecording())return bad('Recording policy can only be changed by an administrator or authorized manager.',403);
+    if(typeof data.allowSessionRecording!=='boolean')return bad('Explicit recording policy value required.');
+    await db.BOBOrganization.update(org.id,{allowSessionRecording:data.allowSessionRecording});
+    await audit('privacy.recording',org.id,data.allowSessionRecording?'Enabled opt-in recording':'Disabled opt-in recording');
+    return Response.json({success:true});
+  }
   if (action==='setOrg') {
     requireSettingsAccess();
     const fields:any={};
