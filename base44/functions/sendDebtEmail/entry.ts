@@ -44,7 +44,10 @@ export default async function (req: Request): Promise<Response> {
       lead.protofaceId = protofaceId;
     }
 
-    const { sendId } = await sendTemplateEmail(base44, template, lead);
+    const { sendId, duplicate } = await sendTemplateEmail(base44, template, lead);
+    // An accidental repeat click reuses the earlier Gmail send. Do not write a
+    // second "sent email" activity or re-stamp reminder fields for that no-op.
+    if (duplicate) return Response.json({ success: true, skippedDuplicate: true, sendId, templateName: template.name });
 
     // Update lead tracking fields based on template type
     const now = new Date().toISOString();
