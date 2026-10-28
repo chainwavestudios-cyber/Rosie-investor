@@ -76,6 +76,7 @@ export default function DebtCallCoach() {
   const [hotLead, setHotLead] = useState(null);
   const [closingLeadId, setClosingLeadId] = useState(null);
   const [liveCallActive, setLiveCallActive] = useState(false);
+  const [twilioSessionActive, setTwilioSessionActive] = useState(false);
   const [scriptCallContext, setScriptCallContext] = useState({});
   const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
   const [heatMapVisible, setHeatMapVisible] = useState(false);
@@ -191,7 +192,9 @@ export default function DebtCallCoach() {
 
       <div className="dcc-current-section" aria-live="polite"><span className="dcc-path">Debt Call Coach /</span><strong>{friendlyTab(tabMap[tab]?.label||'Live Call')}</strong></div>
       <main className="dcc-workspace-body" aria-label={friendlyTab(tabMap[tab]?.label||'Live Call')}>
-      {tab === 'live' && <DebtLiveCall launchAction={liveLaunch} debtCoachUser={user} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
+      {(tab === 'live' || liveCallActive || twilioSessionActive) && <div style={{display:tab==='live'?'contents':'none'}}>
+        <DebtLiveCall launchAction={liveLaunch} debtCoachUser={user} onTwilioPresenceChange={setTwilioSessionActive} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />
+      </div>}
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
