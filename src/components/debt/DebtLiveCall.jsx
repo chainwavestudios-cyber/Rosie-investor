@@ -88,7 +88,7 @@ function textSimilarity(a, b) {
   return common / Math.min(wa.size, wb.size);
 }
 
-export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange, launchAction }) {
+export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange, onTwilioPresenceChange, launchAction }) {
   const { user: coachUser, can, sessionToken, sessionUserId } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
@@ -483,6 +483,9 @@ Agent line: "${firstAgentLines}"`,
     },
   });
   twilioDialerRef.current = twilioDialer;
+  useEffect(() => {
+    onTwilioPresenceChange?.(Boolean(officeBridge?.bridgeToken || twilioDialer.isActive));
+  }, [officeBridge?.bridgeToken, twilioDialer.isActive, onTwilioPresenceChange]);
 
   useEffect(() => { leadRef.current = lead; }, [lead]);
   useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
