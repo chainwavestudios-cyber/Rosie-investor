@@ -9,7 +9,7 @@ import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import IntentReportModal from '@/components/debt/IntentReportModal';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import ClosingTab from '@/components/debt/closing/ClosingTab';
-import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
+import { setProfileTimer, cancelProfileTimer, getActiveTimer, updateProfileTimerSound } from '@/components/debt/ProfileTimerWatcher';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import { PROFILE_TIMER_SOUNDS, isValidProfileTimerSoundFile, normalizeProfileTimerSound, primeProfileTimerAudio, playProfileTimerSound } from '@/components/debt/profileTimerSounds';
 import { Bell, Volume2, UploadCloud, Clock3 } from 'lucide-react';
@@ -271,7 +271,13 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     const next = id === 'custom' ? {id:'custom',url:uploadedTimerSound?.url,name:uploadedTimerSound?.name} : {id};
     if (id === 'custom' && !uploadedTimerSound?.url) return;
     setTimerSoundChoice({id});
-    primeProfileTimerAudio(normalizeProfileTimerSound(next));
+    const sound = normalizeProfileTimerSound(next);
+    primeProfileTimerAudio(sound);
+    if(activeTimer && local.id && username) {
+      void updateProfileTimerSound(username,local.id,sound)
+        .then(ok=>{if(!ok)setSoundError('Sound preference could not be applied to the running timer.');})
+        .catch(()=>setSoundError('Could not update the active reminder sound.'));
+    }
   };
 
   const handleTimerSoundUpload = async (event) => {
@@ -290,6 +296,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
       if (!/^https:\/\//.test(String(uploaded?.file_url || ''))) throw new Error('The sound file was not saved.');
       setUploadedTimerSound({url:uploaded.file_url,name:file.name});
       setTimerSoundChoice({id:'custom'});
+      if(activeTimer && local.id && username){
+        const applied=await updateProfileTimerSound(username,local.id,{id:'custom',url:uploaded.file_url,name:file.name});
+        if(!applied)setSoundError('Uploaded sound saved, but could not update the running timer.');
+      }
     } catch(e) { setSoundError('Sound upload failed: ' + (e?.message || 'please try another audio file.')); }
     finally { setSoundUploading(false); }
   };
