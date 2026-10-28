@@ -143,9 +143,9 @@ export default function EmailCampaignManagerTab({ username }) {
     <div className="ecm-root ecm-module">
       <header className="ecm-header">
         <div className="ecm-header-copy">
-          <div className="ecm-eyebrow"><Mail size={13} /> Settlement IQ · Outreach workspace</div>
+          <div className="ecm-eyebrow"><Mail size={13} /> Debt Advisors of America · Gmail campaigns</div>
           <h2>Email Campaigns</h2>
-          <p>Build, personalize, approve and track your Gmail campaigns from one place. Each recipient has an individual send and engagement record.</p>
+          <p>DAA-only Gmail campaigns. Each recipient receives their own tracked introduction link, audio playback journey, and engagement record. Fronter cold outreach remains separate.</p>
         </div>
         <div className="ecm-header-actions">
           <button className="ecm-action ecm-action-secondary" type="button" onClick={load} disabled={refreshing} title="Refresh campaign metrics"><RefreshCw size={14} className={refreshing ? 'ecm-spinning' : ''} />Refresh</button>
