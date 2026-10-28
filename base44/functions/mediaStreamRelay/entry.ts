@@ -32,6 +32,7 @@ const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
 import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
+import { enforceOutboundHandoff, OUTBOUND_QUEUE_NOTICE } from '../../shared/aiOutboundHandoff.ts';
 
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
@@ -305,6 +306,16 @@ Return JSON with:
     text = "I'm sorry, could you repeat that?";
   }
 
+  // Outbound stage gate is enforced in CODE, not merely in the LLM prompt.
+  // Debt-type confirmation -> full value question -> prospect answer -> transfer.
+  // A model trying to skip Step 3 or claim a transfer on a casual 'yes' cannot.
+  if (!isInboundAdam) {
+    const gated = enforceOutboundHandoff({conversation: turns, action, text, lead});
+    action = gated.action;
+    text = gated.text;
+    if (gated.disposition) disposition = gated.disposition;
+  }
+
   // Deterministic qualification: reject transfer if debt is known and below $10k
   if (action === 'transfer' && lead?.debtAmount != null && lead.debtAmount > 0 && lead.debtAmount < 10000) {
     action = 'speak';
@@ -332,19 +343,16 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
     config = configs?.[0] || {};
   } catch {}
 
-  // Execute transfer prep (extract data, send email, generate summary, update lead)
-  try {
-    await prepareTransfer(req, base44, lead, config, conversation || []);
-  } catch (e) {
-    console.error('[mediaStreamRelay] Transfer prep failed:', e?.message);
-  }
+  // Do not block the audible handoff with multiple LLM extraction and email
+  // operations. Those complete AFTER Twilio redirects the caller into the
+  // recorded hold queue, so the prospect is never left in a silent stream.
 
   // Play transfer announcement via bridge (ElevenLabs/Deepgram) before redirect.
   // Inbound AI-agent calls skip it — the agent already said "Hold on one second!",
   // so the caller goes straight into the queue with Custom Hold Music #2.
   const isInboundTransfer = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
   if (!isInboundTransfer) {
-    const transferMsg = "I'm placing you in Chris's queue now. You'll hear a short message while I reach him. Please hold.";
+    const transferMsg = OUTBOUND_QUEUE_NOTICE;
     // The bridge uses this call's pinned TTS selections and records actual audio evidence.
     const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
     if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
@@ -360,6 +368,16 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
   } catch (e) {
     console.error('[mediaStreamRelay] Failed to redirect call for transfer:', e?.message);
     return Response.json({ ok: false, error: 'transfer_redirect_failed' }, { status: 502 });
+  }
+
+  // Twilio has already placed the customer into the queue. Transfer preparation
+  // is no longer on the audio-critical path; errors cannot interrupt queue sound.
+  if (lead) {
+    try {
+      await prepareTransfer(req, base44, lead, config, conversation || []);
+    } catch (e) {
+      console.error('[mediaStreamRelay] Transfer prep failed:', e?.message);
+    }
   }
 
   return Response.json({ ok: true, transferNumber: config.transferPhoneNumber || '' });
