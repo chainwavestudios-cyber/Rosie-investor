@@ -67,7 +67,7 @@ async function audioFromBase64(audioBase64: string, filename: string): Promise<F
 }
 
 function sanitizeUser(user: any): any {
-  const { passwordHash, sessionToken, ...rest } = user;
+  const { passwordHash, sessionToken, setupTokenHash, setupTokenExpiresAt, ...rest } = user;
   return rest;
 }
 
@@ -98,6 +98,35 @@ export default async function(req: Request): Promise<Response> {
         createdBy: 'system', created_date: new Date().toISOString()
       });
       return Response.json({ success: true, user: sanitizeUser(admin), temporaryPassword: password });
+    }
+
+    // ── COMPLETE ONE-TIME ACCOUNT SETUP ──
+    // No active session required: possession of the 256-bit bearer token is
+    // required; only its hash is persisted. Invalid, expired and used links
+    // have the same generic error response.
+    if (action === 'completeSetup') {
+      const userId = String(body.userId || '');
+      const token = String(body.token || '');
+      if (!/^[a-f0-9]{64}$/.test(token) || !userId || !validNewPassword(body.newPassword)) {
+        return Response.json({ error: 'Invalid setup link or password. Use a password of at least 12 characters.' }, { status: 400 });
+      }
+      const account = await base44.asServiceRole.entities.DebtCoachUser.get(userId).catch(() => null);
+      const hashedToken = await sha256(token);
+      if (!account?.isActive || !account.setupTokenHash
+          || typeof account.setupTokenExpiresAt !== 'string'
+          || Date.parse(account.setupTokenExpiresAt) <= Date.now()
+          || account.setupTokenHash.length !== hashedToken.length) {
+        return Response.json({ error: 'This setup link is invalid, expired, or was already used. Contact your administrator for a new link.' }, { status: 400 });
+      }
+      // Equal-length digest comparison avoids early-return differences.
+      let mismatch = 0;
+      for (let i=0; i<hashedToken.length; i++) mismatch |= hashedToken.charCodeAt(i) ^ account.setupTokenHash.charCodeAt(i);
+      if (mismatch !== 0) return Response.json({ error: 'This setup link is invalid, expired, or was already used. Contact your administrator for a new link.' }, { status: 400 });
+      await base44.asServiceRole.entities.DebtCoachUser.update(account.id, {
+        passwordHash: await hashPassword(body.newPassword),
+        mustResetPassword: false, setupTokenHash: '', setupTokenExpiresAt: '', sessionToken: '',
+      });
+      return Response.json({ success: true, username: account.username });
     }
 
     // ── LOGIN ──
@@ -209,6 +238,7 @@ export default async function(req: Request): Promise<Response> {
         return Response.json({ error: 'Only super admins can assign admin roles' }, { status: 403 });
       }
 
+      if (body.updates?.role && !['admin','super_admin','super_manager','manager','dialer','fronter'].includes(body.updates.role)) return Response.json({ error: 'Invalid role' }, { status: 400 });
       const updateData: any = {};
       if (body.updates?.email !== undefined) updateData.email = body.updates.email;
       if (body.updates?.role !== undefined) updateData.role = body.updates.role;
