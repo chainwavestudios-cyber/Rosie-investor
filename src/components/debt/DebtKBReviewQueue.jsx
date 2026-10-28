@@ -18,7 +18,7 @@ const panel={background:'#101d2d',border:'1px solid rgba(218,184,113,.25)',borde
 const button={border:'1px solid rgba(218,184,113,.3)',borderRadius:7,padding:'6px 10px',fontSize:11,fontWeight:700,cursor:'pointer',color:'#ebd2a1',background:'rgba(218,184,113,.1)'};
 const field={width:'100%',borderRadius:7,background:'#0d1522',color:'#e7e8eb',padding:'8px 10px',border:'1px solid rgba(255,255,255,.14)',fontSize:12,boxSizing:'border-box'};
 export default function DebtKBReviewQueue({readOnly=false,onPublished}) {
-  const {user}=useDebtCoachAuth();
+  const {user,sessionUserId,sessionToken}=useDebtCoachAuth();
   const [open,setOpen]=useState(true);
   const [rows,setRows]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -28,11 +28,13 @@ export default function DebtKBReviewQueue({readOnly=false,onPublished}) {
   const load=useCallback(async()=>{
     setLoading(true);
     try {
-      const records=await base44.entities.DebtKBProposal.filter({status:'pending_review'},{sort:'-created_date',limit:150});
-      setRows(toRows(records));setError('');
+      const result=await base44.functions.invoke('debtKBReview',{action:'list',sessionUserId,sessionToken});
+      const data=result?.data||result;
+      if(data?.error)throw new Error(data.error);
+      setRows(toRows(data));setError('');
     }catch(err){setError('Could not load proposed knowledge: '+(err?.message||String(err)));}
     finally{setLoading(false);}
-  },[]);
+  },[sessionUserId,sessionToken]);
   useEffect(()=>{load();const listener=()=>load();window.addEventListener('debt_kb_updated',listener);return()=>window.removeEventListener('debt_kb_updated',listener);},[load]);
   const change=(row,key,value)=>setDrafts(prev=>({...prev,[row.id]:{...prev[row.id],[key]:value}}));
   const finalize=async(row,approve)=>{
@@ -42,35 +44,12 @@ export default function DebtKBReviewQueue({readOnly=false,onPublished}) {
     if(approve&&(!question||!answer)){setError('A question/title and answer are both required.');return;}
     setBusy(row.id);setError('');
     try{
-      let kbEntryId='';
-      if(approve){
-        const existing=toRows(await base44.entities.KnowledgeBase.list('-created_date',1000));
-        // Idempotency first: a previous create can succeed even if the proposal
-        // status update fails. Never create a duplicate on retry.
-        const previous=existing.find(e=>(e.tags||'').split(',').some(t=>t.trim()==='proposal_id:'+row.id));
-        if(previous)kbEntryId=previous.id;
-        else {
-          const same=existing.find(e=>
-            e.question && clean(e.question).toLowerCase()===question.toLowerCase() &&
-            (!e.kbName||e.kbName==='Debt Settlement')
-          );
-          if(same){throw new Error('A published entry already has this exact question. Review/edit that KB entry first; no existing answer was changed.');}
-          const created=await base44.entities.KnowledgeBase.create({
-            question,answer,answersJson:JSON.stringify([answer]),starredAnswerIndex:0,
-            category:categories[edit.category]?edit.category:'debt_kb',
-            kbName:'Debt Settlement',
-            source:clean(row.source)||'AI proposal approved by staff',
-            tags:[clean(row.tags),'proposal_id:'+row.id].filter(Boolean).join(', ')
-          });
-          kbEntryId=created?.id||'';
-        }
-      }
-      await base44.entities.DebtKBProposal.update(row.id,{
-        status:approve?'approved':'rejected',
-        question,answer,category:edit.category,tags:clean(edit.tags),
-        reviewedBy:user?.username||'KB reviewer',reviewedAt:new Date().toISOString(),
-        kbEntryId
+      const result=await base44.functions.invoke('debtKBReview',{
+        action:approve?'approve':'reject',sessionUserId,sessionToken,
+        proposalId:row.id,question,answer,category:edit.category,tags:clean(edit.tags)
       });
+      const data=result?.data||result;
+      if(data?.error)throw new Error(data.error);
       setRows(prev=>prev.filter(item=>item.id!==row.id));
       setDrafts(prev=>{const next={...prev};delete next[row.id];return next;});
       if(approve){onPublished?.();window.dispatchEvent(new CustomEvent('debt_kb_updated'));}
