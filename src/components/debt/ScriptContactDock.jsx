@@ -27,7 +27,7 @@ const initial = lead => ({
   phone: lead?.phone || '',
   debtAmount: formatDebt(lead?.debtAmount),
 });
-export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingEmail, smsOpen, onSmsOpen }) {
+export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingEmail, smsOpen, onSmsOpen, emailRequest = 0 }) {
   const { sessionToken, sessionUserId, user } = useDebtCoachAuth();
   const [draft, setDraft] = useState(() => initial(lead));
   const [busy, setBusy] = useState(false);
@@ -95,6 +95,7 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
     if (sendingEmail || busy) return;
     if (await save()) await onSendEmail?.();
   };
+  useEffect(() => { if (emailRequest) email(); }, [emailRequest]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSms = async () => {
     if (busy) return;
     if (await save()) onSmsOpen?.(true);
@@ -144,7 +145,7 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
         </label>)}
       </div>
       <div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap',marginTop:10}}>
-        <button type="button" disabled={!lead?.id || busy || !dirty} onClick={save} style={{...smallBtn,color:green,opacity:(!lead?.id || busy || !dirty)?.55:1}}>{busy?'Saving…':dirty?'Save contact changes':'Contact saved'}</button>
+        <button type="button" disabled={!lead?.id || busy || !dirty} onClick={save} style={{...smallBtn,color:green,opacity:(!lead?.id || busy || !dirty) ? 0.55 : 1}}>{busy?'Saving…':dirty?'Save contact changes':'Contact saved'}</button>
         <button type="button" disabled={!lead?.id || busy || sendingEmail} onClick={email} style={{...smallBtn,color:'#a7cdfd'}}>{sendingEmail?'Sending…':'✉ Send credentials email'}</button>
         <button type="button" disabled={!lead?.id || busy} onClick={()=>smsOpen?onSmsOpen(false):openSms()} style={{...smallBtn,color:gold}}>✉ {smsOpen?'Hide text message':'Send text message'}</button>
       </div>
@@ -163,7 +164,7 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
           I have verified this contact's permission to receive this text. This sends from our Android SIM.
         </label>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:10}}>
-          <button type="button" onClick={sendSms} disabled={!lead?.id || !consent || !text.trim() || smsSending} style={{...smallBtn,color:'#071c19',background:green,opacity:!consent?.55:1}}>{smsSending?'Sending…':'Send text now'}</button>
+          <button type="button" onClick={sendSms} disabled={!lead?.id || !consent || !text.trim() || smsSending} style={{...smallBtn,color:'#071c19',background:green,opacity:!consent ? 0.55 : 1}}>{smsSending?'Sending…':'Send text now'}</button>
           {smsResult?.messageId && <button type="button" onClick={checkStatus} style={smallBtn}>Check delivery · {smsResult.status}</button>}
         </div>
       </div>}

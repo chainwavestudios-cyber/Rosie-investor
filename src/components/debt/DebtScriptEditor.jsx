@@ -92,13 +92,16 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const [sendingEmail, setSendingEmail] = useState(false);
   const [aiInputRunning, setAiInputRunning] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
+  const [emailRequest, setEmailRequest] = useState(0);
   const [liveLead, setLiveLead] = useState(lead || null);
   useEffect(() => { setLiveLead(lead || null); }, [lead]);
   const onContactSaved = useCallback((updates) => { setLiveLead(prev => prev ? { ...prev, ...updates } : prev); }, []);
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
-  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'teleprompt'); // 'edit' | 'teleprompt'
+  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'teleprompt');
+  // Reading is the safe entry state; edit controls are deliberate, never automatic.
+  useEffect(() => { setMode('teleprompt'); }, [username]); // eslint-disable-line react-hooks/exhaustive-deps // 'edit' | 'teleprompt'
   const textareaRef = useRef(null);
   const insertionRangeRef = useRef(null);
   const [editRequest, setEditRequest] = useState(0);
@@ -465,8 +468,8 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
             <>
             <ScriptContactDock lead={liveLead || lead} onSaved={onContactSaved}
               onSendEmail={sendCredsEmail} sendingEmail={sendingEmail}
-              smsOpen={smsOpen} onSmsOpen={setSmsOpen} />
-            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={lead} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: sendCredsEmail, sendingEmail, onSendText: () => setSmsOpen(true) }} />
+              smsOpen={smsOpen} onSmsOpen={setSmsOpen} emailRequest={emailRequest} />
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={liveLead || lead} onFieldSaved={onContactSaved} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: () => setEmailRequest(n => n + 1), sendingEmail, onSendText: () => setSmsOpen(true) }} />
             </>
           )}
         </div>

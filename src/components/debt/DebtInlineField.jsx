@@ -45,10 +45,22 @@ export default function DebtInlineField({ field, lead, onSaved }) {
     try {
       let next = value.trim();
       if (spec.money) {
-        next = Number(next.replace(/[^0-9.]/g, ''));
-        if (!Number.isFinite(next)) { setMsg('Enter a dollar amount'); setSaving(false); return; }
+        const amount = next.replace(/[$,\s]/g, '');
+        if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) > 100000000) {
+          setMsg('Enter a valid dollar amount'); setSaving(false); return;
+        }
+        next = Number(amount);
+      } else if (key === 'email' && next && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) {
+        setMsg('Enter a valid email address'); setSaving(false); return;
+      } else if (key === 'phone') {
+        const digits = next.replace(/\D/g, '');
+        if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) {
+          setMsg('Enter a valid US mobile number'); setSaving(false); return;
+        }
+        next = digits.length === 10 ? '+1' + digits : '+' + digits;
       }
       await base44.entities.DebtLead.update(lead.id, { [key]: next });
+      window.dispatchEvent(new CustomEvent('debt_script_contact_saved', { detail: { leadId: lead.id, updates: { [key]: next } } }));
       window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: [key] }));
       onSaved?.({ [key]: next });
       setValue(String(next));

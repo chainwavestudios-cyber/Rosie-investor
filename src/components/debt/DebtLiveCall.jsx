@@ -359,6 +359,23 @@ Agent line: "${firstAgentLines}"`,
     window.addEventListener('lead_autosaved', refresh);
     return () => window.removeEventListener('lead_autosaved', refresh);
   }, []);
+  // A deliberate Scripts-tab save is authoritative, including email. Do not let
+  // Live Call's unsaved-email guard overwrite or hide the saved script value.
+  useEffect(() => {
+    const syncScript = (event) => {
+      const { leadId, updates } = event.detail || {};
+      if (!leadId || leadRef.current?.id !== leadId || !updates) return;
+      if ('email' in updates) manualEmailDraftRef.current = { leadId: null, value: null };
+      setLead(previous => {
+        if (previous.id !== leadId) return previous;
+        const next = { ...previous, ...updates };
+        leadRef.current = next;
+        return next;
+      });
+    };
+    window.addEventListener('debt_script_contact_saved', syncScript);
+    return () => window.removeEventListener('debt_script_contact_saved', syncScript);
+  }, []);
   const { runFiller: runContactFiller } = useAIContactFiller({
     leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live',
     getScriptContent: () => scriptPositionRef.current?.content || '',
