@@ -23,7 +23,9 @@ export default async function saveCalendarAppointment(base44, body, authHeader, 
     else if (response.status !== 404 && response.status !== 410) throw new Error('Could not load the existing calendar appointment.');
   }
   const url = previous ? `${root}/${encodeURIComponent(previous.id)}?sendUpdates=none` : `${root}?sendUpdates=none`;
-  const event = { summary: title.trim(), start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, ...(!previous ? { description: `Lead: ${lead.firstName} ${lead.lastName}\nPhone: ${lead.phone || ''}\nEmail: ${lead.email || ''}` } : {}) };
+  const description = [String(body.description || '').trim(), `Lead: ${lead.firstName} ${lead.lastName}\nPhone: ${lead.phone || ''}\nEmail: ${lead.email || ''}`].filter(Boolean).join('\n\n');
+  const reminders = Array.isArray(body.reminders) ? body.reminders.filter(r => r && (r.method === 'email' || r.method === 'popup') && Number.isFinite(Number(r.minutes)) && Number(r.minutes) >= 0).slice(0,5).map(r => ({method:r.method,minutes:Math.round(Number(r.minutes))})) : [];
+  const event = { summary: title.trim(), start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, description, reminders: {useDefault:false,overrides:reminders} };
   const response = await request(url, { method: previous ? 'PATCH' : 'POST', body: JSON.stringify(event) }), saved = await response.json();
   if (!response.ok || !saved.id) throw new Error(saved.error?.message || 'Could not save the calendar event.');
   let updated;
