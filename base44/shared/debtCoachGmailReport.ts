@@ -45,16 +45,27 @@ async function authenticate(base44: any, body: any) {
   const token = String(body.sessionToken || '');
   if (!id || !token) return false;
   const user = await base44.asServiceRole.entities.DebtCoachUser.get(id).catch(() => null);
-  return !!user?.isActive && user.sessionToken === token && ['admin','super_admin'].includes(user.role);
+  return user?.isActive && user.sessionToken === token && ['admin', 'super_admin'].includes(user.role) ? user : null;
 }
 
 export default async function debtCoachGmailReport(base44: any, body: any): Promise<Response> {
   try {
-    if (!(await authenticate(base44, body))) return Response.json({ error: 'Forbidden' }, { status: 403 });
+    const admin = await authenticate(base44, body);
+    if (!admin) return Response.json({ error: 'Forbidden' }, { status: 403 });
+    const svc = base44.asServiceRole.entities;
+    if (body.reportAction === 'handleCoachHotLead') {
+      const recordId = String(body.recordId || '');
+      const record = recordId ? await svc.EngagementHotLead.get(recordId).catch(() => null) : null;
+      if (!record || record.system !== 'coach') return Response.json({ error: 'Coach hot-lead record not found' }, { status: 404 });
+      await svc.EngagementHotLead.update(recordId, {
+        handledAt: body.handled === false ? null : new Date().toISOString(),
+        handledBy: body.handled === false ? '' : admin.username || '',
+      });
+      return Response.json({ success: true, recordId });
+    }
 
     const days = Math.max(1, Math.min(180, Number(body.days) || 30));
     const since = new Date(Date.now() - days * 86400000).toISOString();
-    const svc = base44.asServiceRole.entities;
     const [templatePage, messagePage, eventPage] = await Promise.all([
       readAll(svc.DebtEmailTemplate, {}, 'sortOrder'),
       readAll(svc.EmailMessage, { contactKind: 'debt_lead', created_date: { $gte: since } }, '-created_date'),
@@ -103,6 +114,36 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: automated(e.userAgent) ? 'proxy_or_automated' : 'unverified_nonproxy' })),
       };
     }).sort((a: any, b: any) => clock(b.sentAt) - clock(a.sentAt));
+
+    // Contact cards are resolved exclusively from DebtLead, never FronterLead.
+    const contactIds = unique(timeline.map((m: any) => String(m.contactId || '')));
+    const leadDirectory: Record<string, any> = {};
+    for (let i = 0; i < contactIds.length; i += 25) {
+      const chunk = contactIds.slice(i, i + 25);
+      const leadPage = await svc.DebtLead.filter({ id: { $in: chunk } }, { limit: chunk.length }).catch(() => []);
+      for (const lead of rows(leadPage)) {
+        leadDirectory[String(lead.id)] = {
+          leadId: String(lead.id), name: [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim(),
+          phone: lead.phone || '', email: lead.email || '', assignedTo: lead.debtCoachOwner || '',
+          status: lead.status || '', onFile: true, source: 'coach',
+        };
+      }
+    }
+
+    // Preserve the historical hot-lead ledger. Report reads do not modify it.
+    const priorHot = await svc.EngagementHotLead.filter({ system: 'coach' }, { sort: '-lastEnteredAt', limit: 200 }).catch(() => []);
+    const hotHistory = rows(priorHot).map((r: any) => ({
+      id: r.id, leadId: String(r.leadId || ''), source: 'coach',
+      name: leadDirectory[String(r.leadId)]?.name || r.name || '',
+      phone: leadDirectory[String(r.leadId)]?.phone || r.phone || '',
+      email: leadDirectory[String(r.leadId)]?.email || r.email || '',
+      firstHotAt: r.firstHotAt || r.created_date, lastEnteredAt: r.lastEnteredAt || r.firstHotAt || r.created_date,
+      lastHotAt: r.lastHotAt || r.lastEnteredAt || r.created_date,
+      hotSessions: Number(r.hotSessions || 1), peakScore: Number(r.peakScore || 0),
+      lastScore: Number(r.lastScore || 0), stillHot: r.wasHot === true,
+      handledAt: r.handledAt || null, handledBy: r.handledBy || '',
+      action: r.action || '', reasons: (() => { try { const v = JSON.parse(r.reasonsJson || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
+    }));
 
     const byTemplate = new Map<string, any>();
     for (const t of templates.values()) {
@@ -154,7 +195,7 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         proxyOnlyOpens: timeline.filter((x: any) => x.proxyOnly).length,
         highIntent: unique(timeline.filter((x: any) => x.tier === 'high').map((x: any) => String(x.contactId))).length },
       templates: [...byTemplate.values()].sort((a, b) => b.sent - a.sent),
-      timeline, legacyHistory,
+      leadDirectory, hotHistory, timeline, legacyHistory,
     });
   } catch (error: any) {
     console.error('[debtCoachGmailReport]', error?.message);
