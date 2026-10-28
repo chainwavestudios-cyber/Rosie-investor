@@ -53,7 +53,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
   };
 
   const save = async () => {
-    if (!lead.firstName || !lead.lastName) return;
+    if (!lead.firstName || !lead.lastName) return false;
     setSaving(true);
     try {
       const payload = {
@@ -78,8 +78,18 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
       }
       setSaved(true); setTimeout(() => setSaved(false), 2000);
       onLeadSaved?.(saved);
+      setSaving(false);
+      return true;
     } catch (e) { alert('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
+    return false;
+  };
+
+  const launchFromCard = async (mode) => {
+    if (!lead.id || saving) return;
+    // Keep freshly entered customer data when switching into Live Call.
+    if (!(await save())) return;
+    window.dispatchEvent(new CustomEvent('debt_launch_live', { detail: { leadId: lead.id, mode } }));
   };
 
   const CARD_TABS = [['activity', '📋 Activity'], ['overview', 'Overview'], ['transcript', '📋 Transcript'], ['debt', 'Debt Details'], ['fulllist', '📋 Full List'], ['ledger', '💳 Debt Ledger'], ['nonaccepted', '❌ Non-Accepted'], ['employment', 'Employment'], ['notes', 'Notes'], ['ai', '🤖 AI Profile']];
@@ -120,7 +130,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
 
       {/* Live Call bar */}
       <div className="dcc-contact-callbar" style={{ padding: '0 18px 10px' }}>
-        <DebtCallBar lead={lead} />
+        <DebtCallBar lead={lead} onLaunch={launchFromCard} />
       </div>
 
       {/* Tabs */}
