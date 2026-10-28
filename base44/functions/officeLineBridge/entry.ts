@@ -10,7 +10,6 @@ import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 
 const OFFICE = toE164(Deno.env.get('OFFICE_MAIN_LINE') || '+16193530919');
 const FROM = toE164(Deno.env.get('TWILIO_FROM_NUMBER') || '');
-const HOUR = 3600000;
 const base64 = (data:string) => btoa(data).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const keyPromise = crypto.subtle.importKey('raw',new TextEncoder().encode(AUTH_TOKEN),'HMAC',{hash:'SHA-256'},false,['sign','verify']);
 async function sign(data:any):Promise<string> {
@@ -77,7 +76,7 @@ export default async function(req:Request):Promise<Response>{
     const participantPath=conferenceSid&&data.clientSid?'/Conferences/'+conferenceSid+'/Participants/'+data.clientSid+'.json':'';
     let participant:any=null;
     if(participantPath&&clientAnswered) participant=await twilioFetch(participantPath).catch(()=>null);
-    const merged=clientAnswered&&(!!participant || data.mergedRequested===true);
+    const merged=clientAnswered&&!!participant;
     if(action==='status')return respond({ok:true,officeStatus,clientStatus,clientAnswered,merged,conferenceReady:!!conferenceSid,
       officeNumber:OFFICE,clientName:[lead.firstName,lead.lastName].filter(Boolean).join(' ')});
     if(action==='contact'){
@@ -101,7 +100,8 @@ export default async function(req:Request):Promise<Response>{
     }
     if(action==='merge'){
       if(officeStatus!=='in-progress'||!conferenceSid||!data.clientSid||!clientAnswered)return respond({error:'Both office and customer lines must be connected before merge.'},409);
-      if(merged)return respond({ok:true,merged:true});
+      if(merged)return respond({ok:true,merged:true,bridgeToken:body.bridgeToken});
+      if(data.mergedRequested)return respond({error:'Merge is already in progress. Check the office conference before retrying.'},409);
       // Only an explicit operator Merge moves the customer from the isolated
       // waiting conference into the active office conference.
       const joinTwiML='<Response><Dial><Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="false">'+xmlEscape(data.bridgeId)+'</Conference></Dial></Response>';
