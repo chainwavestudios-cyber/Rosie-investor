@@ -58,6 +58,9 @@ const COMMON_PARAMS = 'smart_format=true&punctuate=true&numerals=true&sentiment=
 
 const SILENT_CUSTOMER_AFTER_MS = 30000; // how long a dead customer feed is given before switching
 const MIN_MIC_LINES = 3;                // mic speech needed before the switch is trusted
+const WATCHDOG_CHECKS = 3;              // a quiet opening must not use up the one and only check
+const MAX_RECONNECTS = 20;              // a socket that drops mid-call reopens instead of going quiet
+const RECONNECT_DELAY_MS = 1200;
 
 /**
  * Opens the live transcript feed.
@@ -85,6 +88,9 @@ export async function startLiveFeed({
   let processor = null;
   let watchdog = null;
   let cancelPreviousBuffers = () => {};
+  let closedByUser = false;
+  let reconnectsLeft = MAX_RECONNECTS;
+  let reconnectTimer = null;
   const feedCounts = { mic: 0, customer: 0 };
   const dgRoleMap = new Map(); // Deepgram speaker id → 0 agent / 1 customer
 
@@ -140,6 +146,9 @@ export async function startLiveFeed({
       if (liveWs !== ws) return;
       wsEverOpen = true;
       onStatus('connected');
+      // Refill the retry budget only once the connection has proved it holds,
+      // so a socket that opens and instantly drops cannot loop forever.
+      setTimeout(() => { if (!closedByUser && liveWs === ws) reconnectsLeft = MAX_RECONNECTS; }, 10000);
       onOpen?.();
 
       if (mode === 'dual') {
@@ -261,8 +270,21 @@ export async function startLiveFeed({
     };
 
     ws.onclose = (e) => {
-      // Flush any pending speech segments before the final save
+      // Flush any pending speech segments before anything else.
       Object.keys(segBuf).forEach(k => emitSegment(Number(k)));
+      // The call is still going, so a socket that closes by itself must not end
+      // the transcript. Reopen the same feed instead of silently going quiet —
+      // this is what used to lose the rest of a live call.
+      if (!closedByUser && reconnectsLeft > 0) {
+        reconnectsLeft--;
+        onStatus('reconnecting');
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          if (!closedByUser && liveWs === ws) open(feedMode);
+        }, RECONNECT_DELAY_MS);
+        return;
+      }
       onStatus('idle');
       onSocketClosed?.(e);
       if (e.code !== 1000 && e.code !== 1005) onError(`Deepgram disconnected (code ${e.code}). ${e.reason || ''}`);
@@ -277,20 +299,43 @@ export async function startLiveFeed({
 
   open(feedMode);
 
-  if (dualMode) {
+  // A quiet opening (nobody talks for 30s) must not burn the only check, so the
+  // watch keeps re-arming until the customer channel proves it carries the call.
+  let watchdogChecks = 0;
+  const armWatchdog = () => {
+    if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(() => {
-      if (!liveWs) return;
-      if (feedCounts.customer !== 0 || feedCounts.mic < MIN_MIC_LINES) return;
-      // Only the mic is carrying the call — separate the voices by speaker.
-      feedMode = 'single';
-      open('single');
+      watchdog = null;
+      if (closedByUser || !liveWs) return;
+      watchdogChecks++;
+      if (feedMode === 'dual' && feedCounts.customer === 0 && feedCounts.mic >= MIN_MIC_LINES) {
+        // Only the mic is carrying the call — separate the voices by speaker.
+        feedMode = 'single';
+        open('single');
+        return;
+      }
+      if (feedMode === 'dual' && watchdogChecks < WATCHDOG_CHECKS) armWatchdog();
     }, SILENT_CUSTOMER_AFTER_MS);
-  }
+  };
+  if (dualMode) armWatchdog();
+
+  // A backgrounded tab can suspend the audio graph, which stops the transcript
+  // with no error at all. Wake it the moment the operator comes back.
+  const resumeAudio = () => {
+    if (closedByUser) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  };
+  document.addEventListener('visibilitychange', resumeAudio);
+  window.addEventListener('focus', resumeAudio);
 
   return {
     ctx,
     close() {
+      closedByUser = true;
       if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      document.removeEventListener('visibilitychange', resumeAudio);
+      window.removeEventListener('focus', resumeAudio);
       if (liveWs) { try { liveWs.close(); } catch {} }
       if (processor) { try { processor.disconnect(); } catch {} processor = null; }
     },

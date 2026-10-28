@@ -8,9 +8,9 @@
 // over the caller their mic is clearly louder than the playback and is kept.
 const BLOCK = 512;        // 32 ms at 16 kHz
 const FLOOR = 0.012;      // reference level below which nobody is on the speaker
-const DUCK_HARD = 0.08;   // mic is essentially just bleed
-const DUCK_SOFT = 0.45;   // mic is only slightly above the bleed floor
-const KEEP_ABOVE = 3.2;   // mic this many times louder than expected bleed = real speech
+const DUCK_HARD = 0.45;   // mic is essentially just bleed — still left audible to Deepgram
+const DUCK_SOFT = 0.8;    // mic is only slightly above the bleed floor
+const KEEP_ABOVE = 2.6;   // mic this many times louder than expected bleed = real speech
 
 function rms(arr, from, len) {
   let sum = 0;

@@ -2463,9 +2463,9 @@ ${recentText}`,
           <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{phaseLabel}</span>
         </span>
         {phase === 'live' && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: dgStatus === 'connected' ? 'rgba(74,222,128,0.12)' : dgStatus === 'connecting' ? 'rgba(245,158,11,0.12)' : dgStatus === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(107,114,128,0.12)', border: `1px solid ${dgStatus === 'connected' ? 'rgba(74,222,128,0.3)' : dgStatus === 'connecting' ? 'rgba(245,158,11,0.3)' : dgStatus === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(107,114,128,0.2)'}`, borderRadius: '20px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', animation: dgStatus === 'connecting' ? 'pulse 0.8s infinite' : 'none' }} />
-            <span style={{ color: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>Deepgram: {dgStatus}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: dgStatus === 'connected' ? 'rgba(74,222,128,0.12)' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'rgba(245,158,11,0.12)' : dgStatus === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(107,114,128,0.12)', border: `1px solid ${dgStatus === 'connected' ? 'rgba(74,222,128,0.3)' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'rgba(245,158,11,0.3)' : dgStatus === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(107,114,128,0.2)'}`, borderRadius: '20px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', animation: dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'pulse 0.8s infinite' : 'none' }} />
+            <span style={{ color: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>Deepgram: {dgStatus}</span>
           </span>
         )}
         <span style={{ color: '#6b7280', fontSize: '11px' }}>{transcript.length} lines</span>
