@@ -131,7 +131,7 @@ export default function DebtEmailCampaignAnalytics(){
      const percent=milestone.percent;
      const allLinksAndAudio=milestone.goldListener&&flags.bbb&&flags.trustpilot&&flags.company;
      const eliteJourney=allLinksAndAudio&&flags.calendar;
-     const val={...milestone,flags,percent,allLinksAndAudio,eliteJourney,hotLead:n(r.clickCount)>1||!!r.qualifyVisitAt,score:Math.min(100,Math.round((percent>=98?22:percent>=75?16:percent>=25?8:percent>0?3:0)+(flags.bbb?15:0)+(flags.trustpilot?15:0)+(flags.company?15:0)+(flags.calendar?18:0)+Math.min(15,n(r.clickCount)*3)+(r.openedAt?4:0)+Math.min(6,Math.max(0,n(r.openCount)-1)))))};
+     const val={...milestone,flags,percent,allLinksAndAudio,eliteJourney,hotLead:n(r.clickCount)>1||!!r.qualifyVisitAt,score:Math.min(100,Math.round((percent>=98?22:percent>=75?16:percent>=25?8:percent>0?3:0)+(flags.bbb?15:0)+(flags.trustpilot?15:0)+(flags.company?15:0)+(flags.calendar?18:0)+Math.min(15,n(r.clickCount)*3)+(r.openedAt?4:0)+Math.min(6,Math.max(0,n(r.openCount)-1))))};
      return [r.id,val];
    }));
  },[rows,gmailSends]);
