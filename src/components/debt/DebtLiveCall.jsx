@@ -30,7 +30,6 @@ import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useObjectionEngine } from '@/hooks/useObjectionEngine';
 import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
-import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
@@ -240,7 +239,6 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // The client profile is always opened explicitly by the agent, never by timer/name detection.
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
-  const [showEmergencyScripts, setShowEmergencyScripts] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username, 9998, false);
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username, 9998, false);
@@ -2021,10 +2019,6 @@ ${recentText}`,
         e.preventDefault();
         handleEndCallClickRef.current?.();
       }
-      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
-        e.preventDefault();
-        setShowEmergencyScripts(p => !p);
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -2740,8 +2734,6 @@ ${recentText}`,
       {/* Objection Engine — live popup when a high-priority objection is detected */}
       <ObjectionPopup objection={activeObjection} onDismiss={dismissObjection} startMinimized />
 
-      {/* Emergency Scripts — Alt+E, overlays all other windows */}
-      <EmergencyScripts open={showEmergencyScripts} onClose={() => setShowEmergencyScripts(false)} />
     </div>
   );
 }
