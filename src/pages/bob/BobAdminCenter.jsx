@@ -33,6 +33,7 @@ export default function BobAdminCenter({
  const [newOrg,setNewOrg]=useState({name:'',ownerEmail:'',industry:'General sales',seatLimit:5});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [inquiries,setInquiries]=useState([]),[audit,setAudit]=useState([]),[activityScope,setActivityScope]=useState('organization');
+ const [diagnostics,setDiagnostics]=useState(null);
  const allOrganizations=ctx?.organizations||[];
  const counts=useMemo(()=>({
   organizations:allOrganizations.length,
@@ -58,6 +59,11 @@ export default function BobAdminCenter({
   const data=await api('adminActivity',{organizationId:org?.id||'',global});
   setAudit(data.events||[]);
  };
+ useEffect(()=>{
+  let active=true;
+  if(isPlatform)api('systemDiagnostics').then(r=>{if(active)setDiagnostics(r.integrations||null)}).catch(()=>{});
+  return()=>{active=false};
+ },[isPlatform]);
  useEffect(()=>{
   let active=true;
   if(isPlatform)api('listInquiries').then(x=>{if(active)setInquiries(x.inquiries||[])}).catch(()=>{});
@@ -160,6 +166,23 @@ export default function BobAdminCenter({
       <div className="bob-table-wrap"><table className="bob-table"><thead><tr><th>Contact</th><th>Company</th><th>BOB seats</th><th>Live products</th><th>Message</th><th>Follow-up status</th></tr></thead><tbody>
        {inquiries.map(q=><tr key={q.id}><td>{q.contactName}<div className="bob-tiny">{q.email}</div></td><td>{q.company||'—'}</td><td>{q.seatEstimate||'—'}</td><td>{(()=>{try{return addonText(JSON.parse(q.requestedAddons||'[]'))}catch{return 'BOB only'}})()}</td><td style={{maxWidth:240,whiteSpace:'normal'}}>{q.message||'—'}</td><td><select className="bob-input" style={{minWidth:140}} disabled={busy} value={q.status||'new'} onChange={e=>updateInquiry(q.id,e.target.value)}>{['new','contacted','qualified','converted','closed'].map(v=><option key={v} value={v}>{v}</option>)}</select></td></tr>)}
       </tbody></table></div>}
+    </div>
+    <div className="bob-panel"><div className="bob-panel-title"><h3><ShieldCheck size={17} style={{display:'inline',marginRight:8,color:'#d7b978'}}/> Commercial launch readiness</h3><span className="bob-pill">{diagnostics?.stripeMode||'Checking'} billing environment</span></div>
+      <p className="bob-tiny">This is a server-side configuration checklist, not a substitute for security testing, subscription reconciliation or browser-based audio acceptance tests.</p>
+      {diagnostics?<div className="bob-feature-grid" style={{marginTop:17}}>{[
+        ['Stripe API connected',diagnostics.stripeSecretConfigured],
+        ['Per-seat recurring Stripe price',diagnostics.stripePriceConfigured],
+        ['Verified webhook signing secret',diagnostics.stripeWebhookConfigured],
+        ['Default Deepgram credential',diagnostics.deepgramDefaultConfigured],
+        ['Customer key encryption',diagnostics.customerKeyEncryptionConfigured],
+        ['Secure live audio relay',diagnostics.liveMonitorConfigured]
+      ].map(([name,enabled])=><div className="bob-stat" key={name} style={{padding:15}}>
+        <span>{name}</span><div style={{marginTop:9,fontSize:13,color:enabled?'#b2e8d0':'#e2ba83',fontWeight:700}}>
+          {enabled?'Configured':'Needs setup'}</div>
+      </div>)}</div>:<div className="bob-empty">Integration configuration status is unavailable until this version of the backend is published.</div>}
+      <div className="bob-message" style={{marginTop:18}}>Paid BOB checkout must remain disabled until a recurring per-seat Stripe price, signed webhooks, test purchases and production credentials are validated. Live audio coaching requires real multi-user browser testing and consent verification.</div>
+      <div style={{marginTop:13,display:'flex',gap:11,flexWrap:'wrap'}}><Link to="/bob/security" className="bob-btn bob-btn-ghost">Customer data protection design</Link>
+        <Link to="/bob/inquire" className="bob-btn bob-btn-ghost">Public sales inquiry page</Link></div>
     </div>
     <div className="bob-panel"><div className="bob-panel-title"><h3>Platform operating overview</h3></div><div className="bob-dashboard-grid" style={{gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))'}}>
       <div className="bob-stat"><span>Suspended</span><strong>{counts.suspended}</strong></div>

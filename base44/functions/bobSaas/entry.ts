@@ -91,6 +91,26 @@ const secureGateway = async (req: Request) => {
     if(!org||!(isPlatformOrg||['owner','admin'].includes(member?.role)))
        throw new Error('Organization settings permission required.');
   };
+  if(action==='systemDiagnostics'){
+    if(!isPlatformAdmin)return bad('Platform administrator access required.',403);
+    const stripeSecret=Deno.env.get('STRIPE_SECRET_KEY')||'';
+    const stripePrice=Deno.env.get('BOB_STRIPE_PRICE_PER_SEAT')||'';
+    const webhook=Deno.env.get('BOB_STRIPE_WEBHOOK_SECRET')||'';
+    const encryption=Deno.env.get('BOB_KEY_ENCRYPTION_SECRET')||'';
+    const voice=Deno.env.get('DEEPGRAM2_API_KEY')||Deno.env.get('deepgram2')||'';
+    const liveKitUrl=Deno.env.get('LIVEKIT_URL')||'';
+    const liveKitKey=Deno.env.get('LIVEKIT_API_KEY')||'';
+    const liveKitSecret=Deno.env.get('LIVEKIT_API_SECRET')||'';
+    return Response.json({success:true,integrations:{
+      stripeSecretConfigured:!!stripeSecret,
+      stripeMode:stripeSecret.startsWith('sk_live_')?'live':stripeSecret?'test':'not_configured',
+      stripePriceConfigured:/^price_[a-zA-Z0-9]+$/.test(stripePrice),
+      stripeWebhookConfigured:webhook.startsWith('whsec_'),
+      deepgramDefaultConfigured:!!voice,
+      customerKeyEncryptionConfigured:encryption.length>=32,
+      liveMonitorConfigured:!!liveKitUrl&&!!liveKitKey&&!!liveKitSecret
+    },note:'Configuration flags are not security certification, a test charge, or a live voice smoke test.'});
+  }
   if (action === 'context') {
     const accessible = await Promise.all(memberships.map(async (m:any) => {
       const o=await db.BOBOrganization.get(m.organizationId).catch(()=>null);
