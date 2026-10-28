@@ -101,7 +101,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const activeRef = useRef(null);
   const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'teleprompt');
   // Reading is the safe entry state; edit controls are deliberate, never automatic.
-  useEffect(() => { setMode('teleprompt'); }, [username]); // eslint-disable-line react-hooks/exhaustive-deps // 'edit' | 'teleprompt'
+  useEffect(() => { setMode('teleprompt'); }, [username, setMode]);
   const textareaRef = useRef(null);
   const insertionRangeRef = useRef(null);
   const [editRequest, setEditRequest] = useState(0);
