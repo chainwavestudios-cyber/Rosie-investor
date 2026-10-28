@@ -31,12 +31,12 @@ const recipientStatuses=[['all','All'],['sent','Sent'],['pending','Pending'],['f
 export default function DebtEmailCampaignAnalytics(){
  const {sessionUserId,sessionToken,isAdmin,user}=useDebtCoachAuth();
  const [campaigns,setCampaigns]=useState([]),[campaignCursor,setCampaignCursor]=useState(null),[campaignSearch,setCampaignSearch]=useState(''),[status,setStatus]=useState('all');
- const [activeId,setActiveId]=useState(''),[report,setReport]=useState(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [activeId,setActiveId]=useState(()=>{try{return new URLSearchParams(window.location.search).get('campaignId')||''}catch{return ''}}),[report,setReport]=useState(null),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [rows,setRows]=useState([]),[recCursor,setRecCursor]=useState(null),[recOffset,setRecOffset]=useState(0),[recMore,setRecMore]=useState(false);
  const [recipientStatus,setRecipientStatus]=useState('all'),[search,setSearch]=useState(''),[searchValue,setSearchValue]=useState(''),[rowsBusy,setRowsBusy]=useState(false),[rowsError,setRowsError]=useState(''),[searchLimited,setSearchLimited]=useState(false);
  const [detailsOpen,setDetailsOpen]=useState(true),[selected,setSelected]=useState(null),[selectedDetails,setSelectedDetails]=useState(null),[detailBusy,setDetailBusy]=useState(false);
  const [leadCard,setLeadCard]=useState(null),[exporting,setExporting]=useState(false),[exportNote,setExportNote]=useState('');
- const selectedRef=useRef('');
+ const selectedRef=useRef(activeId);
  const auth=useMemo(()=>({sessionUserId,sessionToken}),[sessionUserId,sessionToken]);
  const api=useCallback(async(mode,args={})=>{
    const res=await base44.functions.invoke('debtEmailCampaignView',{mode,...auth,...args});
