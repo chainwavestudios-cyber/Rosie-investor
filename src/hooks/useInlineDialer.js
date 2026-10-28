@@ -90,10 +90,9 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
         if (outs.length > 0 && !outputDeviceId) setOutputDeviceId(outs[0].deviceId);
       }).catch(() => {});
     };
-    // Request mic permission first so labels appear
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(s => { s.getTracks().forEach(t => t.stop()); enumerate(); })
-      .catch(() => enumerate());
+    // Passive enumeration only. Live Call must not seize the microphone
+    // just because an agent opened the dashboard. SDK asks on explicit Dial.
+    if (navigator.mediaDevices?.enumerateDevices) enumerate();
   }, []);
 
   useEffect(() => {
