@@ -1,0 +1,70 @@
+{
+  "name": "BOBRecording",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organizationId"
+    },
+    "traineeEmail": {
+      "type": "string",
+      "title": "traineeEmail"
+    },
+    "callId": {
+      "type": "string",
+      "title": "callId"
+    },
+    "fileUri": {
+      "type": "string",
+      "title": "fileUri"
+    },
+    "encryptedIv": {
+      "type": "string",
+      "title": "encryptedIv"
+    },
+    "sizeBytes": {
+      "type": "number",
+      "title": "sizeBytes"
+    },
+    "durationSeconds": {
+      "type": "number",
+      "title": "durationSeconds"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    },
+    "status": {
+      "type": "string",
+      "title": "status"
+    }
+  },
+  "required": [
+    "organizationId",
+    "traineeEmail",
+    "callId",
+    "fileUri"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

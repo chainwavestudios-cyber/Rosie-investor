@@ -247,10 +247,12 @@ const secureGateway = async (req: Request) => {
   if(action==='presenceStart'){
     requireOrg();
     const sessionToken=crypto.randomUUID();
-    await db.BOBPresence.create({organizationId:org.id,traineeEmail:email,status:'live',
+    const presence=await db.BOBPresence.create({organizationId:org.id,traineeEmail:email,status:'live',
       stage:str(data.stage,120),sessionToken,startedAt:now(),lastHeartbeat:now(),
-      recordingEnabled:false,liveMonitorConsent:data.liveMonitorConsent===true && !!org.allowLiveMonitoring});
-    return Response.json({success:true,sessionToken});
+      recordingEnabled:data.recordingEnabled===true && !!org.allowSessionRecording,
+      liveMonitorConsent:data.liveMonitorConsent===true && !!org.allowLiveMonitoring,
+      coachTalkConsent:data.coachTalkConsent===true && !!org.allowLiveMonitoring});
+    return Response.json({success:true,sessionToken,presenceId:presence.id});
   }
   if(action==='presenceHeartbeat'||action==='presenceEnd'){
     requireOrg();
@@ -272,8 +274,9 @@ const secureGateway = async (req: Request) => {
     const cutoff=Date.now()-90000;
     return Response.json({success:true,sessions:(rows||[]).filter((r:any)=>r.status==='live'&&
       new Date(r.lastHeartbeat).getTime()>cutoff).map((r:any)=>({
-      traineeEmail:r.traineeEmail,stage:r.stage,startedAt:r.startedAt,
-      lastHeartbeat:r.lastHeartbeat,liveMonitorConsent:r.liveMonitorConsent
+      id:r.id,traineeEmail:r.traineeEmail,stage:r.stage,startedAt:r.startedAt,
+      lastHeartbeat:r.lastHeartbeat,liveMonitorConsent:r.liveMonitorConsent,coachTalkConsent:r.coachTalkConsent,
+      recordingEnabled:r.recordingEnabled
     }))});
   }
   // AI-assisted workflow design. Customer actively submits instructions for a
@@ -332,6 +335,39 @@ const secureGateway = async (req: Request) => {
         scriptId:'',actions:(Array.isArray(stage.actions)?stage.actions:[]).filter((a:string)=>allowedActions.includes(a)).slice(0,12)
       }))
     }});
+  }
+  // Recording files are encrypted with the same non-exportable customer browser
+  // key BEFORE private upload. A signed URL contains encrypted bytes only.
+  if(action==='recordingSaved'){
+    requireOrg();
+    if(!org.allowSessionRecording)return bad('Organization recording policy is disabled.',403);
+    const uri=str(data.fileUri,500),callId=str(data.callId,100);
+    if(!uri||!callId||!str(data.encryptedIv,100))return bad('Recording metadata missing.');
+    // The client uploads ciphertext. This metadata never contains a decryption key.
+    const presenceRows=await db.BOBPresence.filter({organizationId:org.id,sessionToken:str(data.presenceToken,120)});
+    const consented=(presenceRows||[]).some((r:any)=>r.traineeEmail===email&&r.recordingEnabled===true);
+    if(!consented)return bad('Recording consent was not recorded for this session.',403);
+    await db.BOBRecording.create({organizationId:org.id,traineeEmail:email,callId,fileUri:uri,
+      encryptedIv:str(data.encryptedIv,100),sizeBytes:Math.max(0,Number(data.sizeBytes)||0),
+      durationSeconds:Math.max(0,Number(data.durationSeconds)||0),createdAt:now(),status:'ready'});
+    return Response.json({success:true});
+  }
+  if(action==='recordings'){
+    requireManagement();
+    const rows=await db.BOBRecording.filter({organizationId:org.id},'-created_date',100);
+    return Response.json({success:true,recordings:rows.map((r:any)=>({
+      id:r.id,traineeEmail:r.traineeEmail,callId:r.callId,createdAt:r.createdAt,
+      durationSeconds:r.durationSeconds,sizeBytes:r.sizeBytes,status:r.status
+    }))});
+  }
+  if(action==='recordingPlayback'){
+    requireManagement();
+    const row=await db.BOBRecording.get(str(data.recordingId,120)).catch(()=>null);
+    if(!row||row.organizationId!==org.id)return bad('Recording not found.',404);
+    const result=await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+      file_uri:row.fileUri,expires_in:180
+    });
+    return Response.json({success:true,encryptedUrl:result.signed_url,iv:row.encryptedIv});
   }
   if (action==='setDeepgramKey') {
     requireAdmin();

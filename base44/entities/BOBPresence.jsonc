@@ -41,6 +41,10 @@
     "liveMonitorConsent": {
       "type": "boolean",
       "title": "liveMonitorConsent"
+    },
+    "coachTalkConsent": {
+      "type": "boolean",
+      "title": "Trainee consents to two-way coaching audio"
     }
   },
   "required": [
