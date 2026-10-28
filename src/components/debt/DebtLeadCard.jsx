@@ -2,7 +2,7 @@
  * DebtLeadCard.jsx — Debt settlement lead contact card for live calls.
  * Shows debt-specific fields + AI-detected info from the call (debt amount, creditors, etc.).
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import DebtCallBar from '@/components/debt/DebtCallBar';
