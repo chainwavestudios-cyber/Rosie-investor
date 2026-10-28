@@ -39,6 +39,7 @@ export function composeGmailIntelligence(report) {
     p.audioBestPercent = Math.max(Number(p.audioBestPercent || 0), Number(send.audioBestPercent || 0));
     p.audioCompleted = !!p.audioCompleted || !!send.audioCompleted;
     p.calendarOpened = !!p.calendarOpened || !!send.calendarOpened;
+    p.websiteClicked = !!p.websiteClicked || !!send.websiteClicked;
     p.opens += Number(send.nonProxyOpens || 0);
     p.proxyOpens += Number(send.proxyOpens || 0);
     p.lastSentAt = mostRecent(p.lastSentAt, send.sentAt);
@@ -63,23 +64,27 @@ export function composeGmailIntelligence(report) {
 
   const leads = [...people.values()].map((p) => {
     const links = p.clickedUrls.size;
-    const clickFamilies = p.clickTemplates.size;
-    const score = Math.min(100,
-      (p.opens ? 3 : 0) + Math.min(Math.max(p.opens - 1, 0), 2) * 2 +
-      Math.min(links, 4) * 22 + (p.qualifyVisits ? 35 : 0) +
-      (clickFamilies > 1 ? 10 : 0));
-    const actionTaken = links > 0 || p.qualifyVisits > 0;
-    const hotLead = score >= 60 && actionTaken;
-    const tier = hotLead ? 'hot' : actionTaken ? 'engaged' : p.opens ? 'warming' : 'cold';
+    const audioBest = Number(p.audioBestPercent || 0);
+    const audioPoints = audioBest >= 98 ? 22 : audioBest >= 75 ? 16 : audioBest >= 25 ? 8 : audioBest >= 5 ? 3 : 0;
+    const score = Math.min(100, (p.opens ? 3 : 0) + Math.min(links, 4) * 12 + (p.qualifyVisits ? 25 : 0)
+      + audioPoints + (p.calendarOpened ? 15 : 0) + (p.websiteClicked ? 8 : 0));
+    const corroborated = !!p.qualifyVisits || !!p.calendarOpened || audioBest >= 75;
+    const active = links > 0 || !!p.qualifyVisits || audioBest >= 5 || !!p.calendarOpened || !!p.websiteClicked;
+    const hotLead = score >= 60 && corroborated;
+    const tier = hotLead ? 'hot' : active ? 'engaged' : p.opens ? 'warming' : 'cold';
     const reasons = [
-      links ? links + ' distinct link' + (links === 1 ? '' : 's') + ' clicked' : '',
+      links ? links + ' distinct tracked link destination' + (links === 1 ? '' : 's') + ' (visitor unverified)' : '',
+      audioBest >= 5 ? Math.round(audioBest) + '% estimated audio playback' : '',
+      p.calendarOpened ? 'Calendar opened' : '',
+      p.websiteClicked ? 'Company website opened from welcome page' : '',
       p.qualifyVisits ? p.qualifyVisits + ' tracked qualification visit' + (p.qualifyVisits === 1 ? '' : 's') : '',
       p.opens ? p.opens + ' non-proxy open pixel' + (p.opens === 1 ? '' : 's') : '',
       p.proxyOpens ? p.proxyOpens + ' proxy/automated open' + (p.proxyOpens === 1 ? '' : 's') + ' excluded from score' : '',
     ].filter(Boolean);
     const action = p.qualifyVisits ? 'Review qualification-page visit and contact' :
-      links >= 2 ? 'Prioritize a personal follow-up — multiple links clicked' :
-      links ? 'Review clicked link and follow up personally' :
+      hotLead ? 'High cross-channel engagement — prioritize personal follow-up' :
+      links >= 2 ? 'Review tracked links; consider a personal follow-up' :
+      links ? 'Review recorded link destination and follow up personally' :
       p.opens ? 'Nurture: possible view; no verified buying action' : 'No tracked engagement yet';
     const { clickedUrls, clickTemplates, ...base } = p;
     return { ...base, score, hotLead, tier, reasons, action, linkKeys: [...clickedUrls],
