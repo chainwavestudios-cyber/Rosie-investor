@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BookLock, FileText, FileUp, KeyRound, Lock, LockKeyhole, ShieldCheck, Trash2, Unlock } from 'lucide-react';
+import { BookLock, FileUp, KeyRound, Lock, LockKeyhole, ShieldCheck, Trash2, Unlock } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth/mammoth.browser';
 import { decryptCustomerContent, encryptCustomerContent, unlockOrganizationKey, createKeyVerifier, verifyOrganizationKey } from '@/lib/bobKnowledgeCrypto';

@@ -218,7 +218,9 @@ function findDirectHit(question: string, kbEntries: any[]): any | null {
       const aScore    = scoreEntry(qLower, words, e);
       return { ...e, coverage, aScore };
     })
-    .filter((e: any) => e.coverage >= 0.5 && e.aScore >= 2)
+    // Automatic zero-latency answers need a strong match. A weak semantic
+    // match belongs in the grounded AI path, not an incorrect instant answer.
+    .filter((e: any) => e.coverage >= 0.75 && e.aScore >= 3)
     .sort((a: any, b: any) => b.coverage - a.coverage || b.aScore - a.aScore);
   return candidates.length > 0 ? candidates[0] : null;
 }
@@ -1473,7 +1475,8 @@ Rules:
 - "answer" must be 60 words max — the agent reads this aloud mid-call
 - "opener" must vary every time — never use the same opener twice in a row
 - If the exact answer is in the KB, use it verbatim or lightly paraphrase
-- If it requires synthesis, combine relevant entries
+- If it requires synthesis, combine relevant approved entries; never invent program facts
+- If no relevant KB evidence supports a factual claim, do not guess: give the agent a brief honest line offering to check with a senior specialist
 - If the customer is raising an objection, use the OBJECTION HANDLING CATALOG
 - Return ONLY valid JSON, no markdown or commentary
 ${objectionContext ? `\n━━━ OBJECTION HANDLING CATALOG — If the question is an objection, use the matching handling guidance: ━━━\n${objectionContext}` : ''}`;
