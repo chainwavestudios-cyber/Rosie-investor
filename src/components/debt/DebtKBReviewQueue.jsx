@@ -45,15 +45,16 @@ export default function DebtKBReviewQueue({readOnly=false,onPublished}) {
       let kbEntryId='';
       if(approve){
         const existing=toRows(await base44.entities.KnowledgeBase.list('-created_date',1000));
-        const same=existing.find(e=>
-          e.question && clean(e.question).toLowerCase()===question.toLowerCase() &&
-          (!e.kbName||e.kbName==='Debt Settlement')
-        );
-        if(same){throw new Error('A published entry already has this exact question. Review/edit that KB entry first; no existing answer was changed.');}
-        // If a prior promote succeeded but marking review failed, reuse its KB entry.
-        const previous=existing.find(e=>(e.tags||'').includes('proposal_id:'+row.id));
+        // Idempotency first: a previous create can succeed even if the proposal
+        // status update fails. Never create a duplicate on retry.
+        const previous=existing.find(e=>(e.tags||'').split(',').some(t=>t.trim()==='proposal_id:'+row.id));
         if(previous)kbEntryId=previous.id;
         else {
+          const same=existing.find(e=>
+            e.question && clean(e.question).toLowerCase()===question.toLowerCase() &&
+            (!e.kbName||e.kbName==='Debt Settlement')
+          );
+          if(same){throw new Error('A published entry already has this exact question. Review/edit that KB entry first; no existing answer was changed.');}
           const created=await base44.entities.KnowledgeBase.create({
             question,answer,answersJson:JSON.stringify([answer]),starredAnswerIndex:0,
             category:categories[edit.category]?edit.category:'debt_kb',
