@@ -1,11 +1,12 @@
 /**
  * ProspectPicker.jsx — step 1 alternative: build the campaign list straight from
- * the prospect pipeline instead of a CSV file.
+ * the contact cards already in the system instead of a CSV file.
  *
- * Reads the contact cards an agent tagged as prospects. Picking them fills the
- * exact same row shape a CSV produces, so the mapping, mailbox check and commit
- * steps that follow are unchanged — and nobody is written until the import is
- * committed.
+ * Shows every contact card that has an email address (a card without one can
+ * never receive an email), with a one-click switch to the prospect pipeline.
+ * Picking fills the exact row shape a CSV produces, so the mapping, mailbox
+ * check and commit steps that follow are unchanged — and nothing is written
+ * until the import is committed.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { base44 } from '@/api/base44Client';
@@ -19,24 +20,22 @@ export default function ProspectPicker({ onUse }) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [scope, setScope] = useState('all');
   const [picked, setPicked] = useState({});
 
   const fetchPage = useCallback(async (next) => {
     setLoading(true);
     const page = await base44.entities.DebtLead
-      .filter({ isProspect: true }, { sort: '-updated_date', limit: PAGE, ...(next ? { cursor: next } : {}) })
+      .filter({}, { sort: '-updated_date', limit: PAGE, ...(next ? { cursor: next } : {}) })
       .catch(() => null);
-    const items = (page?.items || []).filter((lead) => !lead.deletedAt);
+    const items = (page?.items || []).filter((lead) => !lead.deletedAt && lead.email);
     setRows((prev) => {
       const seen = new Set(prev.map((row) => row.id));
       return [...prev, ...items.filter((row) => !seen.has(row.id))];
     });
     setPicked((prev) => {
       const nextPicked = next ? { ...prev } : {};
-      for (const lead of items) {
-        if (!lead.email) continue;
-        nextPicked[lead.id] = next ? (prev[lead.id] ?? true) : true;
-      }
+      for (const lead of items) nextPicked[lead.id] = next ? (prev[lead.id] ?? true) : true;
       return nextPicked;
     });
     setCursor(page?.next_cursor || null);
@@ -46,31 +45,38 @@ export default function ProspectPicker({ onUse }) {
 
   useEffect(() => { fetchPage(null); }, [fetchPage]);
 
+  const prospectCount = rows.filter((row) => row.isProspect).length;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => `${row.firstName || ''} ${row.lastName || ''} ${row.email || ''} ${row.phone || ''}`.toLowerCase().includes(q));
-  }, [rows, search]);
+    return rows.filter((row) => {
+      if (scope === 'prospects' && !row.isProspect) return false;
+      if (!q) return true;
+      return `${row.firstName || ''} ${row.lastName || ''} ${row.email || ''} ${row.phone || ''}`.toLowerCase().includes(q);
+    });
+  }, [rows, search, scope]);
 
-  const pickable = filtered.filter((row) => row.email);
-  const chosen = rows.filter((row) => picked[row.id] && row.email);
-  const missingEmail = rows.filter((row) => !row.email).length;
+  const chosen = rows.filter((row) => picked[row.id]);
+  const allVisiblePicked = filtered.length > 0 && filtered.every((row) => picked[row.id]);
 
   const toggle = (row) => setPicked((prev) => ({ ...prev, [row.id]: !prev[row.id] }));
 
   const setVisible = (on) => setPicked((prev) => {
     const next = { ...prev };
-    for (const row of pickable) next[row.id] = on;
+    for (const row of filtered) next[row.id] = on;
     return next;
   });
 
-  const allVisiblePicked = pickable.length > 0 && pickable.every((row) => picked[row.id]);
-
   return (
     <Card
-      title="Or pick from your prospects"
-      hint="Every contact card an agent tagged as a prospect. Picking them fills the list the same way a CSV would — the mailbox check and commit steps that follow stay the same."
+      title="Or pick from your contact cards"
+      hint="Every card that has an email address. Picking them fills the list the same way a CSV would — the mailbox check and commit steps that follow stay the same, and cards that already exist are only filled in, never replaced."
     >
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <Btn tone={scope === 'all' ? 'gold' : 'ghost'} onClick={() => setScope('all')}>All contacts ({rows.length.toLocaleString()})</Btn>
+        <Btn tone={scope === 'prospects' ? 'gold' : 'ghost'} onClick={() => setScope('prospects')}>Prospects only ({prospectCount.toLocaleString()})</Btn>
+      </div>
+
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
         <input
           style={{ ...inputStyle, flex: '1 1 220px' }}
@@ -78,33 +84,31 @@ export default function ProspectPicker({ onUse }) {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name, email or phone"
         />
-        <Btn tone="ghost" onClick={() => setVisible(!allVisiblePicked)} disabled={!pickable.length}>
+        <Btn tone="ghost" onClick={() => setVisible(!allVisiblePicked)} disabled={!filtered.length}>
           {allVisiblePicked ? '✕ Clear shown' : '✓ Select all shown'}
         </Btn>
         <Btn tone="gold" onClick={() => onUse(chosen)} disabled={!chosen.length}>
-          Use {chosen.length.toLocaleString()} prospect{chosen.length === 1 ? '' : 's'} →
+          Use {chosen.length.toLocaleString()} contact{chosen.length === 1 ? '' : 's'} →
         </Btn>
       </div>
 
       <div style={{ color: MUTED, fontSize: '11px', marginBottom: '8px' }}>
-        {loading && !rows.length ? 'Loading prospects…' : `${rows.length.toLocaleString()} prospect${rows.length === 1 ? '' : 's'} · ${chosen.length.toLocaleString()} selected`}
-        {missingEmail > 0 && <span style={{ color: DIM }}> · {missingEmail} without an email address are skipped</span>}
+        {loading && !rows.length ? 'Loading contact cards…' : `${chosen.length.toLocaleString()} of ${filtered.length.toLocaleString()} shown selected`}
+        {hasMore ? <span style={{ color: DIM }}> · newest {rows.length.toLocaleString()} loaded</span> : null}
       </div>
 
       <div style={{ maxHeight: '340px', overflowY: 'auto', border: `1px solid ${BORDER}`, borderRadius: '5px', background: SURFACE }}>
         {filtered.map((row) => {
-          const disabled = !row.email;
-          const on = !!picked[row.id] && !disabled;
+          const on = !!picked[row.id];
           return (
             <button
               key={row.id}
               type="button"
-              onClick={() => !disabled && toggle(row)}
+              onClick={() => toggle(row)}
               style={{
                 display: 'flex', gap: '10px', alignItems: 'center', width: '100%', textAlign: 'left',
                 padding: '8px 11px', background: on ? 'rgba(218,184,113,0.08)' : 'transparent',
-                border: 'none', borderBottom: '1px solid rgba(255,255,255,0.045)',
-                cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
+                border: 'none', borderBottom: '1px solid rgba(255,255,255,0.045)', cursor: 'pointer',
               }}
             >
               <span style={{
@@ -113,9 +117,12 @@ export default function ProspectPicker({ onUse }) {
                 color: '#0a0f1e', fontSize: '10px', fontWeight: 'bold', lineHeight: '13px', textAlign: 'center',
               }}>{on ? '✓' : ''}</span>
               <span style={{ flex: '1 1 auto', minWidth: 0, color: '#e6edf6', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {`${row.firstName || ''} ${row.lastName || ''}`.trim() || row.email || 'Unnamed'}
-                <span style={{ color: MUTED }}> · {row.email || 'no email'}</span>
+                {`${row.firstName || ''} ${row.lastName || ''}`.trim() || row.email}
+                <span style={{ color: MUTED }}> · {row.email}</span>
               </span>
+              {row.isProspect && (
+                <span style={{ color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: '3px', padding: '1px 6px', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Prospect</span>
+              )}
               <span style={{ color: DIM, fontSize: '10px', whiteSpace: 'nowrap' }}>
                 {row.phone || '—'}{row.state ? ` · ${row.state}` : ''}
               </span>
@@ -124,7 +131,9 @@ export default function ProspectPicker({ onUse }) {
         })}
         {!filtered.length && !loading && (
           <div style={{ padding: '16px', color: DIM, fontSize: '11px' }}>
-            {rows.length ? 'No prospect matches that search.' : 'No prospects are tagged yet — tag a contact card as a prospect first, or upload a CSV.'}
+            {scope === 'prospects'
+              ? 'No contact card is tagged as a prospect yet — switch to All contacts, or tag a card as a prospect first.'
+              : 'No contact card with an email address matches that search — upload a CSV instead.'}
           </div>
         )}
         {loading && <div style={{ padding: '10px 11px', color: MUTED, fontSize: '11px' }}>Loading…</div>}
@@ -132,7 +141,7 @@ export default function ProspectPicker({ onUse }) {
 
       {hasMore && (
         <div style={{ marginTop: '10px' }}>
-          <Btn tone="ghost" onClick={() => fetchPage(cursor)} disabled={loading}>{loading ? 'Loading…' : 'Load more prospects'}</Btn>
+          <Btn tone="ghost" onClick={() => fetchPage(cursor)} disabled={loading}>{loading ? 'Loading…' : 'Load more contacts'}</Btn>
         </div>
       )}
     </Card>

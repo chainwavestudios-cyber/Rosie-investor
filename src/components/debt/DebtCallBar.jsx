@@ -13,7 +13,7 @@ const actionStyle=(primary=false)=>({
   cursor:'pointer',fontWeight:760
 });
 
-export default function DebtCallBar({lead}) {
+export default function DebtCallBar({lead, onLaunch}) {
   const [office,setOffice]=useState(()=>window.__debtOfficeBridgeState||null);
   useEffect(()=>{
     const sync=(event)=>setOffice(event.detail);
@@ -22,7 +22,7 @@ export default function DebtCallBar({lead}) {
   },[]);
   if(!lead?.id)return null;
   const active=office?.leadId===lead.id?office:null;
-  const dispatch=mode=>window.dispatchEvent(new CustomEvent('debt_launch_live',{detail:{leadId:lead.id,mode}}));
+  const dispatch=mode=>onLaunch?onLaunch(mode):window.dispatchEvent(new CustomEvent('debt_launch_live',{detail:{leadId:lead.id,mode}}));
   const act=action=>window.dispatchEvent(new CustomEvent('debt_office_bridge_action',{detail:{action}}));
   const name=[lead.firstName,lead.lastName].filter(Boolean).join(' ')||'Client';
   const officeConnected=active?.officeStatus==='in-progress';
