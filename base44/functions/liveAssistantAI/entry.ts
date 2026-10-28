@@ -1426,29 +1426,20 @@ Return ONLY this JSON (no markdown):
       }
     }
 
-    // 1.5. Pre-AI gating — skip short lines and pure acknowledgements (zero AI cost)
-    const qWords = (q || '').trim().split(/\s+/).filter((w: string) => w.length > 0);
-    const ACK_WORDS = new Set(['yeah', 'yes', 'no', 'okay', 'ok', 'right', 'sure', 'yep', 'nope', 'mmm', 'hmm', 'hello', 'hi', 'hey', 'thanks', 'thank', 'correct', 'exactly', 'true', 'got', 'gotcha', 'alright', 'sounds', 'good', 'see', 'makes', 'sense', 'uh', 'huh', 'oh', 'wow', 'nice', 'great', 'cool', 'fine']);
-    const isShortAck = qWords.length < 6 || qWords.every((w: string) => ACK_WORDS.has(w.toLowerCase().replace(/[.,!?;:'"]/g, '')));
-    if (isShortAck) {
-      return Response.json({ needs_answer: false, answer: '', source: 'gated_short' });
+    // 1.5. Fast, deterministic acknowledgement gate. Length is NOT evidence:
+    // "What fees?", "Why?", "Is that legal?" must be able to reach Q&A.
+    const qNormalized = String(q || '').toLowerCase().replace(/[^a-z0-9' ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const ACKS = new Set([
+      'yeah','yes','no','okay','ok','right','sure','yep','nope','hmm','hello','hi','hey',
+      'thanks','thank you','correct','exactly','got it','gotcha','alright','sounds good',
+      'i see','makes sense','uh huh','oh wow','nice','great','cool','fine','i am good',
+      'im good','all good','go ahead','i understand','okay thanks',
+    ]);
+    if (!qNormalized || ACKS.has(qNormalized)) {
+      return Response.json({ needs_answer: false, answer: '', source: 'gated_ack' });
     }
-
-    // 1.6. Haiku classifier — "does this need an answer?" before spending Q&A tokens
-    try {
-      const classifyData = await callLLM(req, {
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 10,
-        system: 'You classify whether a customer statement on a live sales call needs an answer from the agent. Respond with only "yes" or "no". Questions, concerns, objections, and implied questions = "yes". Small talk, greetings, acknowledgements, and pure statements = "no".',
-        messages: [{ role: 'user', content: `Customer said: "${q}"\n\nNeeds an answer?` }],
-      });
-      const classifyText = (classifyData?.content?.[0]?.text || '').toLowerCase().trim();
-      if (!classifyText.startsWith('yes')) {
-        return Response.json({ needs_answer: false, answer: '', source: 'gated_haiku' });
-      }
-    } catch {
-      // If classifier fails, proceed to full Q&A (don't block on classifier error)
-    }
+    // One answer-generation request also determines if an implied concern needs
+    // answering; a separate Haiku yes/no classifier doubled network/LLM latency.
 
     // 2. No direct hit — use AI with relevant KB context (cut from 12 to 5 entries)
     const relevantKB = findRelevantKB(q, kbEntries || [], 5);
