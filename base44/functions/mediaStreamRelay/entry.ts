@@ -33,6 +33,7 @@ const BASE_URL = 'https://rosieai-investorpage.base44.app';
 import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
 import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
 import { enforceOutboundHandoff, OUTBOUND_QUEUE_NOTICE } from '../../shared/aiOutboundHandoff.ts';
+import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
 
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
@@ -211,6 +212,22 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   if (!agentHasSpoken && callerTurns <= 1) {
     const opening = buildOpeningLine(config, lead);
     if (opening) return Response.json({ action: 'speak', text: opening, disposition: '' });
+  }
+
+  // After the saved greeting, use the actual saved Step 1 dialogue to
+  // continue without a dead stop at "This is Alex with the Desk".
+  // No new script words; the original question boundaries are preserved.
+  // Inbound Sarah/Adam and callers who are busy retain their own flow.
+  if (!(lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam')) {
+    const savedOpening = renderLeadTemplate(String(config.systemPrompt || ''), lead, {
+      agentName: String(config.outboundAgentName || '').trim() || 'Alex',
+    });
+    const nextLine = nextSavedAlexOpening({
+      conversation: turns,
+      savedPrompt: savedOpening,
+      initialGreeting: buildOpeningLine(config, lead),
+    });
+    if (nextLine) return Response.json({ action: 'speak', text: nextLine, disposition: '' });
   }
 
   // Build system prompt with variable substitution
