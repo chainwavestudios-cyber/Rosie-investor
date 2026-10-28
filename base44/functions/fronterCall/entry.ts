@@ -425,6 +425,34 @@ export default async function(req) {
 
       const fromNumber = lineNumber(lineKey) || lineNumber('TWILIO_FROM_NUMBER');
       const safeUser = adminUsername.replace(/[^a-zA-Z0-9_]/g, '_');
+      const service = createClientFromRequest(req).asServiceRole;
+      const queueRecord = await findQueueRecord(service.entities, conferenceName, leadId);
+      const aiQueue = queueRecord?.routeType === 'ai_agent';
+      // If Chris grabs after both phone attempts, the caller may be in the
+      // speech-enabled appointment hold instead of in the conference. Reclaim
+      // into the ORIGINAL AI queue with its custom music, before dialing browser.
+      if (aiQueue && queueRecord?.customerCallSid) {
+        let alreadyInConference = false;
+        try {
+          const existing = await findConferenceSid(conferenceName);
+          if (existing) {
+            const parts = await twilioFetch(`/Conferences/${existing}/Participants.json`);
+            alreadyInConference = (parts.participants || []).some((p: any) => p.call_sid === queueRecord.customerCallSid);
+          }
+        } catch {}
+        if (!alreadyInConference) {
+          const holdUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`;
+          const statusUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiQueueMerged&LeadId=${encodeURIComponent(leadId || queueRecord.leadId)}&Conf=${encodeURIComponent(conferenceName)}&CallerCallSid=${encodeURIComponent(queueRecord.customerCallSid)}`;
+          const callerTwiml = `<Response><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="false" beep="false" waitUrl="${xmlEscape(holdUrl)}" waitMethod="GET" statusCallback="${xmlEscape(statusUrl)}" statusCallbackEvent="start join" statusCallbackMethod="POST">${xmlEscape(conferenceName)}</Conference></Dial></Response>`;
+          try {
+            await twilioFetch(`/Calls/${queueRecord.customerCallSid}.json`, {
+              method: 'POST', body: new URLSearchParams({ Twiml: callerTwiml }),
+            });
+          } catch (e: any) {
+            return Response.json({ error: 'Customer no longer available: ' + (e?.message || 'call ended') }, { status: 409 });
+          }
+        }
+      }
 
       let confSid: string | null = null;
       for (let i = 0; i < 10; i++) {
@@ -477,7 +505,7 @@ export default async function(req) {
       // Ring the admin's browser handset. The /fronter page registers its device
       // as `<username>_inbound` (plain `<username>` on older sessions), so the
       // grab has to call one of those — a made-up identity rings nothing.
-      const identities = [...new Set([`${safeUser}_inbound`, safeUser, 'agent'])];
+      const identities = [...new Set([`${safeUser}_inbound`, safeUser])];
       let rungIdentity = '';
       let ringError = '';
       for (const identity of identities) {
@@ -506,6 +534,13 @@ export default async function(req) {
         }, { status: 409 });
       }
       console.log('[fronterCall] grab ringing', rungIdentity, 'into', conferenceName);
+
+      // The browser is only ringing. For AI queues a confirmed participant
+      // join (not the button click) closes the card and marks transferred.
+      if (aiQueue) {
+        try { await service.entities.FronterHeadsUp.update(queueRecord.id, { routeState: 'browser_ringing' }); } catch {}
+        return Response.json({ ok: true, state: 'browser_ringing', message: 'Answer the incoming call in your Fronter browser to merge.' });
+      }
 
       // Update the lead's disposition from 'queued_no_connect' to 'transferred'
       if (leadId) {
