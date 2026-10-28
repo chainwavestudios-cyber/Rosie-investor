@@ -20,22 +20,24 @@
     },
     "source": {
       "type": "string",
-      "title": "Consent Source",
+      "title": "Consent Source (bounce = suppressed automatically because the server rejected mail to this address)",
       "enum": [
         "form",
         "vault",
         "verbal",
-        "manual"
+        "manual",
+        "bounce"
       ],
       "default": "manual"
     },
     "status": {
       "type": "string",
-      "title": "Status (pending = awaiting the double opt-in confirmation)",
+      "title": "Status (pending = awaiting the double opt-in confirmation; bounced = undeliverable, never email again)",
       "enum": [
         "pending",
         "confirmed",
-        "unsubscribed"
+        "unsubscribed",
+        "bounced"
       ],
       "default": "pending"
     },
@@ -96,6 +98,16 @@
       "type": "string",
       "format": "date-time",
       "title": "Unsubscribed At"
+    },
+    "bouncedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Bounced At (the server rejected mail to this address)"
+    },
+    "bounceReason": {
+      "type": "string",
+      "title": "Bounce Reason (the rejection the receiving server gave)",
+      "format": "textarea"
     }
   },
   "required": [

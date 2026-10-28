@@ -78,7 +78,7 @@ export default async function (req: Request): Promise<Response> {
     const emails = candidates.map((row) => row.email);
     const optOutRows = await base44.asServiceRole.entities.EmailOptIn.filter({ email: { $in: emails } }, { limit: CHUNK_LIMIT }).catch(() => null);
     const optedOut = new Set(
-      (optOutRows?.items || []).filter((row: any) => String(row?.status || '').toLowerCase() === 'unsubscribed').map((row: any) => clean(row.email).toLowerCase()),
+      (optOutRows?.items || []).filter((row: any) => ['unsubscribed', 'bounced'].includes(String(row?.status || '').toLowerCase())).map((row: any) => clean(row.email).toLowerCase()),
     );
     const alreadyRows = await base44.asServiceRole.entities.EmailCampaignRecipient.filter({ email: { $in: emails } }, { limit: CHUNK_LIMIT }).catch(() => null);
     const already = new Set(
@@ -87,7 +87,7 @@ export default async function (req: Request): Promise<Response> {
 
     const eligible: any[] = [];
     for (const row of candidates) {
-      if (optedOut.has(row.email)) { excluded.push({ ...row, reason: 'Unsubscribed — do not email' }); continue; }
+      if (optedOut.has(row.email)) { excluded.push({ ...row, reason: 'Unsubscribed or bounced — do not email' }); continue; }
       if (already.has(row.email)) { excluded.push({ ...row, reason: 'Already imported into this campaign' }); continue; }
       eligible.push(row);
     }

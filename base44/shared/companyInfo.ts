@@ -54,5 +54,6 @@ export async function isEmailUnsubscribed(base44: any, email: string): Promise<b
   // let an opted-out contact keep receiving email.
   const found = await base44.asServiceRole.entities.EmailOptIn.filter({ email: address }, { limit: 20 });
   const items = Array.isArray(found) ? found : (found?.items || []);
-  return items.some((row: any) => String(row?.status || '').toLowerCase() === 'unsubscribed');
+  // A bounced address is unmailable too: mailing it again only burns the sending domain.
+  return items.some((row: any) => ['unsubscribed', 'bounced'].includes(String(row?.status || '').toLowerCase()));
 }

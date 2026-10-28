@@ -171,7 +171,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     : null;
   const suppressed = new Set(
     (optOutPage?.items || [])
-      .filter((row: any) => String(row?.status || '').toLowerCase() === 'unsubscribed')
+      .filter((row: any) => ['unsubscribed', 'bounced'].includes(String(row?.status || '').toLowerCase()))
       .map((row: any) => clean(row.email).toLowerCase()),
   );
 
@@ -201,7 +201,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
       if (String(recipient.unsubscribedAt || '') || suppressed.has(address)) {
         await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
           status: 'skipped',
-          reason: 'Unsubscribed — do not email',
+          reason: 'Unsubscribed or bounced — do not email',
           unsubscribedAt: recipient.unsubscribedAt || new Date().toISOString(),
         }).catch(() => {});
         skipped += 1;
