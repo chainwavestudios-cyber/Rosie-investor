@@ -234,7 +234,6 @@ export async function sendCredentialsEmail(base44: any, leadData: any, sentBy: s
 export async function prepareTransfer(req: Request, base44: any, leadData: any, config: any, conversation: Array<{ role: string; content: string }>) {
   const leadId = leadData.id;
   const now = new Date().toISOString();
-  const primaryNumber = config.transferPhoneNumber || '+16193530919';
 
   // 1. Extract debt data + contact data
   const [debtData, contactData] = await Promise.all([
@@ -242,11 +241,9 @@ export async function prepareTransfer(req: Request, base44: any, leadData: any, 
     extractContactData(req, conversation, leadData),
   ]);
 
+  // This function prepares a handoff; it does not prove the advisor answered.
+  // Only the confirmed merge / successful Dial callback may mark transferred.
   const leadUpdates: any = {
-    status: 'transferred',
-    lastCallResult: 'transferred',
-    transferredAt: now,
-    transferredTo: `Chris Bongiorno (${primaryNumber})`,
     lastCalledAt: now,
   };
 
