@@ -36,12 +36,19 @@ export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Non-fatal auth — debt coach users use custom auth, may not have a Base44 token
-    let user: any = null;
-    try { user = await base44.auth.me(); } catch {}
-
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
+    // Debt Coach has its own login; the platform's Base44 auth.me() does not
+    // authenticate these sessions. Verify the saved coach session server-side.
+    const sessionUserId = String(body.sessionUserId || '');
+    const sessionToken = String(body.sessionToken || '');
+    if (!sessionUserId || !sessionToken) return Response.json({error:'A signed-in Debt Coach session is required.'},{status:401});
+    const user = await base44.asServiceRole.entities.DebtCoachUser.get(sessionUserId).catch(() => null);
+    if (!user?.isActive || user.sessionToken !== sessionToken || !['manager','super_manager','admin','super_admin'].includes(user.role)) {
+      return Response.json({error:'Knowledge Base manager authorization is required.'},{status:403});
+    }
     const { message, fileUrl, fileType, fileName } = body;
+    if (typeof message !== 'string' && !fileUrl) return Response.json({error:'Invalid message'},{status:400});
+    if (message && String(message).length > 80000) return Response.json({error:'Message is too long.'},{status:413});
 
     if (!message && !fileUrl) {
       return Response.json({ error: 'No content provided' }, { status: 400 });
@@ -173,7 +180,7 @@ ${llmPrompt}`,
         const created = await svc.entities.DebtKBProposal.create({
           question, answer, category, tags: String(e.tags || ''),
           source: fileName ? `AI Chat — ${fileName}` : 'AI Chat',
-          status: 'pending_review', createdBy: user?.email || 'Debt Coach KB Chat'
+          status: 'pending_review', createdBy: user?.username || 'Debt Coach KB Chat'
         });
         saved.push(created);
       } catch (err: any) { errors.push(err?.message || String(err)); }
@@ -187,7 +194,7 @@ ${llmPrompt}`,
       pendingCount: saved.length, savedCount: 0, reviewRequired: true,
       ...(errors.length ? { warning: `${errors.length} entries could not be queued.` } : {})
     });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  } catch (error: any) {
+    return Response.json({ error: error?.message || 'Knowledge operation failed.' }, { status: 500 });
   }
 }

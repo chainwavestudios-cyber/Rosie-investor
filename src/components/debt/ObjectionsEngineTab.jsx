@@ -305,18 +305,16 @@ Return ONLY the rewritten answer text, nothing else.`,
                       </div>}
                       {!expanded && <p style={{margin:'4px 0 0',fontSize:11,color:'#94a7b0',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',maxWidth:'min(60vw,700px)'}}>{phrases.length} trigger phrases · {String(o.responseText||'').slice(0,105)}</p>}
                     </div>
-                    {!readOnly && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
                         <button onClick={() => setExpandedId(p => p === o.id ? null : o.id)}
                           aria-expanded={expanded}
                           style={{background:'rgba(217,187,122,.09)',color:'#d7bd8d',border:'1px solid rgba(217,187,122,.25)',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:10}}>
                           {expanded ? 'Collapse' : 'Details'}
                         </button>
-                        <button onClick={() => startEdit(o)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>✏️ Edit</button>
-                        <button onClick={() => toggleEnabled(o.id, !(o.enabled !== false))} style={{ background: o.enabled !== false ? 'rgba(107,113,128,0.15)' : 'rgba(16,185,129,0.15)', color: o.enabled !== false ? '#6b7280' : GOLD, border: `1px solid ${o.enabled !== false ? 'rgba(107,113,128,0.3)' : GOLD + '44'}`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{o.enabled !== false ? '⏸ Disable' : '▶ Enable'}</button>
-                        <button onClick={() => remove(o.id)} style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>🗑 Delete</button>
-                      </div>
-                    )}
+                        {!readOnly && <button onClick={() => startEdit(o)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>✏️ Edit</button>}
+                        {!readOnly && <button onClick={() => toggleEnabled(o.id, !(o.enabled !== false))} style={{ background: o.enabled !== false ? 'rgba(107,113,128,0.15)' : 'rgba(16,185,129,0.15)', color: o.enabled !== false ? '#6b7280' : GOLD, border: `1px solid ${o.enabled !== false ? 'rgba(107,113,128,0.3)' : GOLD + '44'}`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{o.enabled !== false ? '⏸ Disable' : '▶ Enable'}</button>}
+                        {!readOnly && <button onClick={() => remove(o.id)} style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>🗑 Delete</button>}
+                    </div>
                   </div>
                   {!readOnly && expanded && (
                     <div style={{ marginTop: '8px', display: 'flex', gap: '4px', alignItems: 'center' }}>
