@@ -351,16 +351,18 @@ async function handleTransfer(req: Request, base44: any, body: any): Promise<Res
   // Inbound AI-agent calls skip it — the agent already said "Hold on one second!",
   // so the caller goes straight into the queue with Custom Hold Music #2.
   const isInboundTransfer = lead?.inboundAdamCall || lead?.callStatus === 'inbound_adam';
+  let announcementPlayed = !!isInboundTransfer;
   if (!isInboundTransfer) {
     const transferMsg = OUTBOUND_QUEUE_NOTICE;
     // The bridge uses this call's pinned TTS selections and records actual audio evidence.
     const playback = await playToBridge(body.streamSid, { clear: true, text: transferMsg });
-    if (playback?.ok) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
+    announcementPlayed = !!playback?.ok;
+    if (announcementPlayed) await new Promise(r => setTimeout(r, estimatePlaybackMs(transferMsg)));
   }
 
   // Redirect Twilio call to transfer TwiML (SkipSay since message already played via bridge)
   try {
-    const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId)}&SkipSay=true`;
+    const transferUrl = `${BASE_URL}/functions/dialerVoiceHandler?Mode=aiAgentTransfer&LeadId=${encodeURIComponent(leadId)}&SkipSay=${announcementPlayed ? 'true' : 'false'}`;
     await twilioFetch(`/Calls/${callSid}.json`, {
       method: 'POST',
       body: new URLSearchParams({ Url: transferUrl }),
