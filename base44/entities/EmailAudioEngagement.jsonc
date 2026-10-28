@@ -1,0 +1,112 @@
+{
+  "name": "EmailAudioEngagement",
+  "type": "object",
+  "properties": {
+    "sendId": {
+      "type": "string",
+      "title": "Associated Gmail send ID"
+    },
+    "contactId": {
+      "type": "string",
+      "title": "Debt Call Coach lead ID"
+    },
+    "sessionId": {
+      "type": "string",
+      "title": "Anonymous page playback session ID"
+    },
+    "templateId": {
+      "type": "string"
+    },
+    "playedSeconds": {
+      "type": "number",
+      "default": 0
+    },
+    "durationSeconds": {
+      "type": "number",
+      "default": 0
+    },
+    "percentListened": {
+      "type": "number",
+      "default": 0
+    },
+    "maxPositionSeconds": {
+      "type": "number",
+      "default": 0
+    },
+    "playCount": {
+      "type": "number",
+      "default": 0
+    },
+    "pauseCount": {
+      "type": "number",
+      "default": 0
+    },
+    "completed": {
+      "type": "boolean",
+      "default": false
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "calendarOpenedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "calendarExternalAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "calendarExternalClicks": {
+      "type": "number",
+      "default": 0
+    },
+    "firstAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lastAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lastEvent": {
+      "type": "string"
+    },
+    "aiOpenedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First AI assistant launch"
+    },
+    "aiLaunchCount": {
+      "type": "number",
+      "default": 0,
+      "title": "Assistant launches"
+    }
+  },
+  "required": [
+    "sendId",
+    "sessionId"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
