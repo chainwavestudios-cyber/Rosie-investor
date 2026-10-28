@@ -73,7 +73,7 @@ async function buildSessionTranscript(lines) {
 const cloudUrl = (url) => (url && !url.startsWith('blob:') ? url : '');
 
 export default function DebtBobTrainer() {
-  const { can, isAdmin } = useDebtCoachAuth();
+  const { can, isAdmin, user } = useDebtCoachAuth();
   const canBobAI = can('bobAIAssistant');
   const canBobQA = can('bobQA');
   const canBobCoach = can('bobCoach');
@@ -1075,7 +1075,7 @@ You are in MANUAL OBJECTIONS mode. You will NOT raise any objections, questions,
         </div>
 
         {showClientProfile && bobLead && (
-          <ClientProfileModal lead={bobLead} onClose={() => setShowClientProfile(false)} onSave={(updated) => setBobLead(updated)} />
+          <ClientProfileModal lead={bobLead} username={user?.username} onClose={() => setShowClientProfile(false)} onSave={(updated) => setBobLead(updated)} />
         )}
         </>
       )}
