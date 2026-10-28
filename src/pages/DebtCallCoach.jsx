@@ -209,7 +209,7 @@ export default function DebtCallCoach() {
       {tab === 'objections' && <ObjectionsEngineTab readOnly={isDialerRole} />}
       {tab === 'kb' && <DebtKBManager readOnly={isDialerRole} />}
       {tab === 'kbchat' && <DebtKBChat />}
-      {tab === 'profile' && <DebtUserProfile debtCoachUser={user} />}
+      {tab === 'profile' && <DebtUserProfile debtCoachUser={user} onGoToCalls={() => setTab('calls')} />}
       {tab === 'stats' && <HotCallAnalytics />}
       {tab === 'compliance' && <CompliancePortal onBack={() => setTab('live')} />}
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
