@@ -114,11 +114,18 @@
   padding: 7px 10px !important;
   background: rgba(7,15,25,.48);
   border-bottom: 1px solid var(--dcc-line) !important;
-  scroll-behavior:smooth;
+  scroll-behavior:auto;
+  /* Tabs are intentionally multi-row: no clipped horizontal slider. */
+  flex-wrap:wrap !important;
+  overflow-x:visible !important;
+  overflow-y:visible !important;
+  align-content:flex-start;
+  white-space:normal;
 }
 .dcc-contact-tabs > button,
 .dcc-profile-tabs > button {
   flex:0 0 auto;
+  white-space:normal !important;
   border: 1px solid transparent !important;
   border-radius: 7px !important;
   padding: 6px 10px !important;
@@ -201,6 +208,12 @@
   border-bottom:1px solid var(--dcc-line) !important;
   padding:6px 14px !important;
 }
+.dcc-profile-tools {display:flex;flex-direction:column;gap:7px;padding:10px 13px;background:rgba(5,14,22,.68);border-bottom:1px solid var(--dcc-line);flex-shrink:0;max-height:210px;overflow-y:auto;scrollbar-width:thin;}
+.dcc-profile-tools > div:first-child {margin-bottom:0 !important;}
+.dcc-profile-tools > div:first-child > div:first-child {justify-content:flex-start !important;}
+.dcc-profile-quick-send {min-width:0;}
+.dcc-profile-quick-send > div {margin-bottom:0 !important;}
+.dcc-profile-quick-send button {border-radius:7px !important;}
 .dcc-profile-body {padding:14px !important;min-width:0;container-type:inline-size;}
 .dcc-profile-body > div {max-width:100%;}
 .dcc-profile-fields-grid > div {min-width:0;}

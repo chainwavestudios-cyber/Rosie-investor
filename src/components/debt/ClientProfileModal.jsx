@@ -152,6 +152,14 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     if (!lead?.id || !local.email) { alert('Lead needs an email address to send'); return; }
     setEmailSending(tpl.id);
     try {
+      // Don't send to a stale CRM address. Persist the email currently shown
+      // in this card before invoking the template sender.
+      const outgoingEmail = String(local.email || '').trim();
+      if (outgoingEmail !== String(lead.email || '').trim() || dirtyFieldsRef.current.has('email')) {
+        await base44.entities.DebtLead.update(lead.id, { email: outgoingEmail });
+        dirtyFieldsRef.current.delete('email');
+        onSave?.({ ...local, email: outgoingEmail });
+      }
       const res = await base44.functions.invoke('sendDebtEmail', { templateId: tpl.id, leadId: lead.id });
       const data = res?.data || res;
       if (data?.error) throw new Error(data.error);
@@ -421,8 +429,54 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
         </div>
       </div>
 
+      {/* Always-visible contact-card actions — independent of selected tab. */}
+      <div className="dcc-profile-tools">
+        <LiveProfileAgent local={local} update={update} onSave={save} lead={local} username={username} />
+        <div className="dcc-profile-quick-send">
+            {/* Email template buttons — manual send from contact card */}
+            {emailTemplates.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Quick Send Emails</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {emailTemplates.map(tpl => {
+                    const isOpened = emailOpens.has(tpl.id);
+                    const sending = emailSending === tpl.id;
+                    const color = tpl.buttonColor || '#10b981';
+                    return (
+                      <button
+                        key={tpl.id}
+                        onClick={() => sendEmailFromCard(tpl)}
+                        disabled={!!emailSending || !local.email}
+                        style={{
+                          background: isOpened ? `${color}25` : `${color}15`,
+                          color: color,
+                          border: `1px solid ${isOpened ? color : color + '55'}`,
+                          borderRadius: '4px',
+                          padding: '6px 14px',
+                          cursor: emailSending || !local.email ? 'not-allowed' : 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          whiteSpace: 'nowrap',
+                          opacity: emailSending || !local.email ? 0.5 : 1,
+                          boxShadow: isOpened ? `0 0 10px ${color}44` : 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        {sending ? '⏳ Sending…' : (isOpened ? `✓ ${tpl.buttonLabel || tpl.name}` : `📧 ${tpl.buttonLabel || tpl.name}`)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!local.email && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>Add an email address to enable quick send</div>}
+              </div>
+            )}
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div className="dcc-profile-tabs" role="tablist" aria-label="Client profile sections" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
+      <div className="dcc-profile-tabs" role="tablist" aria-label="Client profile sections" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, flexWrap: 'wrap', overflowX: 'visible' }}>
         {TABS.map(t => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
         ))}
@@ -430,7 +484,6 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
 
       {/* Content */}
       <div className="dcc-profile-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        <LiveProfileAgent local={local} update={update} onSave={save} lead={local} username={username} />
         {tab === 'activity' && (
           <div>
             {(local.appointmentDate || local.nightBeforeReminderSentAt || local.apptEmailOpenedAt) && (
@@ -483,45 +536,6 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
                     {local.appointmentChangeRequested && ' 🔄 Change Requested'}
                   </div>
                 )}
-              </div>
-            )}
-            {/* Email template buttons — manual send from contact card */}
-            {emailTemplates.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Quick Send Emails</div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {emailTemplates.map(tpl => {
-                    const isOpened = emailOpens.has(tpl.id);
-                    const sending = emailSending === tpl.id;
-                    const color = tpl.buttonColor || '#10b981';
-                    return (
-                      <button
-                        key={tpl.id}
-                        onClick={() => sendEmailFromCard(tpl)}
-                        disabled={sending || !local.email}
-                        style={{
-                          background: isOpened ? `${color}25` : `${color}15`,
-                          color: color,
-                          border: `1px solid ${isOpened ? color : color + '55'}`,
-                          borderRadius: '4px',
-                          padding: '6px 14px',
-                          cursor: sending || !local.email ? 'not-allowed' : 'pointer',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          whiteSpace: 'nowrap',
-                          opacity: sending || !local.email ? 0.5 : 1,
-                          boxShadow: isOpened ? `0 0 10px ${color}44` : 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                        }}
-                      >
-                        {sending ? '⏳ Sending…' : (isOpened ? `✓ ${tpl.buttonLabel || tpl.name}` : `📧 ${tpl.buttonLabel || tpl.name}`)}
-                      </button>
-                    );
-                  })}
-                </div>
-                {!local.email && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '4px' }}>Add an email address to enable quick send</div>}
               </div>
             )}
             {/* Contact Info */}
