@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { base44 } from '@/api/base44Client';
 import { Send, Sparkles, Trash2, X } from 'lucide-react';
 import useAppAgent from '@/hooks/useAppAgent';
 import useVoiceInput from '@/hooks/useVoiceInput';
@@ -6,7 +8,7 @@ import { ACE_OPEN_EVENT } from '@/lib/aceConsole';
 import AgentMessage from './AgentMessage';
 import AceVoiceButton from './AceVoiceButton';
 
-// The app-wide AI command console. ⌘A / Ctrl+A opens it on any screen; ask in
+// Admin-only AI command console. ⌘A / Ctrl+A opens it for verified admins; ask in
 // plain English and ACE answers from live data and drives the app for you.
 const SUGGESTIONS = [
   'What are my hot leads right now?',
@@ -18,13 +20,11 @@ const SUGGESTIONS = [
 ];
 
 // Marketing / visitor pages have no staff session, so the console stays hidden there.
-const VISITOR_PATHS = ['/', '/stories', '/investor-page', '/optin', '/privacy', '/terms', '/request-access', '/aboutdebt', '/reschedule'];
+const VISITOR_PATHS = ['/', '/welcome', '/qualify', '/email-optin', '/stories', '/investor-page', '/optin', '/privacy', '/terms', '/request-access', '/aboutdebt', '/reschedule'];
+const ADMIN_ROLES = new Set(['admin', 'super_admin']);
 
-function hasSession() {
-  try {
-    if (localStorage.getItem('debtCoachSession')) return true;
-  } catch { /* ignore */ }
-  return !VISITOR_PATHS.some((p) => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
+function isVisitorPath(path) {
+  return VISITOR_PATHS.some((p) => path === p || (p !== '/' && path.startsWith(p + '/')));
 }
 
 export default function AgentConsole() {
@@ -35,17 +35,55 @@ export default function AgentConsole() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const submitRef = useRef(null);
-  const available = useMemo(hasSession, []);
+  const location = useLocation();
+  const [authorized, setAuthorized] = useState(false);
+  const available = authorized && !isVisitorPath(location.pathname);
+
+  // Verify roles using a server-validated session, never a stored-role flag.
+  // Portal sessions take precedence: an authenticated non-admin cannot fall
+  // through to a separate app login to use this admin-only console.
+  useEffect(() => {
+    let active = true;
+    setAuthorized(false);
+    setOpen(false);
+    if (isVisitorPath(location.pathname)) return () => { active = false; };
+    (async () => {
+      let permitted = false;
+      let portalSessionVerified = false;
+      try {
+        const session = JSON.parse(localStorage.getItem('debtCoachSession') || 'null');
+        if (session?.userId && session?.token) {
+          const response = await base44.functions.invoke('debtCoachAuth', {
+            action: 'me', sessionUserId: session.userId, sessionToken: session.token,
+          });
+          const user = response?.data?.user || response?.user;
+          if (user) {
+            portalSessionVerified = true;
+            permitted = ADMIN_ROLES.has(String(user.role || '').toLowerCase());
+          }
+        }
+      } catch { /* A missing or invalid portal session is not permission. */ }
+      if (!portalSessionVerified) {
+        try {
+          const user = await base44.auth.me();
+          permitted = ADMIN_ROLES.has(String(user?.role || '').toLowerCase());
+        } catch { permitted = false; }
+      }
+      if (active) setAuthorized(permitted);
+    })();
+    return () => { active = false; };
+  }, [location.pathname]);
 
   // Contact cards launch the console scoped to the person they are working.
   useEffect(() => {
     const onOpen = (event) => {
+      if (!available) return;
       setFocus(event.detail || null);
       setOpen(true);
     };
     window.addEventListener(ACE_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(ACE_OPEN_EVENT, onOpen);
-  }, []);
+  }, [available]);
 
   const voice = useVoiceInput({ onFinal: (text) => submitRef.current?.(text) });
 

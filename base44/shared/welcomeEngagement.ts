@@ -5,7 +5,7 @@
  */
 import { resolveMessageToken } from './emailMessageEngine.ts';
 
-const events = new Set(['page_view','play','pause','progress','ended','replay','calendar_open','calendar_external']);
+const events = new Set(['page_view','play','pause','progress','ended','replay','calendar_open','calendar_external','website_click']);
 const items = (p: any) => Array.isArray(p) ? p : (p?.items || []);
 const num = (v: any, max = 10000) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(0, Number(v))) : 0;
 const reply = (data: any, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -39,6 +39,8 @@ export async function welcomeEngagement(base44: any, body: any): Promise<Respons
     calendarOpenedAt: existing?.calendarOpenedAt || (event === 'calendar_open' ? now : null),
     calendarExternalAt: existing?.calendarExternalAt || (event === 'calendar_external' ? now : null),
     calendarExternalClicks: Number(existing?.calendarExternalClicks || 0) + (event === 'calendar_external' ? 1 : 0),
+    websiteClickedAt: existing?.websiteClickedAt || (event === 'website_click' ? now : null),
+    websiteClicks: Number(existing?.websiteClicks || 0) + (event === 'website_click' ? 1 : 0),
     firstAt: existing?.firstAt || now, lastAt: now, lastEvent: event,
   };
   try {

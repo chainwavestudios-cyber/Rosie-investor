@@ -114,6 +114,8 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
       const audioCompleted = sessions.some((s: any) => s.completed === true);
       const calendarOpened = sessions.some((s: any) => !!s.calendarOpenedAt);
       const calendarExternalClicks = sessions.reduce((n: number, s: any) => n + Number(s.calendarExternalClicks || 0), 0);
+      const websiteClicked = sessions.some((s: any) => !!s.websiteClickedAt);
+      const websiteClicks = sessions.reduce((n: number, s: any) => n + Number(s.websiteClicks || 0), 0);
       const t: any = templates.get(String(m.templateId || ''));
       return {
         id: m.id, sendId: m.sendId, messageId: m.messageId || '', templateId: m.templateId || '',
@@ -126,7 +128,7 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         lastEventAt: events.reduce((a, e) => clock(e.trackedAt) > clock(a) ? e.trackedAt : a, null),
         intentScore: intent.score, tier: intent.tier, reasons: intent.reasons,
         audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted,
-        calendarOpened, calendarExternalClicks,
+        calendarOpened, calendarExternalClicks, websiteClicked, websiteClicks,
         audioPlayedSeconds: Math.max(0, ...sessions.map((s: any) => Number(s.playedSeconds || 0))),
         events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: automated(e.userAgent) ? 'proxy_or_automated' : 'unverified_nonproxy' })),
       };
@@ -214,6 +216,7 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         audioCompleted: timeline.filter((x: any) => x.audioCompleted).length,
         calendarOpened: timeline.filter((x: any) => x.calendarOpened).length,
         calendarExternalClicked: timeline.filter((x: any) => x.calendarExternalClicks > 0).length,
+        companyWebsiteClicked: timeline.filter((x: any) => x.websiteClicked).length,
         highIntent: unique(timeline.filter((x: any) => x.tier === 'high').map((x: any) => String(x.contactId))).length },
       templates: [...byTemplate.values()].sort((a, b) => b.sent - a.sent),
       leadDirectory, hotHistory, timeline, legacyHistory,

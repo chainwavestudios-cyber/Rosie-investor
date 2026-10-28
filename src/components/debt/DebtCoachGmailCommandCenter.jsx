@@ -56,6 +56,7 @@ export default function DebtCoachGmailCommandCenter() {
         }
         if (m.audioCompleted) noteworthy.push({ key: 'audio:' + m.sendId, title: 'Personal audio completed', subject: m.contactName || m.contactEmail || 'Contact', detail: 'Welcome message completed' });
         if (m.calendarOpened) noteworthy.push({ key: 'calendar:' + m.sendId, title: 'Calendar opened', subject: m.contactName || m.contactEmail || 'Contact', detail: 'Booking not yet confirmed' });
+        if (m.websiteClicked) noteworthy.push({ key: 'site:' + m.sendId, title: 'Company website clicked', subject: m.contactName || m.contactEmail || 'Contact', detail: 'Official Debt Advisors of America website' });
       }
       if (initialized.current) {
         const fresh = noteworthy.filter(n => !seenRef.current.has(n.key));
@@ -137,6 +138,7 @@ export default function DebtCoachGmailCommandCenter() {
           ['🎧 Audio started',report.summary?.audioStarted || 0,tones.purple],
           ['✓ Audio completed',report.summary?.audioCompleted || 0,tones.teal],
           ['📅 Calendar opened',report.summary?.calendarOpened || 0,tones.gold],
+          ['↗ Company site clicked',report.summary?.companyWebsiteClicked || 0,tones.blue],
           ['◌ Proxy-only opens',report.summary?.proxyOnlyOpens || 0,tones.muted],
         ].map(([name,value,tone])=><div className="cgc-card" key={name} style={{border:'1px solid '+tones.border,background:'#10222a',borderRadius:9,padding:13}}>
           <div style={{fontSize:11,color:'#aec5c1'}}>{name}</div><strong style={{fontSize:24,color:tone}}>{value}</strong>
@@ -181,10 +183,11 @@ export default function DebtCoachGmailCommandCenter() {
         <section style={{padding:16,borderRadius:10,background:'#10212e',border:'1px solid '+tones.border}}>
           <h3 style={{margin:'0 0 8px',fontSize:15,color:tones.gold}}>Welcome page intelligence</h3>
           <p style={{fontSize:12,color:tones.muted}}>Audio listening and calendar interaction are available per recipient; the Google booking calendar does not reveal completed appointments directly.</p>
-          {view.sends.filter(x=>x.audioPlays||x.calendarOpened).sort((a,b)=>new Date(b.lastEventAt||b.sentAt)-new Date(a.lastEventAt||a.sentAt)).slice(0,16).map(m=><div key={m.sendId} style={{borderBottom:'1px solid #29424b',padding:'8px 0',display:'flex',gap:9,justifyContent:'space-between',fontSize:12}}>
+          {view.sends.filter(x=>x.audioPlays||x.calendarOpened||x.websiteClicked).sort((a,b)=>new Date(b.lastEventAt||b.sentAt)-new Date(a.lastEventAt||a.sentAt)).slice(0,16).map(m=><div key={m.sendId} style={{borderBottom:'1px solid #29424b',padding:'8px 0',display:'flex',gap:9,justifyContent:'space-between',fontSize:12}}>
             <button onClick={()=>showLead({leadId:m.contactId,name:m.contactName,onFile:!!(report.leadDirectory||{})[m.contactId]})} style={{background:'none',border:0,color:tones.text,textDecoration:'underline dotted',padding:0,cursor:'pointer',fontSize:12}}>{m.contactName||m.contactEmail}</button>
             <span style={{color:tones.teal}}>{m.audioPlays?m.audioBestPercent+'% audio':''}</span>
             <span style={{color:tones.gold}}>{m.calendarOpened?'Calendar opened':''}</span>
+            <span style={{color:tones.blue}}>{m.websiteClicked?'Website clicked':''}</span>
           </div>)}
         </section>
       </div>
