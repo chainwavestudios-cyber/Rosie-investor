@@ -151,6 +151,38 @@ export default async function(req) {
     const called = params.get('Called') || '';
     const overrideToken = params.get('CallCutoffOverride') || '';
 
+    // Office-line bridge monitoring: a Twilio SDK client joins the existing
+    // conference muted. The call's remote WebRTC track lets the Live Call
+    // workspace transcribe the office and client without sending a computer
+    // microphone into the conversation. Distinct from autonomous AI streaming.
+    if (params.get('Mode') === 'officeMonitor') {
+      const token = String(params.get('OfficeToken') || '');
+      const [payload, signature] = token.split('.');
+      if (!payload || !signature || !Deno.env.get('TWILIO_AUTH_TOKEN')) {
+        return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
+      }
+      let conferenceName = '';
+      try {
+        const mac = await crypto.subtle.importKey('raw', new TextEncoder().encode(Deno.env.get('TWILIO_AUTH_TOKEN')!), 'HMAC', {hash:'SHA-256'}, false, ['verify']);
+        const signatureRaw = atob(signature.replace(/-/g,'+').replace(/_/g,'/'));
+        const bytes = Uint8Array.from(signatureRaw,c=>c.charCodeAt(0));
+        const verified = await crypto.subtle.verify('HMAC', mac, bytes, new TextEncoder().encode(payload));
+        const decoded = JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+        if (verified && decoded.v===1 && decoded.monitor===true &&
+            typeof decoded.createdAt==='number' && Date.now()-decoded.createdAt<7200000 &&
+            /^office_[a-f0-9]{32}$/.test(decoded.bridgeId)) conferenceName = decoded.bridgeId;
+      } catch {}
+      if (!conferenceName) {
+        return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
+      }
+      // Hold-free, one-way monitor. Browser SDK local microphone is also
+      // muted from the client immediately on call acceptance.
+      const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Dial>'+
+        '<Conference beep="false" muted="true" startConferenceOnEnter="false" endConferenceOnExit="false">'+
+        xmlEscape(conferenceName)+'</Conference></Dial></Response>';
+      return new Response(twiml, {headers:{'Content-Type':'text/xml'}});
+    }
+
     console.log('[dialerVoiceHandler] method:', req.method, 'to:', to, 'conf:', conferenceName, 'direction:', direction, 'called:', called);
 
     // ── Mode AI: AI Agent outbound call ──────────────────────────────────
