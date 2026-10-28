@@ -157,7 +157,12 @@ const templateKey = (templateId: any, templateName: any) => (templateId ? `id:${
  * keyed by id; anything else is keyed by its name, so an old send whose template
  * was deleted lands on the same row as the live one instead of beside it.
  */
-const campaignKeyFor = (templates: Map<string, any>, templateId: any, name: string) => {
+// The credentials + welcome mail is authored under several names but it is the same
+// email, so it always reads as one row instead of one row per name.
+const MERGED_FAMILIES = ['creds_welcome'];
+
+const campaignKeyFor = (templates: Map<string, any>, templateId: any, name: string, family: string) => {
+  if (MERGED_FAMILIES.includes(family)) return `family:${family}`;
   const clean = String(name || '').trim().toLowerCase();
   if (clean) return `name:${clean}`;
   if (templateId && templates.has(String(templateId))) return `id:${templateId}`;
@@ -192,7 +197,7 @@ async function buildReport(base44: any, body: any, rules: any) {
       const known = templates.get(String(event.templateId || ''));
       const name = known?.name || event.templateName || '';
       const category = categoryFor(name);
-      return { ...event, templateName: name, category: category.key, categoryLabel: category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name) };
+      return { ...event, templateName: name, category: category.key, categoryLabel: category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name, category.key) };
     });
 
   const sendingRows = sends.map((log: any) => {
@@ -208,7 +213,7 @@ async function buildReport(base44: any, body: any, rules: any) {
       name,
       system: known?.system || category.system,
       categoryLabel: known?.categoryLabel || category.label,
-      campaignKey: campaignKeyFor(templates, log.templateId, name),
+      campaignKey: campaignKeyFor(templates, log.templateId, name, category.key),
     };
   });
 
@@ -354,7 +359,9 @@ function buildSystem({ system, events, sends, now, rules }: any) {
   const campaignRows = [...campaigns.values()]
     .map((row) => {
       const scores = [...row.leadIds].map((leadId) => scoreOf[leadId]?.score || 0);
-      const fallbackName = row.fallbackName || (row.key.startsWith('name:') ? row.key.slice(5) : '') || 'Untracked template';
+      const fallbackName = row.key.startsWith('family:')
+        ? (row.categoryLabel || categoryFor(row.fallbackName).label)
+        : (row.fallbackName || (row.key.startsWith('name:') ? row.key.slice(5) : '') || 'Untracked template');
       return {
         key: row.key,
         name: fallbackName,
