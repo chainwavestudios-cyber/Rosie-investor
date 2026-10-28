@@ -10,6 +10,9 @@ import IntentReportModal from '@/components/debt/IntentReportModal';
 import CallAnalysisDiagram from '@/components/debt/CallAnalysisDiagram';
 import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
+import { useDebtCoachValue } from '@/lib/debtCoachStorage';
+import { PROFILE_TIMER_SOUNDS, isValidProfileTimerSoundFile, normalizeProfileTimerSound, primeProfileTimerAudio, playProfileTimerSound } from '@/components/debt/profileTimerSounds';
+import { Bell, Volume2, UploadCloud, Play, Clock3 } from 'lucide-react';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import { fullStateName } from '@/lib/usStates';
 import DebtCallBar from '@/components/debt/DebtCallBar';
@@ -27,6 +30,7 @@ import { isCampaignCard } from '@/lib/cardTypes';
 import './ContactCardPolish.css';
 
 const GOLD = '#10b981';
+const timerClock = ms => { const seconds = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2,'0')}`; };
 const ls = { display: 'block', color: '#aac2ba', fontSize: '10px', letterSpacing: '.45px', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 650 };
 const inp = { width: '100%', background: 'rgba(8,23,32,.7)', border: '1px solid rgba(145,193,179,.25)', borderRadius: '8px', padding: '8px 10px', color: '#eaf4ec', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' };
 
@@ -76,7 +80,14 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   const [saved, setSaved] = useState(false);
   const [togglingHot, setTogglingHot] = useState(false);
   const [togglingProspect, setTogglingProspect] = useState(false);
-  const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
+  // One intentionally blank minutes field — never preset an arbitrary duration.
+  const [timerInput, setTimerInput] = useState('');
+  const [timerError, setTimerError] = useState('');
+  const [soundError, setSoundError] = useState('');
+  const [soundUploading, setSoundUploading] = useState(false);
+  const [timerSoundChoice, setTimerSoundChoice] = useDebtCoachValue(username, 'profile_timer_sound', { id:'bell' });
+  const [uploadedTimerSound, setUploadedTimerSound] = useDebtCoachValue(username, 'profile_timer_uploaded_sound', null);
+  const chosenTimerSound = normalizeProfileTimerSound(timerSoundChoice?.id==='custom' ? { id:'custom', url:uploadedTimerSound?.url, name:uploadedTimerSound?.name } : timerSoundChoice);
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [qaHistory, setQaHistory] = useState([]);
@@ -201,14 +212,19 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     });
   }, [lead]);
 
-  // Load active timer for this lead
+  // Load per-user timers from the same database-backed cache as the global watcher.
   useEffect(() => {
-    if (!lead?.id) return;
-    const check = () => setActiveTimer(getActiveTimer(username, lead.id));
+    if (!lead?.id || !username) { setActiveTimer(null); return; }
+    let alive = true;
+    const check = () => { if (alive) setActiveTimer(getActiveTimer(username, lead.id)); };
     check();
     const interval = setInterval(check, 1000);
-    return () => clearInterval(interval);
-  }, [lead?.id]);
+    window.addEventListener('profile_timer_set', check);
+    window.addEventListener('profile_timer_cancelled', check);
+    return () => { alive = false; clearInterval(interval); window.removeEventListener('profile_timer_set', check); window.removeEventListener('profile_timer_cancelled', check); };
+  }, [lead?.id, username]);
+
+  useEffect(() => { setTimerInput(''); setTimerError(''); }, [lead?.id]);
 
   // Tick for countdown display
   useEffect(() => {
@@ -216,17 +232,66 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     return () => clearInterval(t);
   }, []);
 
-  const handleSetTimer = () => {
-    if (!local.id) return;
-    if (setProfileTimer(username, local, timerInput.hours, timerInput.minutes)) {
-      setActiveTimer(getActiveTimer(username, local.id));
-    } else {
-      alert('Please set at least 1 minute.');
+  const handleSetTimer = async () => {
+    if (!local.id || !username) { setTimerError('Open a saved contact to set a reminder.'); return; }
+    const minutes = Number(timerInput);
+    if (!timerInput.trim() || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      setTimerError('Enter a whole number of minutes from 1 to 1440.');
+      return;
     }
+    // Called during a genuine user click so the browser can unlock sound.
+    primeProfileTimerAudio(chosenTimerSound);
+    setTimerError('');
+    try {
+      const ok = await setProfileTimer(username, local, 0, minutes, chosenTimerSound);
+      if (!ok) throw new Error('Could not save this reminder.');
+      setActiveTimer(getActiveTimer(username, local.id));
+      setTimerInput('');
+      if ('Notification' in window && Notification.permission === 'default') {
+        void Notification.requestPermission().catch(() => {});
+      }
+    } catch(e) { setTimerError(e?.message || 'Could not set reminder.'); }
   };
 
-  const handleCancelTimer = () => {
-    if (local.id) { cancelProfileTimer(username, local.id); setActiveTimer(null); }
+  const handleCancelTimer = async () => {
+    if (!local.id || !username) return;
+    await cancelProfileTimer(username, local.id);
+    setActiveTimer(null);
+    setTimerInput('');
+  };
+
+  const handleTimerSoundChange = (id) => {
+    setSoundError('');
+    const next = id === 'custom' ? {id:'custom',url:uploadedTimerSound?.url,name:uploadedTimerSound?.name} : {id};
+    if (id === 'custom' && !uploadedTimerSound?.url) return;
+    setTimerSoundChoice({id});
+    primeProfileTimerAudio(normalizeProfileTimerSound(next));
+  };
+
+  const handleTimerSoundUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setSoundError('');
+    if (!isValidProfileTimerSoundFile(file)) {
+      setSoundError('Select an MP3, WAV, OGG, M4A, AAC or WebM sound smaller than 5 MB.');
+      return;
+    }
+    primeProfileTimerAudio({id:'bell'});
+    setSoundUploading(true);
+    try {
+      const uploaded = await base44.integrations.Core.UploadFile({file});
+      if (!/^https:\/\//.test(String(uploaded?.file_url || ''))) throw new Error('The sound file was not saved.');
+      setUploadedTimerSound({url:uploaded.file_url,name:file.name});
+      setTimerSoundChoice({id:'custom'});
+    } catch(e) { setSoundError('Sound upload failed: ' + (e?.message || 'please try another audio file.')); }
+    finally { setSoundUploading(false); }
+  };
+
+  const previewTimerSound = () => {
+    setSoundError('');
+    primeProfileTimerAudio(chosenTimerSound);
+    void playProfileTimerSound(chosenTimerSound).then(ok => { if (!ok) setSoundError('This sound could not play. Try another notification sound.'); });
   };
 
   const update = (field, value) => {
