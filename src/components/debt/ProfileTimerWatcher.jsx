@@ -78,6 +78,22 @@ export async function cancelProfileTimer(username,leadId){
   return saved;
 }
 
+/** Changing alert sound never restarts or alters a running countdown. */
+export async function updateProfileTimerSound(username,leadId,sound){
+  if(!username||!leadId)return false;
+  const existing=rows(await getDebtCoachValue(username,'profile_timers',[]));
+  let updated=false;
+  const next=existing.map(t=>{
+    if(t.leadId!==leadId||t.type==='event')return t;
+    updated=true;
+    return {...t,sound:normalizeProfileTimerSound(sound)};
+  });
+  if(!updated)return false;
+  const saved=await setAllDebtCoachValues(username,{profile_timers:next});
+  if(saved)window.dispatchEvent(new CustomEvent('profile_timer_set'));
+  return saved;
+}
+
 export function getActiveTimer(username,leadId){
   if(!username||!leadId)return null;
   const timers=rows(getCachedDebtCoachValue(username,'profile_timers',[]));
