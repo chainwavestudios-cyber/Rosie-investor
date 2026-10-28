@@ -18,7 +18,7 @@ const answeredType = (s) => /\b(?:credit cards?|cards?|personal loans?|loans?|bo
 const warmQuestion = (s) => /\b(?:would|could)\b[\s\S]{0,250}\b(?:helpful|help|beneficial|make (?:things|the payments?) (?:easier|manageable))\b[\s\S]{0,100}\?/i.test(s);
 const queueAnnouncement = (s) => /\b(?:placing|putting|transfer(?:ring)?|patch(?:ing)?|connect(?:ing)?)\b[\s\S]{0,90}\b(?:queue|chris|advisor|specialist|line|over)\b/i.test(s);
 export const OUTBOUND_WARM_QUESTION =
-  "Understood. Depending on your situation and the program's terms, there may be ways to make your unsecured debt payments more manageable. If Chris could review legitimate options with you, including any applicable fees, risks, and interest terms, would that be helpful to your family?";
+  "Understood. Depending on your situation, there may be legitimate ways to make your unsecured debt payments more manageable, with fees, interest terms, and risks explained before you decide. Would reviewing those options with Chris be helpful to your family?";
 export const OUTBOUND_QUEUE_NOTICE =
   "Thank you. I'm going to place you in Chris's queue now. There may be a few seconds of silence while I connect you.";
 export const OUTBOUND_DEBT_QUESTION =
