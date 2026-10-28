@@ -64,7 +64,7 @@ export default async function(req:Request):Promise<Response>{
       const bridgeId='office_'+crypto.randomUUID().replace(/-/g,'');
       const xml='<Response><Dial><Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true">'+xmlEscape(bridgeId)+'</Conference></Dial></Response>';
       const call=await twilioFetch('/Calls.json',{method:'POST',body:new URLSearchParams({
-        From:FROM,To:OFFICE,Twiml:xml,Timeout:'28',TimeLimit:'7200'
+        From:FROM,To:OFFICE,Twiml:xml,Timeout:'18',TimeLimit:'7200'
       })});
       const data={v:1,leadId:lead.id,userId:user.id,bridgeId,officeSid:call.sid,createdAt:Date.now(),clientSid:''};
       return respond({ok:true,bridgeToken:await sign(data),monitorToken:await sign({v:1,leadId:lead.id,userId:user.id,bridgeId,createdAt:data.createdAt,monitor:true}),
@@ -97,7 +97,7 @@ export default async function(req:Request):Promise<Response>{
       const waitRoom='office_wait_'+data.bridgeId.slice('office_'.length);
       const holdTwiML='<Response><Dial><Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="false">'+xmlEscape(waitRoom)+'</Conference></Dial></Response>';
       const call=await twilioFetch('/Calls.json',{method:'POST',body:new URLSearchParams({
-        From:FROM,To:to,Twiml:holdTwiML,Timeout:'30',TimeLimit:'7200'
+        From:FROM,To:to,Twiml:holdTwiML,Timeout:'15',TimeLimit:'7200'
       })});
       const next={...data,clientSid:call.sid,mergedRequested:false};
       return respond({ok:true,bridgeToken:await sign(next),officeStatus,clientStatus:call.status||'queued',clientAnswered:false,merged:false});
