@@ -24,7 +24,10 @@ export function TwilioDeviceProvider({ children, autoInit = true }) {
 
     initPromise.current = (async () => {
       try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Obtain permission only for the explicit phone action. Do not keep a
+        // preview mic open alongside Twilio's call device.
+        const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        permissionStream.getTracks().forEach(track => track.stop());
 
         if (!sessionStorage.getItem('twilio_agent_id')) {
           sessionStorage.setItem('twilio_agent_id', 'agent-' + Math.random().toString(36).slice(2, 10));
