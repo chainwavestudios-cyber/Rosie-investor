@@ -152,6 +152,18 @@ const isConfirmed = (event: any, now: number, rules: any) => {
 
 const templateKey = (templateId: any, templateName: any) => (templateId ? `id:${templateId}` : `name:${templateName || ''}`);
 
+/**
+ * One row per email, whichever id its sends carry. A template we still hold is
+ * keyed by id; anything else is keyed by its name, so an old send whose template
+ * was deleted lands on the same row as the live one instead of beside it.
+ */
+const campaignKeyFor = (templates: Map<string, any>, templateId: any, name: string) => {
+  const clean = String(name || '').trim().toLowerCase();
+  if (clean) return `name:${clean}`;
+  if (templateId && templates.has(String(templateId))) return `id:${templateId}`;
+  return 'untracked';
+};
+
 async function buildReport(base44: any, body: any, rules: any) {
   const now = Date.now();
   const days = Math.max(1, Math.min(180, Number(body.days) || 30));
@@ -180,13 +192,24 @@ async function buildReport(base44: any, body: any, rules: any) {
       const known = templates.get(String(event.templateId || ''));
       const name = known?.name || event.templateName || '';
       const category = categoryFor(name);
-      return { ...event, templateName: name, category: category.key, categoryLabel: category.label, system: known?.system || category.system };
+      return { ...event, templateName: name, category: category.key, categoryLabel: category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name) };
     });
 
   const sendingRows = sends.map((log: any) => {
     const known = templates.get(String(log.templateId || ''));
-    const category = known ? null : categoryFor(null, log.subject);
-    return { ...log, name: known?.name || '', system: known?.system || category!.system, categoryLabel: known?.categoryLabel || category!.label };
+    // A send can carry the id of a template that has since been deleted: its own
+    // name still identifies the email, so it must not fall back to the subject.
+    // The template's own name decides the family — a subject line must never
+    // re-label an email (a cold outreach subject mentioning "welcome" is still cold).
+    const name = known?.name || log.templateName || '';
+    const category = categoryFor(name, name ? '' : log.subject);
+    return {
+      ...log,
+      name,
+      system: known?.system || category.system,
+      categoryLabel: known?.categoryLabel || category.label,
+      campaignKey: campaignKeyFor(templates, log.templateId, name),
+    };
   });
 
   const wanted = new Set<string>();
@@ -307,8 +330,8 @@ function buildSystem({ system, events, sends, now, rules }: any) {
   };
 
   sends.forEach((log: any) => {
-    if (!log.templateId) return; // unattributable send (investor / portal mail) — not a campaign
-    const row = campaignRow(templateKey(log.templateId, null), log.categoryLabel || '');
+    if (!log.campaignKey || log.campaignKey === 'untracked') return; // unattributable send (investor / portal mail) — not a campaign
+    const row = campaignRow(log.campaignKey, log.categoryLabel || '');
     if (!row.fallbackName && log.name) row.fallbackName = log.name;
     row.sent += 1;
     if (log.leadId) row.emailedLeads.add(String(log.leadId));
@@ -316,7 +339,7 @@ function buildSystem({ system, events, sends, now, rules }: any) {
   });
 
   events.forEach((event: any) => {
-    const row = campaignRow(templateKey(event.templateId, event.templateName), event.categoryLabel || '');
+    const row = campaignRow(event.campaignKey || templateKey(event.templateId, event.templateName), event.categoryLabel || '');
     const leadId = String(event.leadId);
     row.leadIds.add(leadId);
     if (event.templateId) row.templateId = event.templateId;
@@ -331,7 +354,7 @@ function buildSystem({ system, events, sends, now, rules }: any) {
   const campaignRows = [...campaigns.values()]
     .map((row) => {
       const scores = [...row.leadIds].map((leadId) => scoreOf[leadId]?.score || 0);
-      const fallbackName = row.fallbackName || row.key.slice(5) || 'Untracked template';
+      const fallbackName = row.fallbackName || (row.key.startsWith('name:') ? row.key.slice(5) : '') || 'Untracked template';
       return {
         key: row.key,
         name: fallbackName,
