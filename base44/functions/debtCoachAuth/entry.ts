@@ -158,10 +158,10 @@ export default async function(req: Request): Promise<Response> {
       const valid = await verifyPassword(password || '', user.passwordHash);
       if (!valid) return Response.json({ error: 'Invalid username or password' }, { status: 401 });
       const sessionToken = crypto.randomUUID();
-      // Migrate legacy password hashes only after a successful login.
-      const legacy = !user.passwordHash?.startsWith('pbkdf2:');
-      const patch = legacy ? { sessionToken, passwordHash: await hashPassword(password) } : { sessionToken };
-      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, patch);
+      // Backward compatibility: do not rehash legacy accounts in the login
+      // request. The migration was causing production 500s after a valid
+      // password. Passwords are upgraded when users explicitly change them.
+      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { sessionToken });
       return Response.json({ user: sanitizeUser(user), sessionToken, mustResetPassword: user.mustResetPassword });
     }
 
@@ -394,6 +394,9 @@ export default async function(req: Request): Promise<Response> {
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    // Record a useful server-side diagnostic without logging credentials,
+    // session tokens or account details to platform logs.
+    console.error('[debtCoachAuth] request failed', error instanceof Error ? error.name + ': ' + error.message : 'Unexpected error');
+    return Response.json({ error: 'Authentication service error. Please retry.' }, { status: 500 });
   }
 }
