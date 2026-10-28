@@ -265,7 +265,7 @@ export default function DebtEmailCampaignAnalytics(){
          </div>}
        </section>
        <section className="dca-recipients">
-         <div className="dca-recipient-head"><div><div className="dca-eyebrow">RECIPIENT DETAILS</div><h3>Individual Emails &amp; Activity</h3><p>Sent, opened, clicked, failed or skipped — with the actual send record and timeline.</p></div><span className="dca-count">{fmt(total)} records</span></div>
+         <div className="dca-recipient-head"><div><div className="dca-eyebrow">CAMPAIGN ENGAGEMENT JOURNAL</div><h3 style={{margin:"4px 0",fontSize:23}}>{campaign.name}</h3><p style={{margin:"2px 0"}}>Individual recipients · Email opens, audio, links, calling activity and quick actions</p></div><span className="dca-count">{fmt(total)} records</span></div>
          <div className="dca-toolbar"><label className="dca-search"><Search size={15}/><input aria-label="Search recipients across selected campaign" placeholder="Search name, email, subject, send ID…" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="dca-filter-row">{recipientStatuses.map(([key,label])=><button key={key} className={recipientStatus===key?'active':''} onClick={()=>setRecipientStatus(key)}>{label}</button>)}</div></div>
          {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}{actionNote&&<div role="status" className="dca-note">{actionNote}</div>}
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
