@@ -18,7 +18,7 @@ const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing:
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '7px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
 const PRIO_COLORS = { high: RED, medium: AMBER, low: '#6b7280' };
-const PRIO_LABELS = { high: 'HIGH — Live Popup', medium: 'Medium — Highlight', low: 'Low — Log Only' };
+const PRIO_LABELS = { high: 'High — Compact Alert', medium: 'Medium — Quiet Suggestion', low: 'Low — Session History' };
 
 function blankForm() {
   return { title: '', triggerPhrases: '', responseText: '', mindset: '', goal: '', priority: 'medium', enabled: true, sortOrder: 0 };
@@ -369,9 +369,9 @@ Return ONLY the rewritten answer text, nothing else.`,
               <div>
                 <label style={ls}>Priority</label>
                 <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} style={inp}>
-                  <option value="high">High — Live Popup</option>
-                  <option value="medium">Medium — Highlight</option>
-                  <option value="low">Low — Log Only</option>
+                  <option value="high">High — Compact Alert</option>
+                  <option value="medium">Medium — Quiet Suggestion</option>
+                  <option value="low">Low — Session History</option>
                 </select>
               </div>
               <div>
