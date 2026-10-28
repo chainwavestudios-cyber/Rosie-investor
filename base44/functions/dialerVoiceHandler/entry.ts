@@ -304,23 +304,29 @@ export default async function(req) {
       // number, hears who is waiting, says "patch him through", and his join starts
       // the conference — the caller comes off hold and the two are connected.
       if (leadId) {
-        const conferenceName = `adam_queue_${leadId || Date.now()}`;
         const customerCallSid = params.get('CallSid') || '';
+        const conferenceName = `adam_queue_${customerCallSid || leadId}`;
+        const queuedAtIso = new Date().toISOString();
         const holdWaitUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`;
 
         // Create FronterHeadsUp so fronter monitor shows the queued call
         try {
           await service.entities.FronterHeadsUp.create({
-            fronterUsername: 'queue',
+            fronterUsername: 'AI Agent',
             leadId: leadId,
-            leadName: (lead.firstName || '') + ' ' + (lead.lastName || ''),
-            leadPhone: lead.phone || '',
-            leadEmail: lead.email || '',
+            leadName: [lead?.firstName, lead?.lastName].filter(Boolean).join(' '),
+            leadPhone: lead?.phone || '',
+            leadEmail: lead?.email || '',
+            debtAmount: Number(lead?.debtAmount) || 0,
             conferenceName,
             customerCallSid,
+            routeType: 'ai_agent',
+            routeState: 'calling_chris_primary',
+            advisorAttempt: 0,
+            queueStartedAt: queuedAtIso,
             lineKey: config.twilioLineKey || '',
             status: 'active',
-            createdAt: new Date().toISOString(),
+            createdAt: queuedAtIso,
           });
           await service.entities.FronterLead.update(leadId, {
             callStatus: 'queue_hold',
@@ -330,41 +336,14 @@ export default async function(req) {
           });
         } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
 
-        // Dial the advisor on the merge number — the popup's "Dial Chris" step.
-        // When he answers he hears the brief, then joins the queue conference.
-        const mergeNumber = config.transferPhoneNumber || '';
-        // Dial the advisor from a FREE, unassigned line. The line carrying this call
-        // cannot place another one, which is why a dial from the AI line never rings
-        // the advisor. This is the same free-line dial the merge/transfer popup uses.
-        const mergeFrom = service
-          ? await pickTransferLineKey(service, config.twilioLineKey || 'TWILIO_FROM_NUMBER')
-          : (lineNumber(config.twilioLineKey) || Deno.env.get('TWILIO_FROM_NUMBER') || '');
-        if (/^\+[1-9]\d{7,14}$/.test(mergeNumber) && mergeFrom) {
-          const queuedAtIso = new Date().toISOString();
-          const briefTail = `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}` +
-            `&QueuedAt=${encodeURIComponent(queuedAtIso)}` +
-            (customerCallSid ? `&CallerCallSid=${encodeURIComponent(customerCallSid)}` : '');
-          const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief${briefTail}`;
-          // If line 1 never picks up, roll the same brief onto the second merge line.
-          const fallbackUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueFallback${briefTail}`;
-          try {
-            await twilioFetch('/Calls.json', {
-              method: 'POST',
-              body: new URLSearchParams({
-                To: toE164(mergeNumber),
-                From: mergeFrom,
-                Url: briefUrl,
-                Method: 'GET',
-                Timeout: '25',
-                StatusCallback: fallbackUrl,
-                StatusCallbackEvent: 'completed',
-                StatusCallbackMethod: 'POST',
-              }),
-            });
-            console.log('[dialerVoiceHandler] → AI transfer: advisor dialed', toE164(mergeNumber), 'conf:', conferenceName);
-          } catch (e) { console.warn('[dialerVoiceHandler] Advisor dial failed:', e?.message, (e as any)?.twilioCode || ''); }
-        } else {
-          console.warn('[dialerVoiceHandler] No valid advisor merge number — caller stays in the queue');
+        // Ring Chris directly; the caller stays on the selected queue recording.
+        const primaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 1, appUrl);
+        if (!primaryStarted) {
+          const secondaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 2, appUrl);
+          if (!secondaryStarted) {
+            const alerts = await service.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
+            if (alerts?.[0]) await service.entities.FronterHeadsUp.update(alerts[0].id, { routeState: 'appointment_available', advisorAttempt: 2 });
+          }
         }
 
         const skipSay = url.searchParams.get('SkipSay') === 'true';
@@ -373,7 +352,7 @@ export default async function(req) {
 <Response>
   ${sayTag}
   <Dial>
-    <Conference startConferenceOnEnter="false" endConferenceOnExit="true" beep="false"
+    <Conference startConferenceOnEnter="false" endConferenceOnExit="false" beep="false"
       waitUrl="${xmlEscape(holdWaitUrl)}" waitMethod="GET">
       ${conferenceName}
     </Conference>
