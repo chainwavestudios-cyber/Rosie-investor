@@ -14,6 +14,7 @@ import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
+import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import { buildIntentReport } from '@/components/debt/intentReport';
@@ -24,7 +25,7 @@ import { startLiveFeed } from '@/lib/debtLiveFeed';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
-import { useDebtCoachValue } from '@/lib/debtCoachStorage';
+import { useDebtCoachValue, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useObjectionEngine } from '@/hooks/useObjectionEngine';
@@ -36,10 +37,7 @@ import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const DEFAULT_AUDIO_SETUPS = [
-  { name: 'Computer setup', saved: false },
-  { name: 'Cell setup', saved: false },
-];
+const DEFAULT_AUDIO_SETUPS = AUDIO_MODE_DEFAULTS;
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
@@ -105,8 +103,21 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [activeSetupIndex, setActiveSetupIndex, activeSetupLoaded] = useDebtCoachValue(coachUser?.username, 'activeAudioSetup', 0);
   const [outputDevices, setOutputDevices] = useState([]);
   const [outputDeviceId, setOutputDeviceId, outputLoaded] = useDebtCoachValue(coachUser?.username, 'defaultOutputDeviceId', '');
-  const [agentGain, setAgentGain] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
-  const [customerGain, setCustomerGain] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
+  const [agentGain, setAgentGain, agentGainLoaded] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
+  const [customerGain, setCustomerGain, customerGainLoaded] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
+  const [deviceScanCompleted, setDeviceScanCompleted] = useState(false);
+  const firstDeviceScanRef = useRef(false);
+  const restoredAudioModeRef = useRef('');
+  const [audioModeMessage, setAudioModeMessage] = useState('');
+  const [savingAudioMode, setSavingAudioMode] = useState(false);
+  const modes = audioModes(audioSetups);
+  const activeAudioMode = modes[activeSetupIndex] || modes[0];
+  const audioModeValidation = resolveAudioMode(activeAudioMode, micDevices, outputDevices, isLoopbackSource);
+  const audioDeviceStateRef = useRef(null);
+  audioDeviceStateRef.current = {
+    micDeviceId, customerMicId, outputDeviceId,
+    hasSavedMode: !!(setupsLoaded && activeSetupLoaded && activeAudioMode?.saved),
+  };
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
@@ -485,26 +496,25 @@ Agent line: "${firstAgentLines}"`,
       stream.getTracks().forEach(t => t.stop());
       ({ mics, outputs } = await scan());
     }
-    // Fixed mapping: the Rodecaster Pro Multichannel carries the agent's voice,
-    // Stereo Mix carries whatever the computer plays (the customer). The two never
-    // swap — a saved microphone on the customer slot is moved to Stereo Mix.
-    const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
-    const loop = mics.find(m => /stereo mix/i.test(m.label || ''))
-      || mics.find(m => /what u hear|loopback/i.test(m.label || ''));
-    if (mics.length > 0) setMicDeviceId(prev => prev || (rode || mics[0]).deviceId);
-    if (loop) {
-      setCustomerMicId(prev => {
-        const savedLabel = mics.find(m => m.deviceId === prev)?.label || '';
-        return /stereo mix|what u hear|loopback/i.test(savedLabel) ? prev : loop.deviceId;
-      });
+    // Offer first-run suggestions only if there is NO saved audio mode.
+    // Never overwrite a restored selection (including deliberate customer = None).
+    // The preferred hardware is never assumed to be the same for Computer and Cell.
+    if (!firstDeviceScanRef.current && !audioDeviceStateRef.current?.hasSavedMode) {
+      const current = audioDeviceStateRef.current || {};
+      const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
+      const loop = findLoopback(mics);
+      if (!current.micDeviceId && mics.length) setMicDeviceId((rode || mics[0]).deviceId);
+      if (!current.customerMicId && loop) setCustomerMicId(loop.deviceId);
+      if (!current.outputDeviceId && outputs.length) setOutputDeviceId(outputs[0].deviceId);
     }
-    if (outputs.length > 0) setOutputDeviceId(prev => prev || outputs[0].deviceId);
+    firstDeviceScanRef.current = true;
+    setDeviceScanCompleted(true);
   }, []);
 
   useEffect(() => {
-    if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
+    if (!micLoaded || !customerMicLoaded || !outputLoaded || !setupsLoaded || !activeSetupLoaded) return;
     loadDevices(false);
-  }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
+  }, [micLoaded, customerMicLoaded, outputLoaded, setupsLoaded, activeSetupLoaded, loadDevices]);
 
   // Windows devices that are enabled/plugged in after the page loaded (Stereo
   // Mix turned on, speaker connected) show up immediately instead of needing
@@ -1333,6 +1343,17 @@ ${recentText}`,
   }, []);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
+    // Never start a saved mode with missing/mismatched hardware. In particular,
+    // don't silently switch the customer line to an ordinary microphone.
+    const selectedProfile = audioModes(audioSetups)[activeSetupIndex];
+    if (selectedProfile?.saved) {
+      const resolved = resolveAudioMode(selectedProfile, micDevices, outputDevices, isLoopbackSource);
+      const customerRequired = !!(selectedProfile.customerDeviceId || selectedProfile.customerLabel);
+      if (!resolved.micId || (customerRequired && !resolved.customerId)) {
+        setError(`Audio setup unavailable: ${resolved.problems.join(' ')} Re-scan, choose the correct devices, and Save Setup.`);
+        return;
+      }
+    }
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !leadRef.current?.id) {
       // Persist the lead to the database immediately so transcript + auto-extraction
@@ -1434,7 +1455,7 @@ ${recentText}`,
     let agentStream, customerStream;
     let feedDual = dualMode;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
         // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
@@ -1442,6 +1463,9 @@ ${recentText}`,
         // ends up recording the agent's own voice — two voices on one channel.
         const grab = (id) => navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id } } });
         customerStream = await grab(customerMicId).catch(async () => {
+          // For a saved preset, never substitute an unrelated loopback device.
+          // The agent must explicitly reselect and save the correct hardware.
+          if (selectedProfile?.saved) return null;
           // Plugging in headphones re-numbers the Realtek inputs, so the saved id
           // goes stale. Re-find the loopback by name before giving up on it.
           const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -1461,7 +1485,14 @@ ${recentText}`,
       setPhase('idle'); setDgStatus('error'); return;
     }
     if (dualMode && !feedDual) {
-      setError('Customer audio device is not available — transcribing your microphone only and separating the two voices by speaker. Re-scan and pick the device again to restore the split.');
+      if (selectedProfile?.saved) {
+        // A saved dual-channel mode must not silently become microphone-only.
+        try { agentStream?.getTracks().forEach(t => t.stop()); } catch {}
+        setError('Saved customer input disconnected during call startup. The call was not started. Re-scan and restore the correct audio mode.');
+        setPhase('idle'); setDgStatus('error');
+        return;
+      }
+      setError('Customer audio device is unavailable — using microphone-only transcription. Re-scan the customer input to restore dual-channel audio.');
     }
 
     // Server-held key first (its secret is always the current one); the compiled
@@ -1514,7 +1545,7 @@ ${recentText}`,
     });
     feedRef.current = feed;
     ctxRef.current = feed.ctx;
-  }, [micDeviceId, customerMicId, micDevices, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, micDevices, outputDevices, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
@@ -1803,7 +1834,7 @@ ${recentText}`,
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testAgentCtxRef.current = ctx;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       testAgentStreamRef.current = stream;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -1882,42 +1913,89 @@ ${recentText}`,
 
   useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
 
-  // Only loopback-style inputs can be the customer channel — microphones are kept
-  // out of this list entirely so the room can never end up labelled "customer".
+  // The customer channel must be a loopback/line source, never an ordinary mic.
   const customerInputs = micDevices.filter(m => isLoopbackSource(m.label || ''));
   const customerLabelSelected = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
   const micLabelSelected = micDevices.find(m => m.deviceId === micDeviceId)?.label || '';
-  const activeSetup = (audioSetups || DEFAULT_AUDIO_SETUPS)[activeSetupIndex] || null;
+  const currentAudioSelection = { micDeviceId, customerMicId, outputDeviceId, agentGain, customerGain };
+  const audioModeDirty = isAudioModeEdited(activeAudioMode, currentAudioSelection, micDevices, outputDevices);
+  const audioModeReady = setupsLoaded && activeSetupLoaded && micLoaded && customerMicLoaded
+    && outputLoaded && agentGainLoaded && customerGainLoaded && deviceScanCompleted;
 
-  // Load a saved setup. Devices are matched by label first, because Windows hands
-  // out new device ids on every reboot / re-plug; the saved id is the fallback.
+  // One-time restoration after both settings and device enumeration load.
+  // Never overwrite a user's live edits on every render or each device scan.
+  useEffect(() => {
+    if (!audioModeReady || !coachUser?.username || restoredAudioModeRef.current === coachUser.username) return;
+    restoredAudioModeRef.current = coachUser.username;
+    if (!activeAudioMode?.saved) {
+      setAudioModeMessage('No hardware profile saved for this mode yet. Select devices and Save Setup.');
+      return;
+    }
+    const r = resolveAudioMode(activeAudioMode, micDevices, outputDevices, isLoopbackSource);
+    setMicDeviceId(r.micId);
+    setCustomerMicId(r.customerId);
+    setOutputDeviceId(r.outputId);
+    setAgentGain(r.agentGain);
+    setCustomerGain(r.customerGain);
+    setAudioModeMessage(r.valid
+      ? `Restored ${activeAudioMode.name}. Check your audio meters before a call.`
+      : `Saved setup needs attention: ${r.problems.join(' ')}`);
+  }, [audioModeReady, coachUser?.username, activeSetupIndex, activeAudioMode?.saved, micDevices, outputDevices]);
+
+  // Use a saved computer/cell profile. An unsaved slot starts blank so it
+  // cannot misleadingly appear to be running another mode's hardware.
   const useAudioSetup = (idx) => {
-    if (phase === 'live') return;
+    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady) return;
+    const s = modes[idx];
+    if (!s) return;
     setActiveSetupIndex(idx);
-    const s = (audioSetups || [])[idx];
-    if (!s?.saved) return;
-    const mic = s.micLabel ? micDevices.find(m => m.label === s.micLabel) : null;
-    const cust = s.customerLabel ? micDevices.find(m => m.label === s.customerLabel) : null;
-    if (mic) setMicDeviceId(mic.deviceId);
-    if (cust) setCustomerMicId(cust.deviceId);
-    else if (!s.customerLabel) setCustomerMicId('');
-    if (s.micLabel && !mic) setError(`“${s.name}” was saved with “${s.micLabel}”, which isn't connected right now — plug it in and hit 🔄 to re-scan.`);
+    setError('');
+    if (!s.saved) {
+      setMicDeviceId(''); setCustomerMicId(''); setOutputDeviceId('');
+      setAgentGain(1); setCustomerGain(1);
+      setAudioModeMessage(`${s.name} is not configured. Choose your devices, test them, then Save Setup.`);
+      return;
+    }
+    const r = resolveAudioMode(s, micDevices, outputDevices, isLoopbackSource);
+    setMicDeviceId(r.micId);
+    setCustomerMicId(r.customerId);
+    setOutputDeviceId(r.outputId);
+    setAgentGain(r.agentGain);
+    setCustomerGain(r.customerGain);
+    const msg = r.valid ? `${s.name} loaded. Verify your levels before the call.` : `${s.name}: ${r.problems.join(' ')}`;
+    setAudioModeMessage(msg);
+    if (!r.valid) setError(msg);
   };
 
   const renameAudioSetup = (idx, name) => {
-    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === idx ? { ...s, name } : s)));
+    if (phase === 'live') return;
+    setAudioSetups(modes.map((s, i) => i === idx ? { ...s, name: name.slice(0, 38) } : s));
   };
 
-  // Whatever you pick while a setup is active is saved into that setup.
-  useEffect(() => {
-    if (!setupsLoaded || !micLoaded || !customerMicLoaded || !activeSetupLoaded) return;
-    if (phase === 'live' || !activeSetup) return;
-    if (!micDeviceId && !customerMicId) return;
-    if (activeSetup.micLabel === micLabelSelected && activeSetup.customerLabel === customerLabelSelected && activeSetup.saved) return;
-    setAudioSetups((audioSetups || DEFAULT_AUDIO_SETUPS).map((s, i) => (i === activeSetupIndex
-      ? { ...s, saved: true, micDeviceId, micLabel: micLabelSelected, customerDeviceId: customerMicId, customerLabel: customerLabelSelected }
-      : s)));
-  }, [setupsLoaded, micLoaded, customerMicLoaded, activeSetupLoaded, phase, activeSetupIndex, micDeviceId, customerMicId, micLabelSelected, customerLabelSelected]);
+  // Save is an explicit action, never triggered by changing a dropdown.
+  const saveAudioSetup = async () => {
+    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady || savingAudioMode) return;
+    const result = captureAudioMode(activeAudioMode, currentAudioSelection, micDevices, outputDevices, isLoopbackSource);
+    if (!result.valid) {
+      setAudioModeMessage(result.problems.join(' '));
+      return;
+    }
+    setSavingAudioMode(true);
+    setAudioModeMessage(`Saving ${result.mode.name} to your account…`);
+    try {
+      const next = modes.map((s, i) => i === activeSetupIndex ? result.mode : s);
+      const saved = await setAllDebtCoachValues(coachUser?.username, {
+        audioSetupsJson: next, activeAudioSetup: activeSetupIndex,
+        defaultMicDeviceId: micDeviceId, defaultCustomerMicId: customerMicId,
+        defaultOutputDeviceId: outputDeviceId, agentMicGain: agentGain, customerMicGain: customerGain,
+      });
+      if (!saved) throw new Error('The server did not confirm the save.');
+      setError('');
+      setAudioModeMessage(`Saved ${result.mode.name} to your account. Verify audio levels before calling.`);
+    } catch (e) {
+      setAudioModeMessage(`Save failed: ${e?.message || 'Please retry.'}`);
+    } finally { setSavingAudioMode(false); }
+  };
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
@@ -1945,6 +2023,7 @@ ${recentText}`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+            <option value="">— Select agent microphone —</option>
             {micDevices.length === 0 && <option>Default microphone</option>}
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
@@ -1985,17 +2064,23 @@ ${recentText}`,
         </div>
 
         <AudioSetupSwitcher
-          setups={audioSetups || DEFAULT_AUDIO_SETUPS}
+          setups={modes}
           activeIndex={activeSetupIndex}
-          disabled={phase === 'live'}
+          disabled={phase === 'live' || testingAgent || testingCustomer || savingAudioMode}
+          loading={!audioModeReady}
+          dirty={audioModeDirty}
+          validation={audioModeValidation}
+          message={audioModeDirty && activeAudioMode?.saved && !savingAudioMode ? '' : audioModeMessage}
           onUse={useAudioSetup}
           onRename={renameAudioSetup}
+          onSave={saveAudioSetup}
         />
 
         {outputDevices.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <label style={{ ...ls, marginBottom: 0 }}>🔊 Audio Output</label>
-            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>🔊 Preferred Output</label>
+            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase==='live'} title="Stored as a preferred playback device; browser/system output routing remains in effect" style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+              <option value="">— System default output —</option>
               {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
             </select>
           </div>
