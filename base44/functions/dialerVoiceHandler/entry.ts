@@ -81,7 +81,7 @@ function buildQueueBrief(lead: any, secondsInQueue: number): string {
   const name = [String(lead?.firstName || '').trim(), String(lead?.lastName || '').trim()]
     .filter(Boolean).join(' ') || 'a new caller';
   const amount = Number(lead?.debtAmount || 0);
-  const debtBrief = amount > 0 ? `They reported approximately ${amount.toLocaleString('en-US')} dollars in debt.` : 'Their debt amount has not yet been confirmed.';
+  const debtBrief = amount > 0 ? `Their lead record lists approximately ${amount.toLocaleString('en-US')} dollars in debt. Please verify that figure with them.` : 'Their debt amount has not yet been confirmed.';
   return `Chris, the AI agent has ${name} waiting in your queue. ${debtBrief} ` +
     `They have been waiting ${queueWaitPhrase(secondsInQueue)}. ` +
     `Say "patch them through", or press 1, to merge the call. Otherwise press 2.`;
@@ -605,7 +605,12 @@ export default async function(req) {
             const event = String(params.get('StatusCallbackEvent') || '').toLowerCase();
             // The customer joining an empty conference is not a completed
             // transfer. Only advisor-side start/join confirms a live handoff.
-            const isCustomerJoin = event.includes('join') && customerSid && joiningSid === customerSid;
+            // At the moment the first person joins this newly created queue,
+            // only the customer can be present: the advisor has not been dialed.
+            // Some Twilio callback variants omit ParticipantCallSid, so use
+            // this initial-state fallback rather than leaving the caller waiting.
+            const isCustomerJoin = event.includes('join') && customerSid &&
+              (joiningSid === customerSid || (active.routeState === 'caller_queued' && Number(active.advisorAttempt || 0) === 0));
             const isCustomerLeave = event.includes('leave') && customerSid && joiningSid === customerSid;
             if (isCustomerLeave && !['merged', 'appointment_booked'].includes(active.routeState)) {
               // The prospect has hung up; don't show a stale active queue card,
