@@ -157,7 +157,7 @@ export default function DebtEmailCampaignAnalytics(){
    setQuickBusy('meeting');setActionNote('');try{
      const start=new Date(meeting.when);if(!Number.isFinite(start.getTime())||start<=new Date())throw Error('Choose a future date and time');
      const description=`${meeting.notes||''}\n\nContact: ${meeting.row.name}\nPhone: ${meeting.row.phone||''}\nEmail: ${meeting.row.email}`;
-     const result=await base44.functions.invoke('googleCalendarSync',{action:'saveLeadAppointment',sessionUserId,sessionToken,leadId:meeting.row.leadId,title:meeting.label.trim(),startISO:start.toISOString(),duration:Number(meeting.duration||30),description,reminders:meeting.reminders?[{method:'email',minutes:1440},{method:'email',minutes:60}]:[]});
+     const result=await base44.functions.invoke('googleCalendarSync',{action:'saveLeadAppointment',sessionUserId,sessionToken,leadId:meeting.row.leadId,title:meeting.label.trim(),startISO:start.toISOString(),duration:Number(meeting.duration||30),description,sendReminderEmails:meeting.reminders,reminders:meeting.reminders?[{method:'email',minutes:1440},{method:'email',minutes:60}]:[]});
      const data=result?.data||result;if(data.status!=='success')throw Error(data.error||'Calendar unavailable');
      setContactMeta(prev=>({...prev,[meeting.row.leadId]:{...prev[meeting.row.leadId],outcome:'Scheduled Appointment',lastCallAt:new Date().toISOString()}}));
      setActionNote('Meeting scheduled for '+meeting.row.name);setMeeting(null);
