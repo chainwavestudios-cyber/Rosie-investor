@@ -60,7 +60,8 @@ export default function DebtGmailEngagement({ view = 'report' }) {
   if (!isAdmin) return <div style={{ padding: 20, color: colors.muted }}>Email reporting is restricted to Debt Call Coach administrators.</div>;
 
   const filter = (r) => [r.contactName, r.contactEmail, r.templateName, r.subject, r.name, r.email].join(' ').toLowerCase().includes(search.toLowerCase());
-  const people = composeGmailIntelligence(data).leads.filter((p) => [p.name,p.email,p.lastTemplate].join(' ').toLowerCase().includes(search.toLowerCase())).sort((a,b) => compareEngagementPeople(a,b));
+  const allPeople = composeGmailIntelligence(data).leads;
+  const people = allPeople.filter((p) => [p.name,p.email,p.lastTemplate].join(' ').toLowerCase().includes(search.toLowerCase())).sort((a,b) => compareEngagementPeople(a,b));
   const personById = new Map(people.map(p => [String(p.leadId||p.id),p]));
   const messages = (data?.timeline || []).filter(filter).map((send) => ({
     ...send, ...aggregateMilestones([send]), score:send.intentScore || 0,
@@ -108,9 +109,9 @@ export default function DebtGmailEngagement({ view = 'report' }) {
         {metric('Audio completed', data.summary.audioCompleted, 'At least one completed playback')}
         {metric('Calendar opened', data.summary.calendarOpened, 'Not confirmed appointments')}
         {metric('Company site clicked', data.summary.companyWebsiteClicked, 'Links opened from welcome page')}
-        {metric('Gold listeners', people.filter(p=>p.goldListener).length, 'Full estimated audio playback')}
-        {metric('All links + audio', people.filter(p=>p.allLinksAndAudio).length, 'Audio plus three external links')}
-        {metric('Elite journey', people.filter(p=>p.eliteJourney).length, 'All links, audio and calendar')}
+        {metric('Gold listeners', allPeople.filter(p=>p.goldListener).length, 'Full estimated audio playback')}
+        {metric('All links + audio', allPeople.filter(p=>p.allLinksAndAudio).length, 'Audio plus three external links')}
+        {metric('Elite journey', allPeople.filter(p=>p.eliteJourney).length, 'All links, audio and calendar')}
       </div>
       <h3 style={{ fontSize: 13, margin: '16px 0 8px' }}>Template effectiveness</h3>
       <div style={{ overflowX: 'auto' }}>
