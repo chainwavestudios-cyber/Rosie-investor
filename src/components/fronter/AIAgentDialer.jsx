@@ -160,8 +160,9 @@ export default function AIAgentDialer({ adminUsername }) {
         if (data?.ok && data?.leadId) {
           setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'dialing', callSid: data.callSid, leadId: data.leadId } : q));
           // Do NOT blindly place a second prospect call after five seconds.
-          // The live call owns Alex until Twilio reports an ended call or the
-          // customer enters the separate, recorded transfer queue.
+          // Do not start the next lead while either Chris phone is still
+          // ringing. Require merge, finished call, or confirmed unanswered
+          // fallback with the new Debt Call Coach prospect.
           const deadline=Date.now()+5*60*1000;
           let completed=false;
           let nextStatus='finished';
@@ -170,9 +171,12 @@ export default function AIAgentDialer({ adminUsername }) {
               const active=await base44.entities.FronterLead.get(data.leadId);
               const callState=String(active?.callStatus||'');
               const disposition=String(active?.lastCallResult||'');
-              const inQueue=['queue_hold','recording_queue','queue_callback'].includes(callState);
+              // Entering hold isn't the end of the warm handoff. Wait for
+              // advisor merge OR both failed attempts + prospect migration.
+              // Then, and only then, advance to the next approved lead.
+              const inQueue=callState==='recording_queue' && disposition==='queued_no_connect';
               const ended=['ai_outbound_complete','queue_abandoned','transferred'].includes(callState) ||
-                ['transferred','queued_no_connect','no_answer'].includes(disposition);
+                ['transferred','no_answer'].includes(disposition);
               if(inQueue || ended){
                 completed=true;
                 nextStatus=inQueue?'queued':'finished';
