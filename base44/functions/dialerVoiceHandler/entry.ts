@@ -389,6 +389,55 @@ export default async function(req) {
       return new Response(twiml, { headers: { 'Content-Type': 'text/xml' } });
     }
 
+    // ── Advisor leg ended: attempt Chris's second number, then offer a
+    // speech-enabled appointment hold if neither line can merge. This callback
+    // does not end the caller's call or close the in-app transfer card.
+    if (params.get('Mode') === 'aiQueueFallback') {
+      const conf = params.get('Conf') || '';
+      const leadId = params.get('LeadId') || '';
+      const callerSid = params.get('CallerCallSid') || '';
+      const attempt = Number(params.get('Attempt') || 1);
+      const queuedAt = params.get('QueuedAt') || new Date().toISOString();
+      if (conf && leadId) {
+        try {
+          const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+          const service = createClientFromRequest(req).asServiceRole;
+          const alerts = await service.entities.FronterHeadsUp.filter({ conferenceName: conf, status: 'active' });
+          const alert = alerts?.[0];
+          // A completed advisor conversation or late Twilio retry must never
+          // call Chris again after the prospect has already been merged.
+          if (alert && alert.routeType === 'ai_agent' && !['merging', 'merged', 'appointment_booked'].includes(alert.routeState)) {
+            const configRows = await service.entities.AIAgentConfig.filter({ configName: 'default' });
+            const config = configRows?.[0] || {};
+            const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+            if (attempt === 1 && Number(alert.advisorAttempt || 0) === 1) {
+              const started = await startAiAdvisorAttempt(service, config, leadId, conf, callerSid, queuedAt, 2, appUrl);
+              if (!started) {
+                await service.entities.FronterHeadsUp.update(alert.id, { advisorAttempt: 2, routeState: 'appointment_available' });
+              }
+            } else if (attempt === 2 && Number(alert.advisorAttempt || 0) === 2) {
+              await service.entities.FronterHeadsUp.update(alert.id, { routeState: 'appointment_available' });
+              await service.entities.FronterLead.update(leadId, {
+                callStatus: 'queue_callback', lastCallResult: 'queued_no_connect',
+              });
+              // Speech recognition cannot operate inside a conference waitUrl.
+              // Move just the prospect to the existing speech-aware custom hold
+              // IVR. The transfer card stays active and can pull them back.
+              if (config.callbackBookingEnabled !== false && callerSid) {
+                const bookingUrl = `${appUrl}/functions/appointmentVoiceHandler?step=hold&source=ai&leadId=${encodeURIComponent(leadId)}`;
+                try {
+                  await twilioFetch(`/Calls/${callerSid}.json`, {
+                    method: 'POST', body: new URLSearchParams({ Url: bookingUrl, Method: 'GET' }),
+                  });
+                } catch (e) { console.warn('[AI Queue] Could not move caller into appointment hold:', e?.message); }
+              }
+            }
+          }
+        } catch (e) { console.warn('[AI Queue] Advisor fallback failed:', e?.message); }
+      }
+      return new Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', { headers: { 'Content-Type': 'text/xml' } });
+    }
+
     // ── Mode: AI Queue Brief — the advisor's leg when the AI hands a caller over ──
     // Twilio fetches this the moment the merge number answers: the advisor hears
     // who is waiting on the line, then joins the queue conference. His join starts
