@@ -166,7 +166,11 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
     status: 'sending',
   });
 
-  const body = opts.track === false ? html : injectTracking(html, contactId, sendId, templateId, templateName, token);
+  // The Debt Call Coach's customer-facing links use the branded domain.
+  // Other sources retain the existing tracking host and behavior.
+  const coachTrackingBase = opts.contactKind === 'debt_lead' && opts.source !== 'campaign'
+    ? 'https://debtsolutions.cc/functions' : undefined;
+  const body = opts.track === false ? html : injectTracking(html, contactId, sendId, templateId, templateName, token, coachTrackingBase);
   const mimeMessage = buildMime(recipient, subject, body, opts.text, opts.inlineImages);
 
   try {
