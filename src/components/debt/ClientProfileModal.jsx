@@ -24,10 +24,11 @@ import AiInviteLinksButton from '@/components/debt/AiInviteLinksButton';
 import RosieAiTab from '@/components/debt/RosieAiTab';
 import EmailActivityTimeline from '@/components/email/EmailActivityTimeline';
 import { isCampaignCard } from '@/lib/cardTypes';
+import './ContactCardPolish.css';
 
 const GOLD = '#10b981';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
-const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
+const ls = { display: 'block', color: '#aac2ba', fontSize: '10px', letterSpacing: '.45px', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 650 };
+const inp = { width: '100%', background: 'rgba(8,23,32,.7)', border: '1px solid rgba(145,193,179,.25)', borderRadius: '8px', padding: '8px 10px', color: '#eaf4ec', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' };
 
 const BILL_CATEGORIES = [
   { key: 'rent', label: 'Rent / Mortgage', icon: '🏠' },
@@ -361,16 +362,16 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   };
 
   return (
-    <div style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+    <div className="dcc-profile-shell" style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
       {/* Header — draggable */}
-      <div onMouseDown={panel.onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: `linear-gradient(135deg,${GOLD},#22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0f1e', fontSize: '15px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
+      <div className="dcc-profile-header" onMouseDown={panel.onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+        <div className="dcc-profile-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="dcc-profile-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', background: `linear-gradient(135deg,${GOLD},#22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0f1e', fontSize: '15px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
             {(local.firstName?.[0] || '?')}{(local.lastName?.[0] || '')}
           </div>
           <div>
-            <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold' }}>{local.firstName || 'New'} {local.lastName || 'Lead'}</div>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+            <div className="dcc-profile-name" style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold' }}>{local.firstName || 'New'} {local.lastName || 'Lead'}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center', marginTop: '5px' }}>
               <span style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', background: local.status === 'enrolled' ? 'rgba(16,185,129,0.15)' : local.status === 'qualified' ? 'rgba(96,165,250,0.15)' : local.status === 'declined' ? 'rgba(239,68,68,0.15)' : 'rgba(138,154,184,0.15)', color: local.status === 'enrolled' ? GOLD : local.status === 'qualified' ? '#60a5fa' : local.status === 'declined' ? '#ef4444' : '#8a9ab8' }}>{local.status || 'new'}</span>
               {local.leadNumber && <span style={{ color: '#6b7280', fontSize: '10px' }}>{local.leadNumber}</span>}
               {local.callCount > 0 && <span style={{ color: '#6b7280', fontSize: '10px' }}>· {local.callCount} call{local.callCount !== 1 ? 's' : ''}</span>}
@@ -385,13 +386,13 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="dcc-profile-header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <AiInviteLinksButton leadId={local.id} clientName={`${local.firstName || ''} ${local.lastName || ''}`.trim()} />
-          <button onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 16px', cursor: saving || !local.id ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
+          <button className="dcc-profile-primary-action" onClick={save} disabled={saving || !local.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '7px 16px', cursor: saving || !local.id ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !local.id ? 0.5 : 1 }}>
             {saving ? '⏳' : '💾 Save'}
           </button>
           {saved && <span style={{ color: '#4ade80', fontSize: '12px' }}>✓</span>}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px', lineHeight: 1 }}>×</button>
+          <button className="dcc-profile-close" aria-label="Close contact profile" title="Close profile" onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '22px', padding: '0 4px', lineHeight: 1 }}>×</button>
         </div>
       </div>
 
@@ -399,7 +400,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
       {local.appointmentDate && <AppointmentCountdown date={local.appointmentDate} />}
 
       {/* Timer + Call bar — compact single row */}
-      <div style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
+      <div className="dcc-profile-subbar" style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
         <span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰</span>
         {activeTimer ? (
           <>
@@ -421,14 +422,14 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
+      <div className="dcc-profile-tabs" role="tablist" aria-label="Client profile sections" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, overflowX: 'auto' }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', background: 'none', border: 'none', borderBottom: `2px solid ${tab === t.id ? GOLD : 'transparent'}`, color: tab === t.id ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t.id ? 'bold' : 'normal', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.label}</button>
         ))}
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+      <div className="dcc-profile-body" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         <LiveProfileAgent local={local} update={update} onSave={save} lead={local} username={username} />
         {tab === 'activity' && (
           <div>
