@@ -78,7 +78,8 @@ const W = (open: number, repeat: number, click: number, depth: number, welcome: 
 export const CATEGORIES: EmailCategory[] = [
   { key: 'creds_welcome', label: 'Credentials & Welcome Message', system: 'coach', weights: W(14, 8, 12, 12, 18, 30, 12), match: ['cred', 'welcome'] },
   { key: 'cold_intro', label: 'DAA Cold Outreach Introduction', system: 'coach', weights: W(10, 6, 12, 8, 0, 25, 10), match: ['cold', 'introduction 1', 'intro email 1', 'intro 1'] },
-  { key: 'followup_intro', label: 'Follow-Up Introduction', system: 'coach', weights: W(9, 5, 12, 8, 0, 25, 10), match: ['follow', 'introduction 2', 'intro 2'] },
+  { key: 'followup_intro', label: 'Personal Follow-Up', system: 'coach', weights: W(9, 5, 12, 8, 0, 25, 10), match: ['follow', 'circle back', 'introduction 2', 'intro 2'] },
+  { key: 'ai_invitation', label: 'AI Agent Invitation', system: 'coach', weights: W(5, 2, 14, 8, 0, 28, 10), match: ['ai agent invitation'] },
   { key: 'reminder_night', label: 'Night-Before Reminder', system: 'coach', weights: W(7, 3, 10, 6, 0, 20, 8), match: ['night'] },
   { key: 'reminder_hour', label: 'Reminder (1-hour / 5-minute)', system: 'coach', weights: W(5, 2, 8, 6, 0, 20, 8), match: ['hour', '5 min', 'reminder'] },
   { key: 'notice', label: 'Notice / Rate-Drop Mailer', system: 'coach', weights: W(9, 5, 12, 10, 0, 24, 12), match: ['notice', 'rate drop', 'mailer'] },
@@ -249,6 +250,11 @@ export interface LeadSignals {
  * Everything one lead's events say, with the bot filter applied.
  * `events` may hold other leads' rows — pass a leadId to narrow it.
  */
+export function isLikelyAutomatedEvent(event: any): boolean {
+  const agent = String(event?.userAgent || '').toLowerCase();
+  return /base44-backend|googleimageproxy|ggpht\.com|googlebot|bingbot|crawler|spider|headless|linkpreview|proofpoint|barracuda|mimecast|safelinks/i.test(agent);
+}
+
 export function signalsForLead(leadId: string, events: any[], nowMs: number): LeadSignals {
   const cutoff = nowMs - BOT_FILTER_MS;
   const urls = new Set<string>();
@@ -278,7 +284,8 @@ export function signalsForLead(leadId: string, events: any[], nowMs: number): Le
     const time = at ? new Date(at).getTime() : 0;
     if (time && time > cutoff) continue;
 
-    const spec = categoryFor(event.templateName, event.subject);
+    if (isLikelyAutomatedEvent(event)) continue;
+    const spec = event.category ? categoryByKey(String(event.category)) : categoryFor(event.templateName, event.subject);
     if (!byCategory.has(spec.key)) {
       byCategory.set(spec.key, { key: spec.key, label: spec.label, system: spec.system, opens: 0, clicks: 0, urls: [], qualify: false, siteVisit: false, lastAt: null });
     }
@@ -352,7 +359,7 @@ export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: num
   const byKey = new Map(inSystem.map((activity) => [activity.key, activity]));
 
   for (const activity of inSystem) {
-    const weights = categoryByKey(activity.key).weights;
+    const weights = rules.weights[activity.key] || categoryByKey(activity.key).weights;
     if (activity.opens > 0) {
       score += weights.open + cap(activity.opens - 1, 3) * weights.repeat;
       reasons.push(`${activity.label} opened${activity.opens > 1 ? ` ${activity.opens}×` : ''}`);
