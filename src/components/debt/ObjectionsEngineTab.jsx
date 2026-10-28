@@ -278,15 +278,16 @@ Return ONLY the rewritten answer text, nothing else.`,
       {/* List */}
       {loading ? (
         <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px', fontSize: '13px' }}>Loading objections…</div>
-      ) : objections.length === 0 ? (
-        <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px' }}>No objections yet. Click "Add Objection" to create one.</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '13px' }}>No objections match your search or filters.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {objections.map(o => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {filtered.map(o => {
             const phrases = parsePhrases(o.triggerPhrases);
+            const expanded = expandedId === o.id;
             return (
-              <div key={o.id} style={{ background: '#0d1b2a', border: `1px solid ${o.enabled !== false ? PRIO_COLORS[o.priority] + '44' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px' }}>
+              <div key={o.id} style={{ background: '#0d1b2a', border: `1px solid ${o.enabled !== false ? PRIO_COLORS[o.priority] + '44' : 'rgba(255,255,255,0.08)'}`, borderRadius: '8px', overflow: 'hidden' }}>
+                <div style={{ padding: '9px 13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
@@ -294,24 +295,30 @@ Return ONLY the rewritten answer text, nothing else.`,
                         <span style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold' }}>{o.title}</span>
                         {o.enabled === false && <span style={{ color: '#6b7280', fontSize: '10px', fontStyle: 'italic' }}>(disabled)</span>}
                       </div>
-                      {phrases.length > 0 && (
+                      {expanded && phrases.length > 0 && (
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
                           {phrases.map((p, i) => <span key={i} style={{ padding: '2px 7px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '3px', color: BLUE, fontSize: '10px' }}>"{p}"</span>)}
                         </div>
                       )}
-                      <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5, marginTop: '6px', padding: '8px 10px', background: 'rgba(16,185,129,0.05)', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.15)' }}>
-                        💬 {o.responseText}
-                      </div>
+                      {expanded && <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5, marginTop: '6px', padding: '8px 10px', background: 'rgba(16,185,129,0.05)', borderRadius: '4px', border: '1px solid rgba(16,185,129,0.15)', whiteSpace:'pre-wrap' }}>
+                        {o.responseText}
+                      </div>}
+                      {!expanded && <p style={{margin:'4px 0 0',fontSize:11,color:'#94a7b0',overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',maxWidth:'min(60vw,700px)'}}>{phrases.length} trigger phrases · {String(o.responseText||'').slice(0,105)}</p>}
                     </div>
                     {!readOnly && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+                        <button onClick={() => setExpandedId(p => p === o.id ? null : o.id)}
+                          aria-expanded={expanded}
+                          style={{background:'rgba(217,187,122,.09)',color:'#d7bd8d',border:'1px solid rgba(217,187,122,.25)',borderRadius:4,padding:'4px 10px',cursor:'pointer',fontSize:10}}>
+                          {expanded ? 'Collapse' : 'Details'}
+                        </button>
                         <button onClick={() => startEdit(o)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>✏️ Edit</button>
                         <button onClick={() => toggleEnabled(o.id, !(o.enabled !== false))} style={{ background: o.enabled !== false ? 'rgba(107,113,128,0.15)' : 'rgba(16,185,129,0.15)', color: o.enabled !== false ? '#6b7280' : GOLD, border: `1px solid ${o.enabled !== false ? 'rgba(107,113,128,0.3)' : GOLD + '44'}`, borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{o.enabled !== false ? '⏸ Disable' : '▶ Enable'}</button>
                         <button onClick={() => remove(o.id)} style={{ background: 'rgba(239,68,68,0.1)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>🗑 Delete</button>
                       </div>
                     )}
                   </div>
-                  {!readOnly && (
+                  {!readOnly && expanded && (
                     <div style={{ marginTop: '8px', display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <span style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Priority:</span>
                       {['high', 'medium', 'low'].map(p => (
@@ -338,9 +345,9 @@ Return ONLY the rewritten answer text, nothing else.`,
               <div style={{ color: '#6b7280', fontSize: '9px', marginTop: '3px' }}>Generates trigger phrases from the title. Click again after changing the title to add more phrases.</div>
             </div>
             <div style={{ marginBottom: '12px' }}>
-              <label style={ls}>Trigger Phrases (JSON array — customer says any of these) *</label>
-              <textarea value={form.triggerPhrases} onChange={e => setForm(p => ({ ...p, triggerPhrases: e.target.value }))} rows={3} placeholder={'["not interested", "i\'m good", "im good", "not interested right now"]'} style={{ ...inp, resize: 'vertical', fontFamily: 'monospace' }} />
-              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '3px' }}>Case-insensitive substring match against the customer's transcript line.</div>
+              <label style={ls}>Trigger phrases — one customer expression per line *</label>
+              <textarea value={form.triggerPhrases} onChange={e => setForm(p => ({ ...p, triggerPhrases: e.target.value }))} rows={5} placeholder={'Not interested\nI am good\nPlease send more information'} style={{ ...inp, resize: 'vertical', fontFamily: 'monospace' }} />
+              <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '3px' }}>The Live Call engine matches meaningful words from the current customer turn, or an exact short phrase. Avoid vague, overlapping phrases.</div>
             </div>
             <div style={{ marginBottom: '12px' }}>
               <label style={ls}>Agent Response (read this to the customer) *</label>

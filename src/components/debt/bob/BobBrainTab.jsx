@@ -74,9 +74,9 @@ export default function BobBrainTab({ onKBUpdated }) {
     setMp3Uploading(false);
     if (allFlagged.length > 0) {
       setConflicts({ flagged: allFlagged, fileHash: 'batch', source: `Batch of ${fileArr.length} files` });
-      setStatus(`✓ Batch complete: ${saved} entries saved, ${skipped} duplicates skipped, ${allFlagged.length} duplicate-like statements need review.`);
+      setStatus(`✓ Batch complete: ${saved} suggestions queued for review, ${skipped} duplicates skipped, ${allFlagged.length} duplicate-like statements need review.`);
     } else {
-      setStatus(`✓ Batch complete: ${fileArr.length} files processed, ${saved} entries saved, ${skipped} duplicates skipped.`);
+      setStatus(`✓ Batch complete: ${fileArr.length} files processed, ${saved} KB suggestions awaiting review, ${skipped} duplicates skipped.`);
     }
     loadAll();
     onKBUpdated?.();
@@ -121,9 +121,10 @@ export default function BobBrainTab({ onKBUpdated }) {
       setStatus(`Cross-referencing ${file.name}…`);
       const { flagged, clean } = crossReferenceBatch(entries, debtKb());
       for (const e of clean) {
-        await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: file.name, tags: `file_hash:${hash}`, created_date: new Date().toISOString() });
+        await base44.entities.DebtKBProposal.create({ ...e, category: 'debt_call', status: 'pending_review', source: `BOB Brain — ${file.name}`, tags: `file_hash:${hash}`, sourceHash: hash });
       }
-      setStatus(`✓ ${file.name}: ${entries.length} extracted, ${clean.length} saved${flagged.length > 0 ? `, ${flagged.length} flagged` : ''}.`);
+      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+      setStatus(`✓ ${file.name}: ${entries.length} extracted; ${clean.length} queued for KB approval${flagged.length > 0 ? `, ${flagged.length} duplicates flagged` : ''}.`);
       loadAll();
       return { flagged, savedCount: clean.length };
     } catch (e) {
@@ -194,13 +195,14 @@ export default function BobBrainTab({ onKBUpdated }) {
       setStatus('Cross-referencing for duplicate statements…');
       const { flagged, clean } = crossReferenceBatch(entries, debtKb());
       for (const e of clean) {
-        await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: name, tags: `file_hash:${hash}`, created_date: new Date().toISOString() });
+        await base44.entities.DebtKBProposal.create({ ...e, category: 'debt_call', status: 'pending_review', source: `BOB Brain — ${name}`, tags: `file_hash:${hash}`, sourceHash: hash });
       }
+      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
       if (flagged.length > 0) {
         setConflicts({ flagged, fileHash: hash, source: name });
-        setStatus(`${clean.length} new entries saved. ${flagged.length} duplicate-like statements need your review.`);
+        setStatus(`${clean.length} suggestions queued for KB approval; ${flagged.length} duplicate-like statements need your review.`);
       } else {
-        setStatus(`✓ ${entries.length} entries extracted, ${clean.length} saved. No duplicates found.`);
+        setStatus(`✓ ${entries.length} entries extracted, ${clean.length} queued for KB approval. No duplicates found.`);
       }
       setPastedText(''); setPastedName('');
       loadAll();
@@ -217,9 +219,10 @@ export default function BobBrainTab({ onKBUpdated }) {
     if (!conflicts) return;
     try {
       for (const e of toSave) {
-        await base44.entities.KnowledgeBase.create({ ...e, category: 'debt_call', kbName: 'Debt Settlement', source: conflicts.source, tags: `file_hash:${conflicts.fileHash}`, created_date: new Date().toISOString() });
+        await base44.entities.DebtKBProposal.create({ ...e, category: 'debt_call', status: 'pending_review', source: `BOB Brain — ${conflicts.source}`, tags: `file_hash:${conflicts.fileHash}`, sourceHash: conflicts.fileHash });
       }
-      setStatus(`✓ ${toSave.length} entries saved after conflict resolution.`);
+      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+      setStatus(`✓ ${toSave.length} entries queued for review after conflict resolution.`);
       setConflicts(null);
       loadAll();
       onKBUpdated?.();
@@ -251,7 +254,7 @@ export default function BobBrainTab({ onKBUpdated }) {
           <div style={{ background: 'rgba(244,114,182,0.05)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '6px', padding: '18px' }}>
             <div style={{ color: PINK, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>🎵 Upload Call Recordings (MP3)</div>
             <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '14px', lineHeight: 1.5 }}>
-              The master place to feed BOB new calls. Select <strong style={{ color: PINK }}>up to 30 MP3s at once</strong> — they're queued and processed one at a time (transcribe → save → extract Q&A → cross-reference).
+              Upload up to 30 calls. Transcripts go to BOB's training brain; extracted answers go to the shared Knowledge Base Review Queue and stay unpublished until approved.
             </div>
             <input ref={mp3Ref} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/m4a,audio/ogg" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files?.length > 0) handleMP3Batch(e.target.files); e.target.value = ''; }} />
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -279,7 +282,7 @@ export default function BobBrainTab({ onKBUpdated }) {
           {/* Paste transcript */}
           <div style={{ background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '6px', padding: '18px' }}>
             <div style={{ color: '#60a5fa', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>📝 Paste Transcript</div>
-            <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px' }}>Paste a call transcript. It's saved to the brain and Q&A is extracted + cross-referenced.</div>
+            <div style={{ color: '#8a9ab8', fontSize: '11px', marginBottom: '10px' }}>Transcripts feed BOB training; extracted Q&A is checked for duplicates and queued for human KB approval.</div>
             <input value={pastedName} onChange={e => setPastedName(e.target.value)} placeholder="Label (optional) e.g. Closer call — John 10/7" style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', marginBottom: '8px', fontFamily: 'Georgia, serif' }} />
             <textarea value={pastedText} onChange={e => setPastedText(e.target.value)} placeholder="Paste the full transcript here…" rows={5} style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 10px', color: '#e8e0d0', fontSize: '12px', outline: 'none', resize: 'vertical', fontFamily: 'Georgia, serif' }} />
             <button onClick={handlePaste} disabled={pasting || !pastedText.trim()} style={{ marginTop: '8px', background: pasting ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: pasting ? '#6b7280' : DARK, border: 'none', borderRadius: '4px', padding: '9px 20px', cursor: pasting || !pastedText.trim() ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: pasting || !pastedText.trim() ? 0.5 : 1 }}>
