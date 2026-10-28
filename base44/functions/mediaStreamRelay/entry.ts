@@ -279,7 +279,7 @@ Conversation so far:
 ${conversationText}
 
 Respond as the Agent to the prospect's latest message with ONE short beat — at most 2 sentences, about 30 words — because it is spoken aloud on a phone call and the prospect must get their turn to answer. Do not use formatting, emojis, or special characters.
-If the prospect is only acknowledging or answering the greeting ("yes", "speaking", "this is him"), reply with the short courtesy and identity line only, then stop and listen. Never roll the notice or the pitch into that same reply — deliver it on your next turn, once they have answered.
+When the prospect confirms their identity, follow the NEXT LINE of the saved outbound script. Do not invent a new introduction and do not stop after the standalone phrase "This is Alex with the Debt Verification Desk" when the saved script continues in that same turn. The script determines exactly where to stop and wait for the next customer response.
 CRITICAL OPENING PERMISSION GATE: After asking whether the prospect was interrupted, caught at a bad time, or taken away from something important, PAUSE. It is a real question. Never add the pitch in that same spoken turn. Wait for their actual response. "No, I'm good", "go ahead", "sure", and "I'm fine" mean they have time to talk, NOT that they want an immediate transfer. Only then continue the next short script step. If they say they are busy, ask for a better time and pause again.
 Each question is the final thing you say in that turn; give the prospect silence to answer it. Do not chain a statement after any question.
 
