@@ -14,7 +14,7 @@ export async function welcomeEngagement(base44: any, body: any): Promise<Respons
   const token = String(body.token || '').trim();
   if (!/^m_[A-Za-z0-9_-]{24}$/.test(token)) return reply({ error: 'Invalid link' }, 400);
   const message = await resolveMessageToken(base44, token);
-  if (!message || message.status !== 'sent' || message.contactKind !== 'debt_lead' || !message.sendId || message.source === 'campaign') return reply({ error: 'Link not found' }, 404);
+  if (!message || message.status !== 'sent' || message.contactKind !== 'debt_lead' || !message.sendId) return reply({ error: 'Link not found' }, 404);
   const svc = base44.asServiceRole.entities;
   // The welcome page is audio + calendar only. Never mint a Protoface token,
   // invoke an AI assistant, or modify the lead simply because they visit.

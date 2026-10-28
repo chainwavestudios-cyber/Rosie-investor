@@ -4,6 +4,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { sendTemplateEmail } from '../../shared/debtEmailSender.ts';
+import { daaTemplateIssue } from '../../shared/daaEmailPolicy.ts';
 import debtCoachGmailReport from '../../shared/debtCoachGmailReport.ts';
 import legacyCoachEmailReport from '../../shared/legacyCoachEmailReport.ts';
 import { welcomeEngagement } from '../../shared/welcomeEngagement.ts';
@@ -18,6 +19,25 @@ export default async function (req: Request): Promise<Response> {
     if (body.action === 'gmailReport') return debtCoachGmailReport(base44, body);
     if (body.action === 'legacyGmailReport') return legacyCoachEmailReport(base44, body);
     if (body.action === 'welcomeEngagement') return welcomeEngagement(base44, body);
+    // Test-send any DAA template to a typed address without creating or
+    // modifying a lead. These are tracked Gmail tests using the real welcome
+    // player, but never count as a contact-card send.
+    if (body.action === 'testTemplate') {
+      const tester=await base44.asServiceRole.entities.DebtCoachUser.get(String(body.sessionUserId||'')).catch(()=>null);
+      if (!tester?.isActive || !body.sessionToken || tester.sessionToken !== body.sessionToken ||
+        !['admin','super_admin','super_manager','manager'].includes(tester.role))
+        return Response.json({error:'Only a signed-in Debt Call Coach manager may send template tests.'},{status:403});
+      const testEmail=String(body.testEmail||'').trim().toLowerCase();
+      if (testEmail.length>254 || /[\r\n]/.test(testEmail) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail))
+        return Response.json({error:'Enter a valid test recipient email address.'},{status:400});
+      const template=await base44.asServiceRole.entities.DebtEmailTemplate.get(String(body.templateId||'')).catch(()=>null);
+      const issue=daaTemplateIssue(template);
+      if (issue) return Response.json({error:issue},{status:403});
+      const name=String(body.testFirstName||'Test').replace(/[<>\r\n]/g,'').slice(0,60)||'Test';
+      const testLead={id:'',email:testEmail,firstName:name,lastName:'',appointmentDate:null};
+      const sent=await sendTemplateEmail(base44,template,testLead,{testSend:true});
+      return Response.json({success:true,to:testEmail,tracked:true,sendId:sent.sendId,templateName:template.name});
+    }
     const { templateId, leadId, testMode, forceTemplateType } = body;
 
     if (!leadId) return Response.json({ error: 'leadId is required' }, { status: 400 });
@@ -38,6 +58,8 @@ export default async function (req: Request): Promise<Response> {
       template = items[0] || null;
     }
     if (!template) return Response.json({ error: 'Template not found' }, { status: 404 });
+    const issue=daaTemplateIssue(template);
+    if(issue) return Response.json({error:issue},{status:403});
 
     // The AI invitation email carries this card's video token. Mint it here so one
     // click on the card's Send AI Invite button also creates the token — no need to

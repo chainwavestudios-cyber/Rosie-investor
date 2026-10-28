@@ -8,6 +8,7 @@ import { TRACKING_BASE } from './emailTracking.ts';
 import { qualifyLink } from './protofaceId.ts';
 import { sendTrackedEmail } from './emailMessageEngine.ts';
 import { getEmailSignature } from './emailSignature.ts';
+import { daaTemplateIssue, DAA_WELCOME_URL, withDAAWelcomeCTA, withDAAMailingFooter } from './daaEmailPolicy.ts';
 import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 
 export interface SendResult {
@@ -19,8 +20,11 @@ export interface SendResult {
 export async function sendTemplateEmail(
   base44: any,
   template: any,
-  lead: any
+  lead: any,
+  options: { testSend?: boolean } = {}
 ): Promise<SendResult> {
+  const policyIssue=daaTemplateIssue(template);
+  if (policyIssue) throw new Error(policyIssue);
   if (!lead.email) throw new Error('Lead has no email address');
 
   // One click on the unsubscribe link in any email takes the address out of every send path.
@@ -38,7 +42,7 @@ export async function sendTemplateEmail(
     : '';
 
   // Build the personal message URL (substitute variables in the template's personalMessageUrl)
-  let personalMessageUrl = template.personalMessageUrl || '';
+  let personalMessageUrl = DAA_WELCOME_URL;
   if (personalMessageUrl) {
     for (const [key, val] of Object.entries({
       leadId: lead.id || '',
@@ -72,7 +76,7 @@ export async function sendTemplateEmail(
   };
 
   let subject = template.subject || '';
-  let html = template.bodyHtml || '';
+  let html = withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml || ''));
   for (const [key, val] of Object.entries(vars)) {
     // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
     subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
@@ -95,8 +99,9 @@ export async function sendTemplateEmail(
     templateId: template.id,
     templateName: template.name,
     sentBy: 'debt_coach',
-    source: 'contact_card',
-    track: template.trackingEnabled !== false,
+    source: options.testSend ? 'template_test' : 'contact_card',
+    track: true,
+    allowDuplicate: options.testSend === true,
   });
 
   return { sendId: result.sendId, subject, duplicate: result.duplicate === true };

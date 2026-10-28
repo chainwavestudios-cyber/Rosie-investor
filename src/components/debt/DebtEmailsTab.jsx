@@ -34,7 +34,7 @@ const TYPE_LABELS = {
 const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function DebtEmailsTab({ username }) {
-  const { isAdmin } = useDebtCoachAuth();
+  const { isAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
   const [emailView, setEmailView] = useState('templates');
   const quillRef = useRef(null);
   const quillModules = useQuillImageModules(quillRef);
@@ -43,6 +43,11 @@ export default function DebtEmailsTab({ username }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testTemplate, setTestTemplate] = useState(null);
+  const [testRecipient, setTestRecipient] = useState('');
+  const [testFirstName, setTestFirstName] = useState('Test');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState(null);
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [selectedImg, setSelectedImg] = useState(null);
   const [imgRect, setImgRect] = useState(null);
@@ -141,15 +146,17 @@ export default function DebtEmailsTab({ username }) {
       triggerOffsetHours: -18, triggerTimeOfDay: '', enabled: true,
       attachToContactCard: false, buttonLabel: '', buttonColor: '#10b981',
       trackingEnabled: true, includeSignature: true, sortOrder: templates.length + 1,
-      personalMessageUrl: '',
+      personalMessageUrl: 'https://debtsolutions.cc/welcome',
     });
   };
 
   const save = async () => {
     if (!editing?.name?.trim()) { alert('Template name is required'); return; }
+    const contents=[editing.name,editing.subject,editing.bodyHtml].join(' ');
+    if(!/debt advisors of america|debtadvisorsofamerica\.com|\bDAA\b/i.test(contents)||/golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test(contents)){alert('Only Debt Advisors of America templates may be saved for Gmail.');return;}
     setSaving(true);
     try {
-      const payload = { ...editing, updatedBy: username };
+      const payload = { ...editing, personalMessageUrl:'https://debtsolutions.cc/welcome',trackingEnabled:true,updatedBy:username };
       if (editing.id) {
         await base44.entities.DebtEmailTemplate.update(editing.id, payload);
       } else {
@@ -172,6 +179,36 @@ export default function DebtEmailsTab({ username }) {
   };
 
   const update = (field, value) => setEditing(prev => ({ ...prev, [field]: value }));
+  const openTest=(template)=>{setTestTemplate(template);setTestResult(null);};
+  const sendTest=async(event)=>{
+    event.preventDefault();
+    if(!testTemplate?.id||!testRecipient.trim()||testSending)return;
+    setTestSending(true);setTestResult(null);
+    try{
+      const response=await base44.functions.invoke('sendDebtEmail',{
+        action:'testTemplate',templateId:testTemplate.id,testEmail:testRecipient.trim(),
+        testFirstName:testFirstName.trim()||'Test',sessionUserId,sessionToken,
+      });
+      const data=response?.data||response;
+      if(data?.error||!data?.success)throw new Error(data?.error||'Gmail did not confirm the test send.');
+      setTestResult({ok:true,text:`Gmail test sent: “${data.templateName}” to ${data.to}. Open/click and welcome-audio progress tracking are enabled (send ${data.sendId}).`});
+    }catch(error){setTestResult({ok:false,text:error?.response?.data?.error||error?.message||'Test send failed.'});}
+    finally{setTestSending(false);}
+  };
+  const testPanel=isAdmin&&testTemplate&&(
+    <form onSubmit={sendTest} style={{margin:'10px 0 16px',padding:14,background:'linear-gradient(115deg,#152c2e,#152431)',border:'1px solid rgba(213,182,110,.44)',borderRadius:9}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:10}}>
+        <div><strong style={{color:'#e8c783',fontSize:12}}>Gmail test send · {testTemplate.name}</strong><div style={{color:'#9bb7b3',fontSize:10,marginTop:4}}>Sends the saved DAA template, including unique welcome-audio tracking. No lead card is changed.</div></div>
+        <button type="button" onClick={()=>{setTestTemplate(null);setTestResult(null);}} style={{background:'transparent',border:'1px solid #506765',borderRadius:6,color:'#bdd1c3',padding:'5px 9px',cursor:'pointer'}}>Close</button>
+      </div>
+      <div style={{display:'flex',alignItems:'flex-end',gap:10,flexWrap:'wrap'}}>
+        <label style={{flex:'1 1 240px',fontSize:10,color:'#aac1bd'}}>Test recipient email<input type="email" required value={testRecipient} onChange={e=>setTestRecipient(e.target.value)} placeholder="name@example.com" style={{...inp,marginTop:6}}/></label>
+        <label style={{flex:'0 1 170px',fontSize:10,color:'#aac1bd'}}>Test first name<input value={testFirstName} onChange={e=>setTestFirstName(e.target.value)} maxLength={60} style={{...inp,marginTop:6}}/></label>
+        <button type="submit" disabled={testSending} style={{background:'#b3945b',color:'#101d25',padding:'10px 14px',border:0,borderRadius:7,fontWeight:800,fontSize:11,cursor:'pointer'}}>{testSending?'Sending…':'Send Gmail test'}</button>
+      </div>
+      {testResult&&<p role="status" style={{color:testResult.ok?'#96e7bd':'#ffaaa7',fontSize:11,marginBottom:0,overflowWrap:'anywhere'}}>{testResult.text}</p>}
+    </form>
+  );
 
   const viewTabs = <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
     {[{ id: 'templates', label: 'Email Templates' }, ...(isAdmin ? [{ id: 'report', label: 'Gmail Engagement' }, { id: 'old', label: 'OLD Follow-Up Report' }] : [])].map(item =>
@@ -196,10 +233,12 @@ export default function DebtEmailsTab({ username }) {
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {saved && <span style={{ color: GOLD, fontSize: '12px' }}>✓ Saved</span>}
+            {isAdmin&&editing.id&&<button onClick={()=>openTest(editing)} type="button" style={{background:'rgba(214,183,110,.11)',color:'#f0cf8c',border:'1px solid rgba(214,183,110,.38)',borderRadius:6,padding:'8px 12px',cursor:'pointer',fontSize:11}}>Test saved version</button>}
             <button onClick={save} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: saving ? 0.5 : 1 }}>{saving ? '⏳ Saving…' : '💾 Save Template'}</button>
           </div>
         </div>
 
+        {testPanel}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div><label style={ls}>Template Name</label><input value={editing.name} onChange={e => update('name', e.target.value)} placeholder="e.g. Welcome Email, Follow-up Reminder" style={inp} /></div>
           <div>
@@ -328,7 +367,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '16px', marginBottom: '16px' }}>
           <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>🎙️ Personal Message Audio Link</div>
           <label style={ls}>Personal Message URL <span style={{ color: '#4a5568', textTransform: 'none', letterSpacing: '0' }}>(supports {'{{leadId}}'}, {'{{firstName}}'} — use {'{{personalMessageUrl}}'} in the email body)</span></label>
-          <input value={editing.personalMessageUrl || ''} onChange={e => update('personalMessageUrl', e.target.value)} placeholder="https://your-audio-site.com/message/{{leadId}}" style={inp} />
+          <input value="https://debtsolutions.cc/welcome" readOnly title="All DAA Gmail emails use the tracked welcome player" style={{...inp,color:'#a7e6be'}} />
           <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>When a prospect clicks this link in the email, the 🎙️ Personal Message badge on the contact card pulses neon green.</div>
         </div>
 
@@ -336,7 +375,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: editing.trackingEnabled ? PURPLE : '#6b7280', fontSize: '12px', fontWeight: 'bold' }}>
-              <input type="checkbox" checked={editing.trackingEnabled} onChange={e => update('trackingEnabled', e.target.checked)} style={{ cursor: 'pointer' }} />
+              <input type="checkbox" checked readOnly disabled title="DAA Gmail tracking is required for all templates" />
               📊 Track Opens & Clicks
             </label>
             <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px', marginLeft: '24px' }}>Injects tracking pixels and wraps links. The contact card button lights up when opened.</div>
@@ -369,13 +408,14 @@ export default function DebtEmailsTab({ username }) {
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
       {viewTabs}
+      {testPanel}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ color: GOLD, fontSize: '18px', fontWeight: 'bold' }}>📧 Email Templates & Automation</div>
         <button onClick={startNew} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ New Email Template</button>
       </div>
 
       <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px', marginBottom: '20px', color: '#8a9ab8', fontSize: '12px', lineHeight: 1.6 }}>
-        Create and manage email templates for appointment reminders, follow-ups, and manual sends. Each template can be:
+        <strong style={{color:'#e7c581'}}>DAA Gmail only.</strong> These templates are exclusively for Debt Advisors of America. Fronter cold outreach belongs to a separate sending system. All DAA templates include the branded welcome player, per-recipient audio progress, opens and link tracking. Admins can test-send any saved template.
         <br />• <span style={{ color: GOLD }}>Automated</span> — sent on a schedule relative to the appointment (night-before, 1-hour-before, custom offset)
         <br />• <span style={{ color: BLUE }}>Manual</span> — sent on demand from a button on the client contact card
         <br />• <span style={{ color: PURPLE }}>Tracked</span> — opens and link clicks are recorded; the contact card button lights up when opened
@@ -404,7 +444,10 @@ export default function DebtEmailsTab({ username }) {
                     <div style={{ color: BLUE, fontSize: '10px', marginTop: '3px' }}>⏱ {tpl.triggerOffsetHours}h offset{tpl.triggerTimeOfDay ? ` @ ${tpl.triggerTimeOfDay}` : ''}</div>
                   )}
                 </div>
-                <button onClick={() => setEditing(tpl)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✏ Edit</button>
+                <div style={{display:'flex',alignItems:'center',gap:7,flexShrink:0}}>
+                  {isAdmin&&<button type="button" onClick={()=>openTest(tpl)} style={{background:'rgba(214,183,110,.12)',color:'#edcc88',border:'1px solid rgba(214,183,110,.42)',borderRadius:6,padding:'7px 10px',cursor:'pointer',fontSize:11,fontWeight:760,whiteSpace:'nowrap'}}>Send test</button>}
+                  <button onClick={() => setEditing(tpl)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Edit</button>
+                </div>
               </div>
             );
           })}
