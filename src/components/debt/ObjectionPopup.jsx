@@ -62,7 +62,7 @@ export default function ObjectionPopup({ objection, onDismiss }) {
   // Minimized / docked bar — compact, still draggable, click to expand
   if (minimized) {
     return (
-      <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', background: DARK, border: `2px solid ${GOLD}`, borderRadius: '8px', padding: '8px 12px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+      <div style={{ position: 'fixed', left: Math.max(8, Math.min(pos.x, window.innerWidth - 340)), top: Math.max(8, Math.min(pos.y, window.innerHeight - 70)), maxWidth: 'calc(100vw - 16px)', zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', background: DARK, border: `2px solid ${GOLD}`, borderRadius: '8px', padding: '8px 12px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
         <div onMouseDown={onDragStart} style={{ cursor: 'move', display: 'flex', alignItems: 'center', gap: '8px', flex: 1, userSelect: 'none' }}>
           <span style={{ fontSize: '16px' }}>🛡️</span>
           <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>OBJECTION</span>
