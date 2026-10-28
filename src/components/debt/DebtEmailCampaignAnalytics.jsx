@@ -7,6 +7,8 @@ import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {base44} from '@/api/base44Client';
 import {useDebtCoachAuth} from '@/lib/DebtCoachAuthContext';
 import EngagementContactCard from '@/components/engagement/EngagementContactCard';
+import {CompactAudioProgress,CompactSignal,CompactMilestone} from './DebtGmailCompactRows';
+import {aggregateMilestones,engagementPriority,linkCategory} from '@/lib/coachGmailMilestones';
 import {Archive,ArrowRight,BarChart3,CalendarClock,CheckCircle2,ChevronDown,Download,Eye,ExternalLink,FileText,HelpCircle,Inbox,Layers3,Link2,Mail,MousePointerClick,RefreshCw,Search,Send,Settings2,ShieldCheck,Users,X,AlertTriangle} from 'lucide-react';
 import './DebtEmailCampaignAnalytics.css';
 
@@ -37,6 +39,7 @@ export default function DebtEmailCampaignAnalytics(){
  const [detailsOpen,setDetailsOpen]=useState(true),[selected,setSelected]=useState(null),[selectedDetails,setSelectedDetails]=useState(null),[detailBusy,setDetailBusy]=useState(false);
  const [quickBusy,setQuickBusy]=useState(''),[actionNote,setActionNote]=useState(''),[meeting,setMeeting]=useState(null),[aiTarget,setAiTarget]=useState(null),[aiInput,setAiInput]=useState(''),[aiHistory,setAiHistory]=useState([]),[aiProposal,setAiProposal]=useState(null);
  const [contactMeta,setContactMeta]=useState({});
+ const [gmailSends,setGmailSends]=useState([]);
  const [leadCard,setLeadCard]=useState(null),[exporting,setExporting]=useState(false),[exportNote,setExportNote]=useState('');
  const selectedRef=useRef(activeId);
  const auth=useMemo(()=>({sessionUserId,sessionToken}),[sessionUserId,sessionToken]);
@@ -109,10 +112,33 @@ export default function DebtEmailCampaignAnalytics(){
    });
    return ()=>{cancelled=true};
  },[rows]);
+ useEffect(()=>{
+   if(!isAdmin||!sessionToken)return;
+   let cancelled=false;
+   base44.functions.invoke('sendDebtEmail',{action:'gmailReport',sessionUserId,sessionToken,days:365,view:'report'})
+     .then(r=>{if(!cancelled)setGmailSends((r?.data||r)?.timeline||[])}).catch(()=>{if(!cancelled)setGmailSends([])});
+   return ()=>{cancelled=true};
+ },[sessionUserId,sessionToken,isAdmin]);
+ const campaignSignals=useMemo(()=>{
+   const lookup=new Map();for(const send of gmailSends){if(send.sendId)lookup.set(String(send.sendId),send)}
+   return new Map(rows.map(r=>{
+     // Strict per-send matching prevents other campaigns influencing this campaign's journal.
+     const send=lookup.get(String(r.sendId||''));
+     const milestone=aggregateMilestones(send?[send]:[]);
+     // The campaign itself records per-recipient tracked redirects even if the Gmail report window omits them.
+     const flags={...milestone.flags};for(const entry of r.links||[]){const cat=linkCategory(entry.link||entry.url);if(cat&&cat in flags)flags[cat]=true}
+     flags.calendar ||= !!r.qualifyVisitAt;
+     const percent=milestone.percent;
+     const allLinksAndAudio=milestone.goldListener&&flags.bbb&&flags.trustpilot&&flags.company;
+     const eliteJourney=allLinksAndAudio&&flags.calendar;
+     const val={...milestone,flags,percent,allLinksAndAudio,eliteJourney,hotLead:n(r.clickCount)>1||!!r.qualifyVisitAt,score:Math.min(100,Math.round((percent>=98?22:percent>=75?16:percent>=25?8:percent>0?3:0)+(flags.bbb?15:0)+(flags.trustpilot?15:0)+(flags.company?15:0)+(flags.calendar?18:0)+Math.min(15,n(r.clickCount)*3)))};
+     return [r.id,val];
+   }));
+ },[rows,gmailSends]);
  const orderedRows=useMemo(()=>[...rows].sort((a,b)=>{
-   const score=x=>(x.qualifyVisitAt?1000:0)+(x.clickedAt?400:0)+Math.min(20,n(x.clickCount))*30+(x.openedAt?100:0)+Math.min(20,n(x.openCount))*5;
+   const score=x=>engagementPriority(campaignSignals.get(x.id)||{})*100+Number(campaignSignals.get(x.id)?.score||0);
    return score(b)-score(a) || new Date(b.sentAt||0)-new Date(a.sentAt||0);
- }),[rows]);
+ }),[rows,campaignSignals]);
  const activity=async(row,result)=>{
    if(!row.leadId){setActionNote('This recipient has no linked contact card.');return;}
    setQuickBusy(row.id+result);setActionNote('');
@@ -243,22 +269,33 @@ export default function DebtEmailCampaignAnalytics(){
          <div className="dca-toolbar"><label className="dca-search"><Search size={15}/><input aria-label="Search recipients across selected campaign" placeholder="Search name, email, subject, send ID…" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="dca-filter-row">{recipientStatuses.map(([key,label])=><button key={key} className={recipientStatus===key?'active':''} onClick={()=>setRecipientStatus(key)}>{label}</button>)}</div></div>
          {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}{actionNote&&<div role="status" className="dca-note">{actionNote}</div>}
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
-         <div className="dca-table-scroll"><table className="dca-table">
-           <thead><tr><th>Recipient</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
-           <tbody>{orderedRows.map(row=><tr key={row.id}>
-             <td style={{minWidth:160}}><strong style={{fontSize:12}}>{row.name}</strong><span style={{fontSize:10}}>{row.email}</span></td>
-             <td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td>
-             <td className="dca-row-note">{row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':row.error||row.reason||'—'}</td>
-             <td style={{minWidth:970,padding:'5px 8px'}}><div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'nowrap',whiteSpace:'nowrap'}}>
-               <div style={{display:'flex',flexDirection:'column',flexShrink:0,minWidth:165,marginRight:5}}><span style={{fontSize:17,fontWeight:850,color:'#efd09a',lineHeight:1.2}}>{contactMeta[row.leadId]?.phone||row.phone||'No phone available'}</span><small style={{fontSize:10,color:'#b5c6c5',marginTop:3}}>Last called: {contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never / not recorded'}</small></div>
-               <button className="dca-row-action" style={{fontWeight:800,color:'#efd09a'}} disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button>
-               <button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>Called · No Answer</button>
-               <button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Left Voicemail</button>
-               <button className="dca-row-action" disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Schedule Meeting</button>
-               <button className="dca-row-action" disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button>
-             </div></td>
-           </tr>)}
-           {!rows.length&&!rowsBusy&&<tr><td colSpan={7} className="dca-muted">No recipients match this filter.</td></tr>}
+         <div className="dca-table-scroll" style={{overflowX:'auto'}}><table className="dca-table" style={{minWidth:1730,width:'100%',whiteSpace:'nowrap',borderCollapse:'collapse'}}>
+           <thead><tr>{['Contact','Audio','BBB','Trustpilot','Company','Calendar','Milestone','Score','Activity','Phone','Last Called','Actions'].map(k=><th key={k} style={{padding:'7px 8px',fontSize:10}}>{k}</th>)}</tr></thead>
+           <tbody>{orderedRows.map(row=>{
+             const info=campaignSignals.get(row.id)||{};
+             const cell={padding:'5px 7px',height:43,verticalAlign:'middle',fontSize:11};
+             const btn={padding:'4px 7px',fontSize:10,whiteSpace:'nowrap'};
+             return <tr key={row.id} style={{height:43}}>
+               <td style={{...cell,maxWidth:185,overflow:'hidden',textOverflow:'ellipsis'}} title={row.email}><strong>{row.name}</strong> <span style={{fontSize:10,color:'#90a6ad'}}>{row.email}</span></td>
+               <td style={cell}><CompactAudioProgress name={row.name} percent={info.percent||0} gold={info.goldListener} estimated={info.estimated}/></td>
+               <td style={cell}><CompactSignal checked={info.flags?.bbb} label="BBB" description="Tracked BBB link"/></td>
+               <td style={cell}><CompactSignal checked={info.flags?.trustpilot} label="Review" description="Tracked Trustpilot link"/></td>
+               <td style={cell}><CompactSignal checked={info.flags?.company} label="Site" description="Tracked company link"/></td>
+               <td style={cell}><CompactSignal checked={info.flags?.calendar} label="Open" description="Calendar or qualification visit recorded; not a booking"/></td>
+               <td style={cell}><CompactMilestone person={info}/></td>
+               <td style={cell}><strong>{info.score||0}</strong>/100</td>
+               <td style={cell}>{shortDate(info.lastEngagementAt||row.clickedAt||row.openedAt||row.sentAt)}</td>
+               <td style={cell}><strong style={{fontSize:17,color:'#eac784'}}>{contactMeta[row.leadId]?.phone||row.phone||'—'}</strong></td>
+               <td style={cell}>{contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never'}</td>
+               <td style={cell}><div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'nowrap'}}>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>No Answer</button>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Voicemail</button>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Meeting</button>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button>
+               </div></td>
+             </tr>})}
+           {!rows.length&&!rowsBusy&&<tr><td colSpan={12} className="dca-muted">No recipients match this filter.</td></tr>}
            </tbody></table></div>
          {rowsBusy&&<p className="dca-muted">Loading recipients…</p>}
          {recMore&&<button type="button" className="dca-button dca-load" onClick={()=>loadRecipients(true)} disabled={rowsBusy}>Load more recipients <ChevronDown size={15}/></button>}
