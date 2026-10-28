@@ -14,15 +14,20 @@ const PURPLE = '#a78bfa';
 export default function ObjectionPopup({ objection, onDismiss }) {
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [minimized, setMinimized] = useState(false);
-  const [pos, setPos] = useState({ x: window.innerWidth - 460, y: window.innerHeight - 420 });
-  const [size, setSize] = useState({ w: 440, h: 480 });
+  // New automatic detections arrive quietly; the agent opens advice intentionally.
+  const [minimized, setMinimized] = useState(true);
+  const [pos, setPos] = useState(() => ({ x: Math.max(10, window.innerWidth - 470), y: Math.max(12, window.innerHeight - 100) }));
+  const [size, setSize] = useState({ w: 390, h: 400 });
   const dragRef = useRef(null);
 
   // Reset selection when a new objection appears
   useEffect(() => {
-    if (objection) { setSelected(0); setCopied(false); setMinimized(false); }
-  }, [objection?.id, objection?.lineTime]);
+    if (objection) {
+      setSelected(0); setCopied(false);
+      setMinimized(!objection.manualOpenAt);
+      setPos({ x: Math.max(10, window.innerWidth - 410), y: objection.manualOpenAt ? Math.max(12, window.innerHeight - 450) : Math.max(12, window.innerHeight - 100) });
+    }
+  }, [objection?.id, objection?.lineTime, objection?.manualOpenAt]);
 
   // Build the list of answer options: engine response first, then KB answers.
   const options = useMemo(() => {
@@ -63,15 +68,15 @@ export default function ObjectionPopup({ objection, onDismiss }) {
           <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>OBJECTION</span>
           <span style={{ color: '#e8e0d0', fontSize: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{objection.title}</span>
         </div>
-        <button onClick={() => setMinimized(false)} title="Expand" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⬆</button>
+        <button onClick={() => { setMinimized(false); setPos(p => ({ ...p, x: Math.min(p.x, Math.max(10, window.innerWidth - 410)), y: Math.max(12, Math.min(p.y, window.innerHeight - 450)) })); }} title="Read suggested response" style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Read response</button>
         <button onClick={onDismiss} title="Dismiss" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✕</button>
       </div>
     );
   }
 
   return (
-    <div style={{ position: 'fixed', left: pos.x, top: pos.y, width: size.w, maxHeight: '78vh', zIndex: 10001, display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.7)' }}>
-      <div style={{ background: DARK, border: `2px solid ${GOLD}`, borderRadius: '10px', display: 'flex', flexDirection: 'column', maxHeight: '78vh', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', left: Math.max(8, Math.min(pos.x, window.innerWidth - Math.min(size.w, window.innerWidth - 16) - 8)), top: Math.max(8, Math.min(pos.y, window.innerHeight - 150)), width: Math.min(size.w, Math.max(280, window.innerWidth - 20)), maxHeight: Math.min(size.h, Math.floor(window.innerHeight * .78)), zIndex: 10001, display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.7)' }}>
+      <div style={{ background: DARK, border: `2px solid ${GOLD}`, borderRadius: '10px', display: 'flex', flexDirection: 'column', maxHeight: Math.min(size.h, Math.floor(window.innerHeight * .78)), overflow: 'hidden' }}>
         {/* Header — draggable, with minimize + close */}
         <div onMouseDown={onDragStart} style={{ padding: '12px 16px', borderBottom: `1px solid ${GOLD}33`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${GOLD}10`, flexShrink: 0, cursor: 'move', userSelect: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
@@ -116,12 +121,12 @@ export default function ObjectionPopup({ objection, onDismiss }) {
           )}
 
           {/* Response — the main content (read verbatim) */}
-          <div style={{ padding: '14px 16px' }}>
+          <div style={{ padding: '12px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <div style={{ color: current.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Read this {options.length > 1 ? `(${selected + 1}/${options.length})` : ''}</div>
+              <div style={{ color: current.color, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💬 Suggested response {options.length > 1 ? `(${selected + 1}/${options.length})` : ''}</div>
               <button onClick={copy} style={{ background: `${current.color}18`, color: current.color, border: `1px solid ${current.color}44`, borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{copied ? '✓ Copied' : '📋 Copy'}</button>
             </div>
-            <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', padding: '12px', border: `1px solid ${current.color}22` }}>
+            <div style={{ color: '#e8e0d0', fontSize: '14px', lineHeight: 1.55, whiteSpace: 'pre-wrap', fontFamily: 'Georgia, serif', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', padding: '12px', border: `1px solid ${current.color}22` }}>
               {current?.text}
             </div>
             {current?.source && <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '5px' }}>Source: {current.source}</div>}
@@ -131,7 +136,7 @@ export default function ObjectionPopup({ objection, onDismiss }) {
         {/* Footer */}
         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setMinimized(true)} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>— Dock</button>
-          <button onClick={onDismiss} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '8px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Got it ✓</button>
+          <button onClick={onDismiss} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '6px', padding: '8px 24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Dismiss ✓</button>
         </div>
       </div>
 
