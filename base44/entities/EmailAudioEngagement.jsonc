@@ -71,6 +71,16 @@
     },
     "lastEvent": {
       "type": "string"
+    },
+    "websiteClickedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "First clicked the company website"
+    },
+    "websiteClicks": {
+      "type": "number",
+      "default": 0,
+      "title": "Company website link clicks"
     }
   },
   "required": [
