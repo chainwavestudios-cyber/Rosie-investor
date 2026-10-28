@@ -8,7 +8,7 @@ import { TRACKING_BASE } from './emailTracking.ts';
 import { qualifyLink } from './protofaceId.ts';
 import { sendTrackedEmail } from './emailMessageEngine.ts';
 import { getEmailSignature } from './emailSignature.ts';
-import { daaTemplateIssue, DAA_WELCOME_URL, withDAAWelcomeCTA } from './daaEmailPolicy.ts';
+import { daaTemplateIssue, DAA_WELCOME_URL, withDAAWelcomeCTA, withDAAMailingFooter } from './daaEmailPolicy.ts';
 import { companyMergeVars, isEmailUnsubscribed } from './companyInfo.ts';
 
 export interface SendResult {
@@ -76,7 +76,7 @@ export async function sendTemplateEmail(
   };
 
   let subject = template.subject || '';
-  let html = withDAAWelcomeCTA(template.bodyHtml || '');
+  let html = withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml || ''));
   for (const [key, val] of Object.entries(vars)) {
     // Templates are written by hand, so {{FirstName}} and {{firstName}} both fill.
     subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'gi'), val);
