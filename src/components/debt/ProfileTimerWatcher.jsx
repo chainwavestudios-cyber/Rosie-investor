@@ -1,177 +1,176 @@
 /**
- * ProfileTimerWatcher.jsx — Watches for profile timers set in ClientProfileModal.
- * When a timer fires, shows a popup reminder with a button to reopen the profile.
- * Rendered at the DebtCallCoach level so it survives modal close.
- *
- * Timers stored in the database via debtCoachStorage: key 'profile_timers' = array of timer objects.
- * Exported functions (setProfileTimer, cancelProfileTimer, getActiveTimer, setEventReminders)
- * require a username parameter.
+ * Contact-card timers that survive closing the profile.
+ * Absolute timestamps and per-agent database-backed settings.
  */
-import { useState, useEffect, useCallback } from 'react';
-import { getDebtCoachValue, setDebtCoachValue, getCachedDebtCoachValue } from '@/lib/debtCoachStorage';
+import {useState,useEffect,useCallback,useRef} from 'react';
+import {getDebtCoachValue,setDebtCoachValue,getCachedDebtCoachValue} from '@/lib/debtCoachStorage';
+import {normalizeProfileTimerSound,playProfileTimerSound} from './profileTimerSounds';
+import {BellRing,X,ArrowUpRight} from 'lucide-react';
 
-const GOLD = '#10b981';
-const DARK = '#0a0f1e';
+const MAX_MINUTES=1440;
+const rows=v=>Array.isArray(v)?v:[];
+const identity=t=>String(t.timerKey || t.leadId+':'+t.fireAt);
+const snapshot=l=>({id:l.id,firstName:l.firstName||'',lastName:l.lastName||'',phone:l.phone||''});
+const label=l=>[l.firstName,l.lastName].filter(Boolean).join(' ').trim()||'Contact';
+const preference=username=>{
+  const p=getCachedDebtCoachValue(username,'profile_timer_sound',{id:'bell'});
+  const upload=getCachedDebtCoachValue(username,'profile_timer_uploaded_sound',null);
+  return normalizeProfileTimerSound(p?.id==='custom'
+    ?{id:'custom',url:upload?.url,name:upload?.name}:p);
+};
 
-/** Same timer as the contact card's ⏰, but safe when the cache isn't loaded yet (used by the AI console). */
-export async function addProfileTimerAsync(username, lead, minutes) {
-  if (!lead?.id || !username) return false;
-  const ms = (Number(minutes) || 0) * 60000;
-  if (ms < 60000) return false;
-  const timer = {
-    leadId: lead.id,
-    leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
-    fireAt: Date.now() + ms,
-    label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
+/** For AI assistant requests, and reminders created when the card is closed. */
+export async function addProfileTimerAsync(username,lead,minutes){
+  if(!lead?.id||!username)return false;
+  const duration=Number(minutes);
+  if(!Number.isInteger(duration)||duration<1||duration>MAX_MINUTES)return false;
+  return setProfileTimer(username,lead,0,duration);
+}
+
+/** Legacy hours argument retained for callers; contact-card UI takes minutes. */
+export async function setProfileTimer(username,lead,hours,minutes,sound){
+  if(!lead?.id||!username)return false;
+  const amount=Number(hours||0)*60+Number(minutes||0);
+  if(!Number.isInteger(amount)||amount<1||amount>MAX_MINUTES)return false;
+  const existing=rows(await getDebtCoachValue(username,'profile_timers',[]));
+  const fireAt=Date.now()+amount*60000;
+  const timer={
+    leadId:lead.id,leadSnapshot:snapshot(lead),label:label(lead),
+    fireAt,timerKey:'manual_'+lead.id+'_'+fireAt,type:'profile',
+    sound:normalizeProfileTimerSound(sound||preference(username)),
   };
-  const timers = (await getDebtCoachValue(username, 'profile_timers', [])) || [];
-  await setDebtCoachValue(username, 'profile_timers', [...timers.filter(t => t.leadId !== lead.id), timer]);
-  window.dispatchEvent(new CustomEvent('profile_timer_set', { detail: timer }));
+  await setDebtCoachValue(username,'profile_timers',[
+    ...existing.filter(t=>!(t.leadId===lead.id&&t.type!=='event')),timer
+  ]);
+  window.dispatchEvent(new CustomEvent('profile_timer_set',{detail:timer}));
   return true;
 }
 
-export function setProfileTimer(username, lead, hours, minutes) {
-  if (!lead?.id || !username) return false;
-  const ms = (Number(hours) || 0) * 3600000 + (Number(minutes) || 0) * 60000;
-  if (ms < 60000) return false;
-  const timer = {
-    leadId: lead.id,
-    leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
-    fireAt: Date.now() + ms,
-    label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
-  };
-  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
-  // Replace any existing timer for this lead
-  const filtered = timers.filter(t => t.leadId !== lead.id);
-  setDebtCoachValue(username, 'profile_timers', [...filtered, timer]);
-  window.dispatchEvent(new CustomEvent('profile_timer_set', { detail: timer }));
-  return true;
+/** Preserve existing appointment reminders as separate event timers. */
+export async function setEventReminders(username,lead,eventISO,eventTitle){
+  if(!lead?.id||!eventISO||!username)return;
+  const eventTime=new Date(eventISO).getTime();
+  if(!Number.isFinite(eventTime))return;
+  const existing=rows(await getDebtCoachValue(username,'profile_timers',[]));
+  const sound=preference(username);
+  const incoming=[
+    {offset:3600000,label:'1 hour'},{offset:300000,label:'5 minutes'},
+  ].map(r=>({
+    leadId:lead.id,leadSnapshot:snapshot(lead),label:label(lead),
+    fireAt:eventTime-r.offset,type:'event',eventTitle:eventTitle||'Scheduled Event',
+    offsetLabel:r.label,timerKey:'evt_'+lead.id+'_'+eventTime+'_'+r.offset,sound
+  })).filter(t=>t.fireAt>Date.now());
+  if(!incoming.length)return;
+  const ids=new Set(incoming.map(identity));
+  await setDebtCoachValue(username,'profile_timers',[
+    ...existing.filter(t=>!ids.has(identity(t))),...incoming
+  ]);
+  window.dispatchEvent(new CustomEvent('profile_timer_set'));
 }
 
-export function setEventReminders(username, lead, eventISO, eventTitle) {
-  if (!lead?.id || !eventISO || !username) return;
-  const eventTime = new Date(eventISO).getTime();
-  const reminders = [
-    { offset: 3600000, label: '1 hour' },
-    { offset: 300000, label: '5 minutes' },
-  ];
-  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
-  const newTimers = [];
-  reminders.forEach((r) => {
-    const fireAt = eventTime - r.offset;
-    if (fireAt <= Date.now()) return;
-    newTimers.push({
-      leadId: lead.id,
-      leadSnapshot: { id: lead.id, firstName: lead.firstName, lastName: lead.lastName, phone: lead.phone },
-      fireAt,
-      label: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Client',
-      type: 'event',
-      eventTitle: eventTitle || 'Scheduled Event',
-      offsetLabel: r.label,
-      timerKey: `evt_${Date.now()}_${r.offset}`,
-    });
-  });
-  if (newTimers.length > 0) {
-    setDebtCoachValue(username, 'profile_timers', [...timers, ...newTimers]);
-    window.dispatchEvent(new CustomEvent('profile_timer_set'));
-  }
+export async function cancelProfileTimer(username,leadId){
+  if(!username||!leadId)return;
+  const existing=rows(await getDebtCoachValue(username,'profile_timers',[]));
+  await setDebtCoachValue(username,'profile_timers',
+    existing.filter(t=>!(t.leadId===leadId&&t.type!=='event')));
+  window.dispatchEvent(new CustomEvent('profile_timer_cancelled',{detail:{leadId}}));
 }
 
-export function cancelProfileTimer(username, leadId) {
-  if (!username) return;
-  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
-  const filtered = timers.filter(t => t.leadId !== leadId && !t.timerKey?.startsWith('evt_'));
-  setDebtCoachValue(username, 'profile_timers', filtered);
-  window.dispatchEvent(new CustomEvent('profile_timer_cancelled', { detail: { leadId } }));
+export function getActiveTimer(username,leadId){
+  if(!username||!leadId)return null;
+  const timers=rows(getCachedDebtCoachValue(username,'profile_timers',[]));
+  return timers.find(t=>t.leadId===leadId&&t.type!=='event'&&t.fireAt>Date.now())||null;
 }
 
-export function getActiveTimer(username, leadId) {
-  const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
-  const timer = timers.find(t => t.leadId === leadId && t.fireAt > Date.now());
-  return timer || null;
-}
+export default function ProfileTimerWatcher({username,onOpenProfile}){
+  const [loaded,setLoaded]=useState(false);
+  const [firedTimers,setFiredTimers]=useState([]);
+  const checkingRef=useRef(false);
+  const firedRef=useRef(new Set());
 
-export default function ProfileTimerWatcher({ username, onOpenProfile }) {
-  const [firedTimers, setFiredTimers] = useState([]);
-  const [now, setNow] = useState(Date.now());
-  const [loaded, setLoaded] = useState(false);
+  useEffect(()=>{
+    if(!username){setLoaded(false);return;}
+    let mounted=true;
+    setLoaded(false);
+    getDebtCoachValue(username,'profile_timers',[]).then(()=>{
+      if(mounted)setLoaded(true);
+    }).catch(()=>{if(mounted)setLoaded(false);});
+    return()=>{mounted=false;};
+  },[username]);
 
-  // Load timers from database on mount
-  useEffect(() => {
-    if (!username) return;
-    getDebtCoachValue(username, 'profile_timers', []).then(() => setLoaded(true));
-  }, [username]);
+  const checkTimers=useCallback(async()=>{
+    if(!username||!loaded||checkingRef.current)return;
+    const saved=rows(getCachedDebtCoachValue(username,'profile_timers',[]));
+    const currentTime=Date.now();
+    const due=saved.filter(t=>Number(t.fireAt)>0&&t.fireAt<=currentTime);
+    if(!due.length)return;
+    checkingRef.current=true;
+    try{
+      const ids=new Set(due.map(identity));
+      await setDebtCoachValue(username,'profile_timers',saved.filter(t=>!ids.has(identity(t))));
+      const fresh=due.filter(t=>!firedRef.current.has(identity(t)));
+      if(!fresh.length)return;
+      fresh.forEach(t=>firedRef.current.add(identity(t)));
+      setFiredTimers(prev=>{
+        const old=new Set(prev.map(identity));
+        return [...prev,...fresh.filter(t=>!old.has(identity(t)))];
+      });
+      // Play once for a batch; the visible popup works even when browser
+      // autoplay policy, a device, or the audio file blocks sound.
+      void playProfileTimerSound(fresh[0].sound||preference(username));
+      if(typeof window!=='undefined'&&'Notification' in window&&Notification.permission==='granted'){
+        fresh.forEach(t=>{
+          try{
+            new Notification('Contact reminder',{
+              body:'Time to follow up with '+(t.label||'your contact')+'.'
+            });
+          }catch(error){console.warn('[ProfileTimer] Browser notification unavailable:',error?.message);}
+        });
+      }
+    }catch(error){console.warn('[ProfileTimer] Reminder check failed:',error?.message);}
+    finally{checkingRef.current=false;}
+  },[username,loaded]);
 
-  // Tick every second
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(()=>{
+    if(!loaded)return;
+    void checkTimers();
+    const interval=setInterval(()=>{void checkTimers();},1000);
+    const onVisible=()=>{if(document.visibilityState==='visible')void checkTimers();};
+    const onSet=()=>{void checkTimers();};
+    document.addEventListener('visibilitychange',onVisible);
+    window.addEventListener('profile_timer_set',onSet);
+    return()=>{
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange',onVisible);
+      window.removeEventListener('profile_timer_set',onSet);
+    };
+  },[checkTimers,loaded]);
 
-  // Check all timers for fired ones
-  const checkTimers = useCallback(() => {
-    if (!username || !loaded) return;
-    const timers = getCachedDebtCoachValue(username, 'profile_timers', []) || [];
-    const fired = timers.filter(t => t.fireAt <= Date.now());
-    if (fired.length === 0) return;
-    // Remove fired timers from DB
-    const remaining = timers.filter(t => t.fireAt > Date.now());
-    setDebtCoachValue(username, 'profile_timers', remaining);
-    setFiredTimers(prev => [...prev, ...fired]);
-    // Try browser notification
-    fired.forEach(t => {
-      try {
-        if (Notification.permission === 'granted') {
-          new Notification('⏰ Profile Timer', { body: `Time to follow up with ${t.label}!` });
-        }
-      } catch {}
-    });
-  }, [username, loaded]);
-
-  useEffect(() => {
-    checkTimers();
-    const interval = setInterval(checkTimers, 5000);
-    return () => clearInterval(interval);
-  }, [checkTimers]);
-
-  // Request notification permission on mount
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  const dismiss = (leadId) => setFiredTimers(prev => prev.filter(t => t.leadId !== leadId));
-  const openProfile = (timer) => {
+  const dismiss=id=>setFiredTimers(prev=>prev.filter(t=>identity(t)!==id));
+  const openProfile=timer=>{
     onOpenProfile?.(timer.leadSnapshot);
-    dismiss(timer.leadId);
+    dismiss(identity(timer));
   };
-
-  if (firedTimers.length === 0) return null;
-
-  return (
-    <>
-      {firedTimers.map(timer => (
-        <div key={timer.leadId} style={{ position: 'fixed', bottom: `${24 + firedTimers.indexOf(timer) * 140}px`, right: '24px', background: '#0d1b2a', border: `2px solid ${GOLD}`, borderRadius: '8px', padding: '20px', maxWidth: '320px', boxShadow: '0 20px 80px rgba(0,0,0,0.9)', zIndex: 99999, fontFamily: 'Georgia, serif', animation: 'ptSlide 0.3s ease-out' }}>
-          <style>{`@keyframes ptSlide{from{transform:translateY(400px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-            <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⏰ Profile Timer</span>
-            <button onClick={() => dismiss(timer.leadId)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '18px', padding: 0 }}>×</button>
-          </div>
-          {timer.type === 'event' ? (
-            <>
-              <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>{timer.eventTitle}</p>
-              <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>Starts in {timer.offsetLabel} — with {timer.label}</p>
-            </>
-          ) : (
-            <>
-              <p style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold', margin: '0 0 6px' }}>Follow up with {timer.label}</p>
-              <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 12px' }}>Timer set from Client Profile has expired.</p>
-            </>
-          )}
-          <button onClick={() => openProfile(timer)} style={{ width: '100%', background: `linear-gradient(135deg, ${GOLD}, #22c55e)`, color: DARK, border: 'none', borderRadius: '4px', padding: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>Open Profile →</button>
-        </div>
-      ))}
-    </>
-  );
+  if(!firedTimers.length)return null;
+  return <div aria-label="Contact reminder alerts">
+    {firedTimers.map((timer,index)=><aside
+      key={identity(timer)} role="alertdialog"
+      aria-label={'Reminder for '+(timer.label||'contact')}
+      className="dcc-reminder-popup" style={{bottom:24+index*174}}>
+      <header className="dcc-reminder-popup-head">
+        <span><BellRing size={19}/> REMINDER IS DUE</span>
+        <button type="button" title="Dismiss reminder" aria-label="Dismiss reminder"
+          onClick={()=>dismiss(identity(timer))}><X size={18}/></button>
+      </header>
+      <div className="dcc-reminder-popup-body">
+        <strong>{timer.type==='event'?(timer.eventTitle||'Scheduled Event'):(timer.label||'Contact follow-up')}</strong>
+        <p>{timer.type==='event'
+          ?(timer.offsetLabel||'Scheduled')+' reminder for '+(timer.label||'your contact')+'.'
+          :'Your follow-up timer for '+(timer.label||'this contact')+' has finished.'}</p>
+        <button type="button" onClick={()=>openProfile(timer)}>
+          Open contact card <ArrowUpRight size={16}/>
+        </button>
+      </div>
+    </aside>)}
+  </div>;
 }

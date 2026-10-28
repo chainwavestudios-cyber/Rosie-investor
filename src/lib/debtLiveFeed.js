@@ -91,6 +91,8 @@ export async function startLiveFeed({
   let closedByUser = false;
   let reconnectsLeft = MAX_RECONNECTS;
   let reconnectTimer = null;
+  let lastAudioAt = 0;      // last moment real audio left the browser
+  let graphRebuildsLeft = 5;
   const feedCounts = { mic: 0, customer: 0 };
   const dgRoleMap = new Map(); // Deepgram speaker id → 0 agent / 1 customer
 
@@ -184,6 +186,7 @@ export async function startLiveFeed({
             int16[i * 2 + 1] = Math.max(-1, Math.min(1, right[i])) * 0x7FFF;
           }
           ws.send(int16.buffer);
+          lastAudioAt = Date.now();
         };
         merger.connect(proc);
         const silence = ctx.createGain(); silence.gain.value = 0;
@@ -201,6 +204,7 @@ export async function startLiveFeed({
           const int16 = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) { const s = Math.max(-1, Math.min(1, input[i])); int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; }
           ws.send(int16.buffer);
+          lastAudioAt = Date.now();
         };
         source.connect(agentGainNode);
         agentGainNode.connect(proc);
@@ -319,6 +323,18 @@ export async function startLiveFeed({
   };
   if (dualMode) armWatchdog();
 
+  // Audio that stops leaving the browser is the silent killer: the socket stays
+  // open, no error is raised, and the transcript simply stops mid-call. Watch the
+  // outbound audio itself and rebuild the capture graph when it goes dead.
+  const liveness = setInterval(() => {
+    if (closedByUser || !liveWs || liveWs.readyState !== WebSocket.OPEN) return;
+    if (!lastAudioAt || Date.now() - lastAudioAt < 12000) return;
+    if (graphRebuildsLeft <= 0) return;
+    graphRebuildsLeft--;
+    lastAudioAt = Date.now();
+    open(feedMode);
+  }, 12000);
+
   // A backgrounded tab can suspend the audio graph, which stops the transcript
   // with no error at all. Wake it the moment the operator comes back.
   const resumeAudio = () => {
@@ -334,6 +350,7 @@ export async function startLiveFeed({
       closedByUser = true;
       if (watchdog) { clearTimeout(watchdog); watchdog = null; }
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      clearInterval(liveness);
       document.removeEventListener('visibilitychange', resumeAudio);
       window.removeEventListener('focus', resumeAudio);
       if (liveWs) { try { liveWs.close(); } catch {} }
