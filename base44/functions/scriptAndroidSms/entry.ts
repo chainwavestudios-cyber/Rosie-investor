@@ -73,7 +73,11 @@ export default async function (req: Request): Promise<Response> {
     if (!body.consentConfirmed) return Response.json({ error: 'Confirm permission to text this contact' }, { status: 403 });
 
     // Honor opt-outs across records for this phone, even if a different lead card is opened.
-    const optRecords = listRows(await sdk.asServiceRole.entities.SmsOptIn.filter({ phone: to }, { limit: 50 }));
+    const phoneFormats = [to, to.slice(-10), to.slice(1)];
+    const phoneRows = await Promise.all(phoneFormats.map(phone =>
+      sdk.asServiceRole.entities.SmsOptIn.filter({ phone }, { limit: 50 }).catch(() => [])
+    ));
+    const optRecords = phoneRows.flatMap(listRows);
     const otherFormat = listRows(await sdk.asServiceRole.entities.SmsOptIn.filter({ leadId }, { limit: 50 }));
     if ([...optRecords, ...otherFormat].some((o: any) => o.active === false && norm(o.phone) === to)) {
       return Response.json({ error: 'This phone has opted out of texts. Do not send.' }, { status: 403 });

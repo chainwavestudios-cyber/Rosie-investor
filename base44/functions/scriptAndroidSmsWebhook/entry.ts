@@ -16,7 +16,10 @@ async function validHmac(raw: string, timestamp: string, signature: string) {
   const hkey = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const digest = new Uint8Array(await crypto.subtle.sign('HMAC', hkey, new TextEncoder().encode(raw + timestamp)));
   const sig = Uint8Array.from(signature.match(/.{2}/g)!.map((x: string) => parseInt(x, 16)));
-  return digest.length === sig.length && digest.every((v, i) => v === sig[i]);
+  if (digest.length !== sig.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < digest.length; i++) mismatch |= digest[i] ^ sig[i];
+  return mismatch === 0;
 }
 export default async function (req: Request): Promise<Response> {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -35,7 +38,11 @@ export default async function (req: Request): Promise<Response> {
       const content = String(p.message || '');
       const optOut = /^\s*(STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT)\s*[.!]?\s*$/i.test(content);
       const optIn = /^\s*(START|UNSTOP)\s*[.!]?\s*$/i.test(content);
-      const existing = rows(await sdk.asServiceRole.entities.SmsOptIn.filter({ phone: from }, { limit: 50 }));
+      const variations = [from, from.slice(-10), from.slice(1)];
+      const matches = await Promise.all(variations.map(phone =>
+        sdk.asServiceRole.entities.SmsOptIn.filter({ phone }, { limit: 50 }).catch(() => [])
+      ));
+      const existing = matches.flatMap(rows);
       if (optOut) {
         for (const r of existing) await sdk.asServiceRole.entities.SmsOptIn.update(r.id, { active: false });
         if (!existing.length) await sdk.asServiceRole.entities.SmsOptIn.create({ phone: from, active: false });
