@@ -20,9 +20,15 @@ const FLEX_VOICE = 'flux-hannah-en';
 const BASE_URL = 'https://rosieai-investorpage.base44.app';
 
 // ── Fetch the active hold audio URL (fresh signed URL each call) ──
-async function getHoldAudioUrl(req: Request): Promise<string> {
+async function getHoldAudioUrl(req: Request, source: string = ''): Promise<string> {
   try {
     const base44 = createClientFromRequest(req).asServiceRole;
+    // Preserve the AI queue's custom recording after both advisor attempts.
+    // The calendar collection and booking flow below are unchanged.
+    if (source === 'ai') {
+      const aiHold = await base44.entities.InboundCallAudio.filter({ assetType: 'adam_transfer_hold', isActive: true }, '-uploadedAt', 1);
+      if (aiHold?.[0]?.fileUrl) return aiHold[0].fileUrl;
+    }
     const activeAudio = await base44.entities.FronterHoldAudio.filter({ isActive: true }, '-uploadedAt', 1);
     if (activeAudio?.[0]?.fileUri) {
       const signed = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: activeAudio[0].fileUri, expires_in: 3600 });
@@ -112,6 +118,8 @@ Deno.serve(async (req: Request) => {
     const step = url.searchParams.get('step') || 'hold';
     const leadId = url.searchParams.get('leadId') || '';
     const isTimeout = url.searchParams.get('timeout') === '1';
+    const holdSource = url.searchParams.get('source') === 'ai' ? 'ai' : '';
+    const sourceSuffix = holdSource === 'ai' ? '&source=ai' : '';
 
     // Parse form-encoded body (Twilio <Gather> callback)
     const contentType = req.headers.get('content-type') || '';
@@ -125,8 +133,8 @@ Deno.serve(async (req: Request) => {
 
     // ── STEP: hold — play hold audio + listen for "appointment" ──
     if (step === 'hold') {
-      const holdAudioUrl = await getHoldAudioUrl(req);
-      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}`;
+      const holdAudioUrl = await getHoldAudioUrl(req, holdSource);
+      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}${sourceSuffix}`;
       return new Response(holdGatherTwiML(holdAudioUrl, gatherUrl), {
         headers: { 'Content-Type': 'text/xml' },
       });
@@ -134,8 +142,8 @@ Deno.serve(async (req: Request) => {
 
     // ── STEP: detect — check if "appointment" was said ──
     if (step === 'detect') {
-      const holdAudioUrl = await getHoldAudioUrl(req);
-      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}`;
+      const holdAudioUrl = await getHoldAudioUrl(req, holdSource);
+      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}${sourceSuffix}`;
 
       // Timeout or no speech — loop back to hold
       if (isTimeout || !speechResult) {
@@ -151,7 +159,7 @@ Deno.serve(async (req: Request) => {
         // Switch to booking flow — ask for date/time with Flex voice
         const ttsText = "I'd be happy to schedule an appointment for you. What day and time works best for you?";
         const ttsUrl = await generateFlexTTS(ttsText, base44);
-        const collectUrl = xmlEscape(`${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}`);
+        const collectUrl = xmlEscape(`${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}${sourceSuffix}`);
 
         return new Response(
           `<Response>${ttsTwiML(ttsUrl, ttsText)}<Gather input="speech" action="${collectUrl}" timeout="30" speechTimeout="auto" language="en-US"><Say voice="Polly.Joanna-Neural">Please say your preferred day and time after the prompt.</Say></Gather><Redirect>${collectUrl}&amp;timeout=1</Redirect></Response>`,
@@ -167,9 +175,9 @@ Deno.serve(async (req: Request) => {
 
     // ── STEP: collect — parse date/time, book on Google Calendar ──
     if (step === 'collect') {
-      const holdAudioUrl = await getHoldAudioUrl(req);
-      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}`;
-      const collectUrl = `${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}`;
+      const holdAudioUrl = await getHoldAudioUrl(req, holdSource);
+      const gatherUrl = `${actionBase}?step=detect&leadId=${encodeURIComponent(leadId)}${sourceSuffix}`;
+      const collectUrl = `${actionBase}?step=collect&leadId=${encodeURIComponent(leadId)}${sourceSuffix}`;
 
       // Timeout or no speech — ask again
       if (isTimeout || !speechResult) {
