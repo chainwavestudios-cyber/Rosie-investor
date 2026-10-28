@@ -77,7 +77,7 @@ export default async function(req:Request):Promise<Response>{
     const participantPath=conferenceSid&&data.clientSid?'/Conferences/'+conferenceSid+'/Participants/'+data.clientSid+'.json':'';
     let participant:any=null;
     if(participantPath&&clientAnswered) participant=await twilioFetch(participantPath).catch(()=>null);
-    const merged=clientAnswered&&participant?.hold===false&&participant?.muted===false;
+    const merged=clientAnswered&&(!!participant || data.mergedRequested===true);
     if(action==='status')return respond({ok:true,officeStatus,clientStatus,clientAnswered,merged,conferenceReady:!!conferenceSid,
       officeNumber:OFFICE,clientName:[lead.firstName,lead.lastName].filter(Boolean).join(' ')});
     if(action==='contact'){
@@ -87,27 +87,33 @@ export default async function(req:Request):Promise<Response>{
       if(!/^\+[1-9]\d{7,14}$/.test(to))return respond({error:'Customer phone number is missing or invalid'},400);
       const cutoff=checkCallCutoff(to);
       if(cutoff.blocked)return respond({error:'Outbound customer calls are restricted to 8 AM–8 PM in their time zone.'},403);
-      const part=await twilioFetch('/Conferences/'+conferenceSid+'/Participants.json',{
-        method:'POST',body:new URLSearchParams({
-          From:FROM,To:to,Beep:'false',StartConferenceOnEnter:'false',EndConferenceOnExit:'false',
-          Muted:'true',Hold:'true',Timeout:'30'
-        })
-      });
-      const next={...data,clientSid:part.call_sid};
-      return respond({ok:true,bridgeToken:await sign(next),officeStatus,clientStatus:part.status||'queued',clientAnswered:false,merged:false});
+      // The customer waits in their OWN unstarted conference. This is a hard
+      // isolation boundary: no office participant can hear them before Merge.
+      // An active office conference plus a muted customer in that same room
+      // would still let the customer hear the office conversation.
+      const waitRoom='office_wait_'+data.bridgeId.slice('office_'.length);
+      const holdTwiML='<Response><Dial><Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="false">'+xmlEscape(waitRoom)+'</Conference></Dial></Response>';
+      const call=await twilioFetch('/Calls.json',{method:'POST',body:new URLSearchParams({
+        From:FROM,To:to,Twiml:holdTwiML,Timeout:'30'
+      })});
+      const next={...data,clientSid:call.sid,mergedRequested:false};
+      return respond({ok:true,bridgeToken:await sign(next),officeStatus,clientStatus:call.status||'queued',clientAnswered:false,merged:false});
     }
     if(action==='merge'){
-      if(officeStatus!=='in-progress'||!conferenceSid||!data.clientSid||!clientAnswered||!participant)return respond({error:'Both office and customer lines must be connected before merge.'},409);
+      if(officeStatus!=='in-progress'||!conferenceSid||!data.clientSid||!clientAnswered)return respond({error:'Both office and customer lines must be connected before merge.'},409);
       if(merged)return respond({ok:true,merged:true});
-      await twilioFetch(participantPath,{method:'POST',body:new URLSearchParams({Hold:'false',Muted:'false'})});
+      // Only an explicit operator Merge moves the customer from the isolated
+      // waiting conference into the active office conference.
+      const joinTwiML='<Response><Dial><Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="false">'+xmlEscape(data.bridgeId)+'</Conference></Dial></Response>';
+      await twilioFetch('/Calls/'+data.clientSid+'.json',{method:'POST',body:new URLSearchParams({Twiml:joinTwiML})});
       await service.entities.LeadHistory.create({leadId:lead.id,type:'call',
         content:'Office main-line conference merged with customer via Debt Call Coach',createdBy:user.username,twilioCallSid:data.clientSid}).catch(()=>{});
-      return respond({ok:true,merged:true});
+      return respond({ok:true,merged:true,bridgeToken:await sign({...data,mergedRequested:true})});
     }
     if(action==='end'){
-      if(data.clientSid&&['queued','ringing','in-progress'].includes(clientStatus))
+      if(data.clientSid&&['queued','initiated','ringing','in-progress'].includes(clientStatus))
         await twilioFetch('/Calls/'+data.clientSid+'.json',{method:'POST',body:new URLSearchParams({Status:'completed'})}).catch(()=>{});
-      if(['queued','ringing','in-progress'].includes(officeStatus))
+      if(['queued','initiated','ringing','in-progress'].includes(officeStatus))
         await twilioFetch('/Calls/'+data.officeSid+'.json',{method:'POST',body:new URLSearchParams({Status:'completed'})}).catch(()=>{});
       return respond({ok:true,ended:true});
     }
