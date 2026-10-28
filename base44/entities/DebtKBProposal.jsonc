@@ -1,0 +1,63 @@
+{
+  "name": "DebtKBProposal",
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "title": "Proposed Question / Title"
+    },
+    "answer": {
+      "type": "string",
+      "title": "Proposed Answer",
+      "format": "textarea"
+    },
+    "category": {
+      "type": "string",
+      "title": "Proposed KB Category"
+    },
+    "source": {
+      "type": "string",
+      "title": "Source / Provenance"
+    },
+    "tags": {
+      "type": "string",
+      "title": "Source Tags"
+    },
+    "sourceHash": {
+      "type": "string",
+      "title": "Source File / Transcript Hash"
+    },
+    "status": {
+      "type": "string",
+      "title": "Review State",
+      "enum": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending_review"
+    },
+    "createdBy": {
+      "type": "string",
+      "title": "Submitted By"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "title": "Reviewed By"
+    },
+    "reviewedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Reviewed At"
+    },
+    "kbEntryId": {
+      "type": "string",
+      "title": "Published KB Entry ID"
+    }
+  },
+  "required": [
+    "question",
+    "answer",
+    "status"
+  ]
+}

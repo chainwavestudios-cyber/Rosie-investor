@@ -438,6 +438,8 @@ Agent line: "${firstAgentLines}"`,
   // The caller's turn as last asked in Q&A — lets a turn that was flushed
   // mid-sentence and then continued ask only the new part.
   const lastAskedQuestionRef = useRef('');
+  const lastAskedAtRef = useRef(0);
+  const recentQaRequestRef = useRef({ question: '', ts: 0, id: null });
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
 
@@ -659,6 +661,15 @@ Agent line: "${firstAgentLines}"`,
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
     const startTime = Date.now();
+    const prior = recentQaRequestRef.current;
+    const normalized = question.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (prior.question === normalized && startTime - prior.ts < 11000) return;
+    // If an early endpoint split a question, replace its card with the longer,
+    // corrected question. A late reply to the old request cannot reappear.
+    if (prior.id && startTime - prior.ts < 7000 && normalized.startsWith(prior.question) && normalized.length > prior.question.length) {
+      setQaItems(prev => prev.filter(x => x.id !== prior.id));
+    }
+    recentQaRequestRef.current = { question: normalized, ts: startTime, id };
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
     logAI('qa');
     invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
@@ -674,7 +685,15 @@ Agent line: "${firstAgentLines}"`,
         const opener = res?.opener || res?.data?.opener || '';
         const detail = res?.detail || res?.data?.detail || '';
         console.log(`[QA] ${responseMs}ms${reallyAsking ? ` — ${reallyAsking}` : ''}`);
-        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, loading: false, responseMs } : x));
+        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, source: res?.source || res?.data?.source || '', loading: false, responseMs } : x));
+        // Persist the canonical answer even if the floating panel is closed.
+        if (leadRef.current?.id && answer && answer !== 'Check knowledge base.') {
+          base44.entities.DebtQAHistory.create({
+            leadId: leadRef.current.id,
+            leadName: `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim(),
+            question, answer, askedAt: new Date().toISOString(), source: 'live_auto',
+          }).catch(() => {});
+        }
       })
       .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
   }, [kbEntries]);
@@ -719,21 +738,19 @@ Agent line: "${firstAgentLines}"`,
     if (customerBufferRef.current.length === 0) return;
     const settled = customerBufferRef.current.join(' ').replace(/\s+/g, ' ').trim();
     customerBufferRef.current = [];
-    if (settled.length < 12) return;
-    // The caller paused mid-sentence and then carried on: ask only the new part,
-    // so the agent doesn't get the same half sentence twice.
-    const previous = lastAskedQuestionRef.current;
-    let question = settled;
-    if (previous && settled.toLowerCase().startsWith(previous.toLowerCase())) {
-      const remainder = settled.slice(previous.length).trim();
-      if (remainder.length < 12) return;
-      question = remainder;
-    }
+    if (!settled || settled.length < 3) return;
+    // Short questions are first-class: "Why?", "What fees?" and
+    // "How much?" should not be dropped because of character/word count.
+    const normalized = settled.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const previous = lastAskedQuestionRef.current.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    const recentlyAsked = Date.now() - lastAskedAtRef.current < 11000;
+    // Deepgram sometimes emits the same thought again with punctuation or a
+    // short trailing phrase; never fire a second AI request for that echo.
+    if (recentlyAsked && (normalized === previous || (previous.startsWith(normalized) && previous.length - normalized.length < 24))) return;
     lastAskedQuestionRef.current = settled;
-    // Send the caller's turn to QA — the model detects implied questions,
-    // concerns and objections, and returns needs_answer=false for small talk,
-    // so non-questions are filtered server-side instead of by regex here.
-    handleQa(question);
+    lastAskedAtRef.current = Date.now();
+    // Full settled customer turn goes to the one canonical live Q&A engine.
+    handleQa(settled);
   }, [handleQa]);
 
   const handleCoach = useCallback(() => {
@@ -1276,18 +1293,17 @@ ${recentText}`,
     if (qaActiveRef.current && entry.speaker === 1) {
       customerBufferRef.current = [trailingTurn(nextTranscript, 'customer')];
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
-      // If this utterance ends with ? or !, flush immediately — question is complete
-      if (text.trim().endsWith('?') || text.trim().endsWith('!')) {
-        flushCustomerBuffer();
-      } else {
-        // Wait for the sentence to finish — flush after 2.5s of silence
-        bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 2500);
-      }
+      // Keep Deepgram preview immediate but let the *answer* settle.
+      // An explicit finished question gets a short beat; a likely incomplete
+      // fragment waits longer for continuation. Interim speech resets this timer.
+      const latest = customerBufferRef.current[0] || text;
+      const incomplete = /\b(?:and|or|but|because|if|that|with|to|for|of|about|is|are|does|do|can|could|would|should|will|what|how|why|when)\s*$/i.test(latest);
+      const settleMs = incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
+      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), settleMs);
     } else if (entry.speaker === 0) {
       // Agent started speaking — flush any pending customer question, then treat
       // the next one as a fresh turn so it is asked in full.
       flushCustomerBuffer();
-      lastAskedQuestionRef.current = '';
     }
 
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
@@ -1325,6 +1341,13 @@ ${recentText}`,
   // The interim line is replaced on each update and removed when the final text
   // is committed via processNewEntry (on speech_final).
   const updateInterimLine = useCallback((speaker, text) => {
+    // Prospect still talking after an earlier speech_final fragment: don't
+    // answer the old fragment. Restart only the Q&A settling clock; do not
+    // delay the real-time transcript display.
+    if (speaker === 1 && qaActiveRef.current && customerBufferRef.current.length > 0 && bufferTimeoutRef.current) {
+      clearTimeout(bufferTimeoutRef.current);
+      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1300);
+    }
     setTranscript(prev => {
       // Search backwards for the most recent interim line for this speaker.
       // Stop at the first non-interim line for this speaker (it was already committed).
@@ -1340,7 +1363,7 @@ ${recentText}`,
       }
       return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
     });
-  }, []);
+  }, [flushCustomerBuffer]);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
     // Never start a saved mode with missing/mismatched hardware. In particular,
@@ -1422,6 +1445,8 @@ ${recentText}`,
     } catch (e) { console.error('Failed to create live transcript record:', e); }
     customerBufferRef.current = []; if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     lastAskedQuestionRef.current = '';
+    lastAskedAtRef.current = 0;
+    recentQaRequestRef.current = { question: '', ts: 0, id: null };
     setMicMuted(false);
     setTestMode(testModeArg);
     setPhase('live'); setDgStatus('connecting');
