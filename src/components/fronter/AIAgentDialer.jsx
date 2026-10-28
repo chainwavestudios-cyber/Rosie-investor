@@ -22,6 +22,7 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 export default function AIAgentDialer({ adminUsername }) {
   const [queue, setQueue] = useState([]);
   const [dialing, setDialing] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(-1);
   const [manualPhone, setManualPhone] = useState('');
   const [manualName, setManualName] = useState({ firstName: '', lastName: '' });
@@ -29,6 +30,10 @@ export default function AIAgentDialer({ adminUsername }) {
   const [error, setError] = useState('');
   const [overrideCutoff, setOverrideCutoff] = useState(false);
   const fileRef = useRef(null);
+  // The async dial loop must observe Stop synchronously; React state alone
+  // captures a stale value inside an already-running async function.
+  const stopRequestedRef = useRef(false);
+  const dialRunActiveRef = useRef(false);
 
   // ── CSV parsing ──
   const parseCSV = (text) => {
@@ -111,13 +116,22 @@ export default function AIAgentDialer({ adminUsername }) {
 
   // ── Sequential dialing ──
   const startDialing = async () => {
-    if (queue.length === 0) return;
+    if (dialRunActiveRef.current || !queue.some(q => q.status === 'pending')) return;
+    dialRunActiveRef.current = true;
+    stopRequestedRef.current = false;
+    setStopping(false);
     setDialing(true);
     setError('');
 
+    try {
     for (let i = 0; i < queue.length; i++) {
+      if (stopRequestedRef.current) break;
       const lead = queue[i];
-      if (!lead.phone) continue;
+      if (lead.status !== 'pending') continue;
+      if (!lead.phone) {
+        setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: 'Missing phone number' } : q));
+        continue;
+      }
 
       // Pre-check 8pm cutoff — skip blocked numbers
       const cutoff = checkCallCutoff(lead.phone);
@@ -152,22 +166,31 @@ export default function AIAgentDialer({ adminUsername }) {
         setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: callError(e) } : q));
       }
 
-      // Wait between calls to avoid rate limits (5 seconds)
-      if (i < queue.length - 1) {
+      // Interruptible pacing: Stop is checked throughout the wait, not only
+      // after an unconditional 5-second timeout.
+      if (i < queue.length - 1 && !stopRequestedRef.current) {
         setStatus('Waiting 5s before next call…');
-        await new Promise(r => setTimeout(r, 5000));
+        for (let elapsed = 0; elapsed < 5000 && !stopRequestedRef.current; elapsed += 100) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       }
     }
-
-    setDialing(false);
-    setCurrentIdx(-1);
-    setStatus('✓ Dialing queue complete.');
+    setStatus(stopRequestedRef.current
+      ? 'Dialing stopped. No additional calls will be started; calls already accepted by Twilio may continue.'
+      : '✓ Dialing queue submitted. Check call results for connection and transfer outcomes.');
+    } finally {
+      dialRunActiveRef.current = false;
+      setDialing(false);
+      setStopping(false);
+      setCurrentIdx(-1);
+    }
   };
 
   const stopDialing = () => {
-    setDialing(false);
-    setCurrentIdx(-1);
-    setStatus('Dialing stopped.');
+    if (!dialRunActiveRef.current) return;
+    stopRequestedRef.current = true;
+    setStopping(true);
+    setStatus('Stopping new dials… the current call request may already have been accepted by Twilio.');
   };
 
   // ── Load leads distributed to the AI dialer from the vault ──
@@ -269,7 +292,7 @@ export default function AIAgentDialer({ adminUsername }) {
           <div style={{ display: 'flex', gap: '10px', fontSize: '11px' }}>
             <span style={{ color: '#8a9ab8' }}>Total: <b style={{ color: '#e8e0d0' }}>{stats.total}</b></span>
             <span style={{ color: '#8a9ab8' }}>Dialing: <b style={{ color: AMBER }}>{stats.dialing}</b></span>
-            <span style={{ color: '#8a9ab8' }}>Dialed: <b style={{ color: GREEN }}>{stats.dialed}</b></span>
+            <span style={{ color: '#8a9ab8' }}>Initiated: <b style={{ color: GREEN }}>{stats.dialed}</b></span>
             <span style={{ color: '#8a9ab8' }}>Failed: <b style={{ color: RED }}>{stats.failed}</b></span>
             {stats.blocked > 0 && <span style={{ color: '#8a9ab8' }}>Blocked (8pm): <b style={{ color: RED }}>{stats.blocked}</b></span>}
           </div>
@@ -279,8 +302,8 @@ export default function AIAgentDialer({ adminUsername }) {
                 ▶ Start Dialing ({stats.pending} pending)
               </button>
             ) : (
-              <button onClick={stopDialing} style={{ background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                ⏹ Stop
+              <button onClick={stopDialing} disabled={stopping} style={{ background: 'rgba(239,68,68,0.15)', color: RED, border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '8px 18px', cursor: stopping ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: stopping ? 0.6 : 1 }}>
+                {stopping ? '⏳ Stopping…' : '⏹ Stop New Dials'}
               </button>
             )}
             {!dialing && (
@@ -315,7 +338,7 @@ export default function AIAgentDialer({ adminUsername }) {
                   {q.error && <div style={{ color: RED, fontSize: '11px', marginTop: '4px' }}>{q.error}</div>}
                 </div>
                 <span style={{ color: statusColor, fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  {q.status === 'dialed' ? '✓ Dialed' : q.status === 'dialing' ? '⏳ Dialing…' : q.status === 'failed' ? '✗ Failed' : q.status === 'blocked' ? '🚫 Past 8pm' : '○ Pending'}
+                  {q.status === 'dialed' ? '✓ Initiated' : q.status === 'dialing' ? '⏳ Dialing…' : q.status === 'failed' ? '✗ Failed' : q.status === 'blocked' ? '🚫 Past 8pm' : '○ Pending'}
                 </span>
               </div>
             );
