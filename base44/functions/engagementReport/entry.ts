@@ -18,7 +18,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { marketingUser } from '../../shared/fronterMarketing.ts';
-import { categoryFor, scoreForSystem } from '../../shared/engagement.ts';
+import { categoryFor, scoreForSystem, isLikelyAutomatedEvent } from '../../shared/engagement.ts';
 import { readScoringRules } from '../../shared/scoringConfig.ts';
 
 const PAGE = 200;
@@ -202,7 +202,7 @@ async function buildReport(base44: any, body: any, rules: any) {
       const name = known?.name || event.templateName || '';
       const category = categoryFor(name);
       const family = known?.category || category.key;
-      return { ...event, templateName: name, category: family, categoryLabel: known?.categoryLabel || category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name, family) };
+      return { ...event, templateName: name, category: family, categoryLabel: known?.categoryLabel || category.label, system: known?.system || category.system, automated: isLikelyAutomatedEvent(event), campaignKey: campaignKeyFor(templates, event.templateId, name, family) };
     });
 
   const sendingRows = sends.map((log: any) => {
@@ -226,7 +226,7 @@ async function buildReport(base44: any, body: any, rules: any) {
   const systems: any = {};
 
   SYSTEMS.forEach((system) => {
-    const systemEvents = events.filter((event: any) => event.system === system);
+    const systemEvents = events.filter((event: any) => event.system === system && !event.automated);
     const systemSends = sendingRows.filter((row: any) => row.system === system);
     const result = buildSystem({ system, events: systemEvents, sends: systemSends, now, rules });
     systems[system] = result;
