@@ -73,7 +73,12 @@ const MAX_SPOKEN_SENTENCES = 2;
 function capSpokenText(text: string): string {
   const clean = String(text || '').trim();
   if (!clean) return clean;
-  const sentences = (clean.match(/[^.!?]+[.!?]*/g) || [clean]).map((s: string) => s.trim()).filter(Boolean);
+  // Hard turn-taking boundary: whenever the agent asks a question (especially
+  // "Have I caught you at a bad time?"), stop at the question mark. Do not
+  // append the next scripted line before the customer gets their turn.
+  const questionAt = clean.indexOf('?');
+  const oneBeat = questionAt >= 0 ? clean.slice(0, questionAt + 1) : clean;
+  const sentences = (oneBeat.match(/[^.!?]+[.!?]*/g) || [oneBeat]).map((s: string) => s.trim()).filter(Boolean);
   const kept: string[] = [];
   let words = 0;
   for (const sentence of sentences) {
@@ -262,6 +267,8 @@ ${conversationText}
 
 Respond as the Agent to the prospect's latest message with ONE short beat — at most 2 sentences, about 30 words — because it is spoken aloud on a phone call and the prospect must get their turn to answer. Do not use formatting, emojis, or special characters.
 If the prospect is only acknowledging or answering the greeting ("yes", "speaking", "this is him"), reply with the short courtesy and identity line only, then stop and listen. Never roll the notice or the pitch into that same reply — deliver it on your next turn, once they have answered.
+CRITICAL OPENING PERMISSION GATE: After asking whether the prospect was interrupted, caught at a bad time, or taken away from something important, PAUSE. It is a real question. Never add the pitch in that same spoken turn. Wait for their actual response. "No, I'm good", "go ahead", "sure", and "I'm fine" mean they have time to talk, NOT that they want an immediate transfer. Only then continue the next short script step. If they say they are busy, ask for a better time and pause again.
+Each question is the final thing you say in that turn; give the prospect silence to answer it. Do not chain a statement after any question.
 
 Determine the action — apply these rules exactly:
 - "speak": the default for every reply until the script's hand-off step is reached. A greeting, an acknowledgement or a short answer ("ok", "yes", "hello", "speaking", "who's this", "fine", "sure") is NOT qualification: keep the action "speak" and deliver the next line of the script.
