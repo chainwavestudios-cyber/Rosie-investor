@@ -340,12 +340,22 @@ export default async function(req) {
 
         // Ring Chris directly; the caller stays on the selected queue recording.
         const primaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 1, appUrl);
+        let bookingImmediately = false;
         if (!primaryStarted) {
           const secondaryStarted = await startAiAdvisorAttempt(service, config, leadId, conferenceName, customerCallSid, queuedAtIso, 2, appUrl);
           if (!secondaryStarted) {
             const alerts = await service.entities.FronterHeadsUp.filter({ conferenceName, status: 'active' });
             if (alerts?.[0]) await service.entities.FronterHeadsUp.update(alerts[0].id, { routeState: 'appointment_available', advisorAttempt: 2 });
+            bookingImmediately = config.callbackBookingEnabled !== false;
           }
+        }
+
+        // If neither line can be dialed, enter the existing working voice
+        // appointment hold directly. Do not race a call redirect against the
+        // initial TwiML conference response.
+        if (bookingImmediately) {
+          const bookingUrl = `${appUrl}/functions/appointmentVoiceHandler?step=hold&source=ai&leadId=${encodeURIComponent(leadId)}`;
+          return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="GET">${xmlEscape(bookingUrl)}</Redirect></Response>`, { headers: { 'Content-Type': 'text/xml' } });
         }
 
         const skipSay = url.searchParams.get('SkipSay') === 'true';
