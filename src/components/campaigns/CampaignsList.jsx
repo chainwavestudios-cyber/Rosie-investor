@@ -1,77 +1,97 @@
-/**
- * CampaignsList.jsx — every campaign the manager has built, with its live counts.
- */
+
+/** Campaign history as compact, scannable rows with actionable progress. */
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Btn, Card, DIM, MUTED, STATUS_TONE, SURFACE, BORDER } from './kit';
+import { ArrowUpRight, BarChart3, FilePenLine, Inbox, Trash2 } from 'lucide-react';
 
-const when = (value) => (value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
+function when(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) return '—';
+  return new Date(value).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+}
 
-export default function CampaignsList({ campaigns, onOpen, onEdit, onChanged }) {
+export default function CampaignsList({ campaigns, totalCount, onOpen, onEdit, onChanged }) {
   const [busyId, setBusyId] = useState('');
+  const [error, setError] = useState('');
 
   const remove = async (campaign) => {
+    if (busyId || !window.confirm('Delete the unsent draft “' + (campaign.name || 'Untitled campaign') + '”? This cannot be undone.')) return;
     setBusyId(campaign.id);
-    await base44.entities.EmailCampaignJob.delete(campaign.id).catch(() => {});
-    setBusyId('');
-    onChanged();
+    setError('');
+    try {
+      await base44.entities.EmailCampaignJob.delete(campaign.id);
+      onChanged?.();
+    } catch (err) {
+      setError(err?.message || 'Could not delete the draft.');
+    } finally {
+      setBusyId('');
+    }
   };
 
-  if (!campaigns.length) {
-    return (
-      <Card title="No campaigns yet" hint="Start with “New Campaign” — step 1 takes the CSV, step 5 is where anything actually sends.">
-        <div style={{ color: DIM, fontSize: '12px' }}>Nothing has been imported or sent.</div>
-      </Card>
-    );
-  }
-
   return (
-    <Card title="Campaigns" hint="Newest first. Open a draft to keep building it; open a running one to watch the queue.">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {campaigns.map((campaign) => {
-          const tone = STATUS_TONE[campaign.status] || MUTED;
-          const total = Number(campaign.eligibleCount || 0) || Number(campaign.importedCount || 0);
-          const sent = Number(campaign.sentCount || 0);
-          const pct = total ? Math.min(100, Math.round((sent / total) * 100)) : 0;
-          return (
-            <div key={campaign.id} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${tone}`, borderRadius: '5px', padding: '11px 13px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{campaign.name || 'Untitled campaign'}</span>
-                  <span style={{ background: `${tone}22`, color: tone, border: `1px solid ${tone}55`, borderRadius: '3px', padding: '1px 7px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{campaign.status}</span>
-                  {campaign.templateName && <span style={{ color: MUTED, fontSize: '11px' }}>📧 {campaign.templateName}</span>}
-                </div>
-                <div style={{ color: DIM, fontSize: '11px', marginTop: '4px' }}>
-                  {campaign.listName ? `${campaign.listName} · ` : ''}
-                  {Number(campaign.importedCount || 0)} rows imported · {Number(campaign.eligibleCount || 0)} eligible
-                  {Number(campaign.excludedCount || 0) ? ` · ${campaign.excludedCount} excluded` : ''}
-                  {sent ? ` · ${sent} sent` : ''}
-                  {Number(campaign.failedCount || 0) ? ` · ${campaign.failedCount} failed` : ''}
-                </div>
-                {total > 0 && (
-                  <div style={{ height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', marginTop: '7px', overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: `linear-gradient(90deg,${tone},${tone}88)` }} />
-                  </div>
-                )}
-                <div style={{ color: DIM, fontSize: '10px', marginTop: '5px' }}>
-                  Created {when(campaign.created_date)}{campaign.lastRunAt ? ` · last queue run ${when(campaign.lastRunAt)}` : ''}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '7px' }}>
-                <Btn tone={['running', 'paused', 'completed'].includes(campaign.status) ? 'blue' : 'gold'} onClick={() => onOpen(campaign)}>
-                  {['running', 'paused', 'completed'].includes(campaign.status) ? '📊 Monitor' : '✎ Open builder'}
-                </Btn>
-                {onEdit && ['completed', 'cancelled'].includes(campaign.status) && (
-                  <Btn tone="ghost" onClick={() => onEdit(campaign)}>✎ Edit</Btn>
-                )}
-                {campaign.status === 'draft' && !Number(campaign.sentCount || 0) && (
-                  <Btn tone="danger" onClick={() => remove(campaign)} disabled={busyId === campaign.id}>{busyId === campaign.id ? '…' : 'Delete'}</Btn>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    <section className="ecm-panel" aria-label="Campaign history">
+      <div className="ecm-panel-heading">
+        <h3>Campaign history</h3>
+        <span>{campaigns.length} shown{typeof totalCount === 'number' && totalCount !== campaigns.length ? ' of ' + totalCount : ''} · newest first</span>
       </div>
-    </Card>
+      {error && <div className="ecm-error" role="alert">{error}</div>}
+      {!campaigns.length ? (
+        <div className="ecm-empty">
+          <Inbox size={22} />
+          {totalCount ? 'No campaigns match your search or filter.' : 'No campaigns yet. Create one to start with a CSV, then review before sending.'}
+        </div>
+      ) : (
+        <div>
+          {campaigns.map(campaign => {
+            const total = Number(campaign.eligibleCount || 0) || Number(campaign.importedCount || 0);
+            const sent = Number(campaign.sentCount || 0);
+            const pct = total ? Math.max(0, Math.min(100, Math.round(sent / total * 100))) : 0;
+            const status = String(campaign.status || 'draft').toLowerCase();
+            const monitorable = ['running', 'paused', 'completed'].includes(status);
+            const canDelete = status === 'draft' && !sent;
+            return (
+              <div key={campaign.id} className="ecm-list-row">
+                <div className="ecm-row-primary">
+                  <div className="ecm-row-title">
+                    <strong>{campaign.name || 'Untitled campaign'}</strong>
+                    <span className={'ecm-status ecm-status-' + status}>{status}</span>
+                  </div>
+                  <div className="ecm-row-meta">
+                    {campaign.templateName || 'No email template selected'}
+                    {campaign.listName ? ' · ' + campaign.listName : ''}
+                  </div>
+                  <div className="ecm-row-sub">
+                    {Number(campaign.importedCount || 0).toLocaleString()} imported · {Number(campaign.eligibleCount || 0).toLocaleString()} eligible
+                    {Number(campaign.excludedCount || 0) ? ' · ' + Number(campaign.excludedCount).toLocaleString() + ' excluded' : ''}
+                    {Number(campaign.failedCount || 0) ? ' · ' + Number(campaign.failedCount).toLocaleString() + ' failed' : ''}
+                    {' · Created ' + when(campaign.created_date)}
+                  </div>
+                </div>
+                <div className="ecm-row-progress">
+                  <div className="ecm-progress-summary"><span>Send progress</span><strong>{pct}%</strong></div>
+                  <div className="ecm-progress-track" role="progressbar" aria-label={(campaign.name || 'Campaign') + ' progress'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+                    <div className="ecm-progress-fill" style={{width: pct + '%'}} />
+                  </div>
+                  <div className="ecm-progress-note">{sent.toLocaleString()} / {total.toLocaleString()} recipients</div>
+                </div>
+                <div className="ecm-row-actions">
+                  <button type="button" className="ecm-row-button" onClick={() => onOpen(campaign)}>
+                    {monitorable ? <BarChart3 size={13} /> : <FilePenLine size={13} />}
+                    {monitorable ? 'View results' : 'Continue setup'}<ArrowUpRight size={12} />
+                  </button>
+                  {onEdit && ['completed', 'cancelled'].includes(status) && (
+                    <button type="button" className="ecm-row-button secondary" onClick={() => onEdit(campaign)}><FilePenLine size={13} />Edit</button>
+                  )}
+                  {canDelete && (
+                    <button type="button" className="ecm-row-button danger" title="Delete unsent draft" aria-label={'Delete draft ' + (campaign.name || 'Untitled campaign')} onClick={() => remove(campaign)} disabled={busyId === campaign.id}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
