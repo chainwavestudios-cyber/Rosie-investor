@@ -145,7 +145,9 @@ export async function setAllDebtCoachValues(username, values) {
       changed[key] = value;
     }
   }
-  if (Object.keys(changed).length === 0) return !entry.failed;
+  // Explicit saves must verify the database write even when values match the
+  // cache (a previous attempt may have failed after updating memory).
+  if (entry.failed) return false;
   entry.data = { ...entry.data, ...changed };
   for (const [key, value] of Object.entries(changed)) {
     notifyListeners(username, key, value);
