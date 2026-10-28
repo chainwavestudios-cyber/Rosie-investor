@@ -20,7 +20,7 @@ import EmailCampaignManagerTab from '@/components/campaigns/EmailCampaignManager
 import EmailFinderTab from '@/components/debt/EmailFinderTab';
 import ProtoFaceTab from '@/components/debt/protoface/ProtoFaceTab';
 import DebtBobTrainer from '@/components/debt/DebtBobTrainer';
-import CallsTab from '@/components/debt/CallsTab';
+import CallIntelligenceTab from '@/components/debt/CallIntelligenceTab';
 import AICreditsTab from '@/components/debt/AICreditsTab';
 import AICostReportsTab from '@/components/debt/AICostReportsTab';
 import CoachTabBar from '@/components/debt/CoachTabBar';
@@ -160,8 +160,8 @@ export default function DebtCallCoach() {
       <PopOutTab storageKey="closing_tab" title="Closing Flow" icon="🏁" active={tab === 'closing'} defaultSize={{ width: 460, height: 720 }} autoPopOut={liveCallActive} zIndex={14500}>
         <SmartClose leadId={closingLeadId} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
       </PopOutTab>
-      <PopOutTab storageKey="calls_tab" title="Calls" icon="📞" active={tab === 'calls'}>
-        <CallsTab />
+      <PopOutTab storageKey="calls_tab" title="Call Intelligence" icon="📞" active={tab === 'calls'} defaultSize={{ width: 1120, height: 820 }}>
+        <CallIntelligenceTab />
       </PopOutTab>
       <PopOutTab storageKey="leadgen_tab" title="Lead Gen" icon="🎯" active={tab === 'leadgen'}>
         <LeadGenTab />
