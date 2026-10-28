@@ -104,7 +104,7 @@ export default function QAReviewTab() {
   const list = view === 'pending' ? pending : approved;
 
   return (
-    <div>
+    <div className="dcc-admin-qa">
       {/* Sub-tabs: Pending | Approved | Rejected */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'center' }}>
         <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📚 Q&A Learning Review</div>
