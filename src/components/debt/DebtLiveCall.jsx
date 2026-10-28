@@ -658,11 +658,7 @@ Agent line: "${firstAgentLines}"`,
     return () => clearInterval(interval);
   }, [phase, lead.id]);
 
-  // ── Transcript consolidation removed ──────────────────────────────────
-  // endpointing=700 + speech_final-based chunk collection now produces clean
-  // complete-sentence lines, so the 30s consolidateTranscript call is no
-  // longer needed. The regex-based consolidateTranscript function remains
-  // available for manual use if classification labels are needed.
+  // Transcript consolidation is not needed: the feed emits whole sentences.
 
   const createNewLead = useCallback(async () => {
     try {
@@ -1518,10 +1514,6 @@ ${recentText}`,
     lastCoachTime.current = Date.now();
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
-
-    // Quiet start: keep the lead card, transcript, scripts, and AI tools docked.
-    // No timed profile modal or automatic floating panel. User-initiated
-    // pop-out buttons remain available in the headers of each panel.
 
     // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout).
     // Set the refs directly too so processNewEntry (captured by the WebSocket handler)
