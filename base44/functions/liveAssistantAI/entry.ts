@@ -178,6 +178,11 @@ function getAnswers(e: any): string[] {
     } catch {}
   }
   if (out.length === 0 && e?.answer && String(e.answer).trim()) out.push(String(e.answer));
+  const preferred = Number(e?.starredAnswerIndex);
+  if (Number.isInteger(preferred) && preferred > 0 && preferred < out.length) {
+    const [starred] = out.splice(preferred, 1);
+    out.unshift(starred);
+  }
   return out;
 }
 
