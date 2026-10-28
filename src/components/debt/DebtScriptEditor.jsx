@@ -336,6 +336,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       const created = await base44.entities.DebtScript.create({
         name: newName.trim(), scriptType: newType, content: '',
         color: '#e8e0d0', fontSize: 14, sortOrder: scripts.length,
+        alwaysSaveBackup: true,
       });
       setScripts(prev => [...prev, created]);
       setActiveId(created.id);
