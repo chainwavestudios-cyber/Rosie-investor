@@ -1,6 +1,7 @@
 
 /** Campaign history as compact, scannable rows with actionable progress. */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { ArrowUpRight, BarChart3, FilePenLine, Inbox, Trash2 } from 'lucide-react';
 
@@ -74,6 +75,7 @@ export default function CampaignsList({ campaigns, totalCount, onOpen, onEdit, o
                   <div className="ecm-progress-note">{sent.toLocaleString()} / {total.toLocaleString()} recipients</div>
                 </div>
                 <div className="ecm-row-actions">
+                  <Link className="ecm-row-button secondary" to={'/email-engagement?view=campaigns&campaignId='+encodeURIComponent(campaign.id)} title="Open detailed read-only campaign analytics">Engagement <BarChart3 size={13} /><ArrowUpRight size={12}/></Link>
                   <button type="button" className="ecm-row-button" onClick={() => onOpen(campaign)}>
                     {monitorable ? <BarChart3 size={13} /> : <FilePenLine size={13} />}
                     {monitorable ? 'View results' : 'Continue setup'}<ArrowUpRight size={12} />
