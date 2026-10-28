@@ -47,6 +47,10 @@
       "type": "number",
       "title": "Confirmed debt for transfer popup"
     },
+    "migratedDebtLeadId": {
+      "type": "string",
+      "title": "Debt Call Coach prospect created after both advisor attempts failed"
+    },
     "advisorAttempt": {
       "type": "number",
       "title": "Advisor attempt number"
