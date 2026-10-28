@@ -379,7 +379,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     if (saving || !local.id) return;
     if (dirtyFieldsRef.current.size && !(await save())) return;
     window.dispatchEvent(new CustomEvent('debt_launch_live', { detail: { leadId: local.id, mode } }));
-    onClose?.();
+    // Keep the contact card open during call launch and throughout the bridge.
   };
 
   return (
