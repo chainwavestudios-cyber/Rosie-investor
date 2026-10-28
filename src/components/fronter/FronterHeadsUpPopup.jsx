@@ -27,6 +27,8 @@ function recordTransferAlerts(alerts) {
 export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLead, onGrab }) {
   const [alerts, setAlerts] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
+  const [grabBusy, setGrabBusy] = useState({});
+  const [grabMessage, setGrabMessage] = useState({});
   const prevIdsRef = useRef(new Set());
 
   const load = useCallback(async () => {
@@ -51,14 +53,31 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
   const closeAlert = async (alert) => {
     setDismissed(prev => new Set([...prev, alert.id]));
     setAlerts(prev => prev.filter(a => a.id !== alert.id));
-    try { await base44.entities.FronterHeadsUp.update(alert.id, { status: 'closed' }); } catch {}
+    // Dismissing an AI transfer card must not cancel Chris's phone attempts
+    // or destroy the live queue record used by the handoff callbacks.
+    if (alert.routeType !== 'ai_agent') {
+      try { await base44.entities.FronterHeadsUp.update(alert.id, { status: 'closed' }); } catch {}
+    }
+  };
+
+  const grab = async (item) => {
+    if (grabBusy[item.id]) return;
+    setGrabBusy(prev => ({ ...prev, [item.id]: true }));
+    try {
+      const result = await onGrab?.(item);
+      setGrabMessage(prev => ({ ...prev, [item.id]: result?.message || 'Answer the incoming call in your Fronter browser to join the prospect.' }));
+    } catch (e) {
+      setGrabMessage(prev => ({ ...prev, [item.id]: e?.message || 'Could not ring your browser handset.' }));
+    } finally {
+      setGrabBusy(prev => ({ ...prev, [item.id]: false }));
+    }
   };
 
   const handleListen = (alert) => {
     if (alert.conferenceName) {
       onListen?.(alert);
     } else {
-      alert('No active conference for this fronter. The fronter needs to be on a merged call.');
+      window.alert('No active conference is available for this call.');
     }
   };
 
@@ -98,8 +117,12 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
 
           {/* Body */}
           <div style={{ padding: '16px' }}>
-            <div style={{ color: '#6b7280', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>From Fronter</div>
-            <div style={{ color: AMBER, fontSize: '14px', fontWeight: 'bold', marginBottom: '14px' }}>{alert.fronterUsername}</div>
+            <div style={{ color: '#6b7280', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Transfer Source</div>
+            <div style={{ color: AMBER, fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>{alert.routeType === 'ai_agent' ? 'AI Agent → Chris Bongiorno' : alert.fronterUsername}</div>
+            {alert.routeType === 'ai_agent' && <div style={{ color: '#a7bdd2', fontSize: '12px', marginBottom: '14px', lineHeight: 1.5 }}>
+              <b style={{ color: '#e8e0d0' }}>{alert.routeState === 'calling_chris_primary' ? 'Calling your primary number' : alert.routeState === 'calling_chris_cell' ? 'Trying your cell phone' : alert.routeState === 'browser_ringing' ? 'Your browser is ringing' : alert.routeState === 'appointment_available' ? 'Both numbers unavailable · appointment option active' : alert.routeState === 'advisor_accepted' ? 'You accepted · connecting the calls' : 'Caller waiting in your queue'}</b>
+              <div>Reported debt: {Number(alert.debtAmount) > 0 ? `$${Number(alert.debtAmount).toLocaleString('en-US')}` : 'Not yet confirmed'}</div>
+            </div>}
 
             <div style={{ color: '#6b7280', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Lead</div>
             <button onClick={() => onOpenLead?.(alert.leadId)} style={{ display: 'block', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.33)', color: '#10b981', borderRadius: '4px', padding: '10px 12px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'left', marginBottom: '14px', width: '100%' }}>
@@ -116,13 +139,14 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
             </button>
 
             <button
-              onClick={() => onGrab?.(alert)}
-              disabled={!alert.conferenceName}
+              onClick={() => grab(alert)}
+              disabled={!alert.conferenceName || !!grabBusy[alert.id]}
               style={{ width: '100%', background: alert.conferenceName ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(255,255,255,0.05)', color: alert.conferenceName ? '#0a0f1e' : '#6b7280', border: '1px solid ' + (alert.conferenceName ? GOLD + '66' : 'rgba(255,255,255,0.1)'), borderRadius: '4px', padding: '10px', cursor: alert.conferenceName ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: alert.conferenceName ? 1 : 0.5 }}
             >
-              🤝 {alert.conferenceName ? 'GRAB CALL' : 'No Call to Grab'}
+              🤝 {grabBusy[alert.id] ? 'RINGING YOUR BROWSER…' : alert.conferenceName ? (alert.routeType === 'ai_agent' ? 'ANSWER IN BROWSER' : 'GRAB CALL') : 'No Call to Grab'}
             </button>
 
+            {grabMessage[alert.id] && <div style={{ color: BLUE, fontSize: '11px', marginTop: '8px' }}>{grabMessage[alert.id]}</div>}
             <div style={{ color: '#4a5568', fontSize: '9px', textAlign: 'center', marginTop: '8px' }}>{new Date(alert.createdAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}</div>
           </div>
         </div>
