@@ -14,6 +14,7 @@ import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
+import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import { buildIntentReport } from '@/components/debt/intentReport';
@@ -36,10 +37,7 @@ import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
-const DEFAULT_AUDIO_SETUPS = [
-  { name: 'Computer setup', saved: false },
-  { name: 'Cell setup', saved: false },
-];
+const DEFAULT_AUDIO_SETUPS = AUDIO_MODE_DEFAULTS;
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
 const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '8px 12px', color: '#e8e0d0', fontSize: '13px', outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
 
@@ -105,8 +103,20 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [activeSetupIndex, setActiveSetupIndex, activeSetupLoaded] = useDebtCoachValue(coachUser?.username, 'activeAudioSetup', 0);
   const [outputDevices, setOutputDevices] = useState([]);
   const [outputDeviceId, setOutputDeviceId, outputLoaded] = useDebtCoachValue(coachUser?.username, 'defaultOutputDeviceId', '');
-  const [agentGain, setAgentGain] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
-  const [customerGain, setCustomerGain] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
+  const [agentGain, setAgentGain, agentGainLoaded] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
+  const [customerGain, setCustomerGain, customerGainLoaded] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
+  const [deviceScanCompleted, setDeviceScanCompleted] = useState(false);
+  const firstDeviceScanRef = useRef(false);
+  const restoredAudioModeRef = useRef('');
+  const [audioModeMessage, setAudioModeMessage] = useState('');
+  const modes = audioModes(audioSetups);
+  const activeAudioMode = modes[activeSetupIndex] || modes[0];
+  const audioModeValidation = resolveAudioMode(activeAudioMode, micDevices, outputDevices, isLoopbackSource);
+  const audioDeviceStateRef = useRef(null);
+  audioDeviceStateRef.current = {
+    micDeviceId, customerMicId, outputDeviceId,
+    hasSavedMode: !!(setupsLoaded && activeSetupLoaded && activeAudioMode?.saved),
+  };
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
@@ -467,26 +477,25 @@ Agent line: "${firstAgentLines}"`,
       stream.getTracks().forEach(t => t.stop());
       ({ mics, outputs } = await scan());
     }
-    // Fixed mapping: the Rodecaster Pro Multichannel carries the agent's voice,
-    // Stereo Mix carries whatever the computer plays (the customer). The two never
-    // swap — a saved microphone on the customer slot is moved to Stereo Mix.
-    const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
-    const loop = mics.find(m => /stereo mix/i.test(m.label || ''))
-      || mics.find(m => /what u hear|loopback/i.test(m.label || ''));
-    if (mics.length > 0) setMicDeviceId(prev => prev || (rode || mics[0]).deviceId);
-    if (loop) {
-      setCustomerMicId(prev => {
-        const savedLabel = mics.find(m => m.deviceId === prev)?.label || '';
-        return /stereo mix|what u hear|loopback/i.test(savedLabel) ? prev : loop.deviceId;
-      });
+    // Offer first-run suggestions only if there is NO saved audio mode.
+    // Never overwrite a restored selection (including deliberate customer = None).
+    // The preferred hardware is never assumed to be the same for Computer and Cell.
+    if (!firstDeviceScanRef.current && !audioDeviceStateRef.current?.hasSavedMode) {
+      const current = audioDeviceStateRef.current || {};
+      const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
+      const loop = findLoopback(mics);
+      if (!current.micDeviceId && mics.length) setMicDeviceId((rode || mics[0]).deviceId);
+      if (!current.customerMicId && loop) setCustomerMicId(loop.deviceId);
+      if (!current.outputDeviceId && outputs.length) setOutputDeviceId(outputs[0].deviceId);
     }
-    if (outputs.length > 0) setOutputDeviceId(prev => prev || outputs[0].deviceId);
+    firstDeviceScanRef.current = true;
+    setDeviceScanCompleted(true);
   }, []);
 
   useEffect(() => {
-    if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
+    if (!micLoaded || !customerMicLoaded || !outputLoaded || !setupsLoaded || !activeSetupLoaded) return;
     loadDevices(false);
-  }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
+  }, [micLoaded, customerMicLoaded, outputLoaded, setupsLoaded, activeSetupLoaded, loadDevices]);
 
   // Windows devices that are enabled/plugged in after the page loaded (Stereo
   // Mix turned on, speaker connected) show up immediately instead of needing
