@@ -8,6 +8,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { twilioFetch, toE164, xmlEscape, ACCOUNT_SID, AUTH_TOKEN, findConferenceSid } from '../../shared/twilioHelpers.ts';
 import { checkCallCutoff } from '../../shared/phoneTimeZone.ts';
 
+const HOUR = 60 * 60 * 1000;
 const OFFICE = toE164(Deno.env.get('OFFICE_MAIN_LINE') || '+16193530919');
 const FROM = toE164(Deno.env.get('TWILIO_FROM_NUMBER') || '');
 const base64 = (data:string) => btoa(data).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
@@ -121,5 +122,9 @@ export default async function(req:Request):Promise<Response>{
       return respond({ok:true,ended:true});
     }
     return respond({error:'Unsupported'},400);
-  }catch(e:any){console.error('[officeLineBridge]',e?.message);return respond({error:e?.message||'Office bridge failed'},500);}
+  }catch(e:any){
+    const upstream = Number(e?.status)||0;
+    console.error('[officeLineBridge]', {message:e?.message,upstreamStatus:upstream,twilioCode:e?.twilioCode});
+    return respond({error:e?.message||'Office bridge failed',upstreamStatus:upstream||undefined,twilioCode:e?.twilioCode||undefined},upstream?502:500);
+  }
 }
