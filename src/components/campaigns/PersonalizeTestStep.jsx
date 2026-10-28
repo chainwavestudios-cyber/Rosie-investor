@@ -34,7 +34,7 @@ export default function PersonalizeTestStep({ campaign }) {
     const res = await base44.functions.invoke('emailCampaignSend', { mode: 'test', campaignId: campaign.id, testEmail })
       .catch((e) => ({ data: { error: e?.response?.data?.error || e?.message } }));
     const data = res?.data || res;
-    setTestState(data?.error ? `⚠ ${data.error}` : `✓ Test copy sent to ${data.to} — it arrives without tracking, so your own opens never count as the client's.`);
+    setTestState(data?.error ? `⚠ ${data.error}` : `✓ Tracked Gmail test sent to ${data.to}. The welcome audio uses a unique test-send token, separate from any client's send.`);
   };
 
   if (loading) return <Card title="Step 4 — Personalize & test"><div style={{ color: MUTED, fontSize: '12px' }}>Building this recipient's email…</div></Card>;
