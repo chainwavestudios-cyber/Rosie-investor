@@ -128,6 +128,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [officeBridge, setOfficeBridge] = useState(null);
   const officeBridgeRef = useRef(null);
   const officeMonitorStartedRef = useRef(false);
+  const officeEndedRef = useRef(false);
   const lastLaunchTokenRef = useRef(null);
   const officeActionBusyRef = useRef(false);
   const setOffice = useCallback((next) => {
@@ -1897,6 +1898,7 @@ ${recentText}`,
           if(payload?.error||!payload?.bridgeToken)throw new Error(payload?.error||'Office bridge could not be created');
           if(cancelled)return;
           officeMonitorStartedRef.current=false;
+          officeEndedRef.current=false;
           setOffice({...payload,leadId:chosen.id,clientStatus:'not_called',busy:false});
         }
       } catch(err) {if(!cancelled)setError('Call launch failed: '+(err?.message||String(err)));}
@@ -1928,8 +1930,18 @@ ${recentText}`,
               if(!cancelled)setTwilioWarning('Office connected, but listening monitor failed: '+(err?.message||String(err)));
             });
         }
-        if(['completed','failed','busy','no-answer','canceled'].includes(status.officeStatus)&&phaseRef.current==='live'){
-          stopCallRef.current?.();
+        if(['completed','failed','busy','no-answer','canceled'].includes(status.officeStatus) && !officeEndedRef.current){
+          officeEndedRef.current=true;
+          // If the office leg ends before Merge, also release the isolated
+          // customer hold; never leave an orphaned customer phone call.
+          if (phaseRef.current === 'live') stopCallRef.current?.();
+          else {
+            twilioDialerRef.current?.hangup();
+            base44.functions.invoke('officeLineBridge', {
+              action:'end',bridgeToken:token,leadId,sessionUserId,sessionToken
+            }).catch(()=>{});
+            setOffice(null);
+          }
         }
       }catch(err){if(!cancelled)setTwilioWarning('Office status check: '+(err?.message||String(err)));}
     };
@@ -2465,6 +2477,7 @@ ${recentText}`,
       {twilioWarning && <div role="status" style={{ marginBottom:12,padding:'9px 13px',borderRadius:8,background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.3)',color:'#fbd08b',fontSize:11 }}>Twilio audio: {twilioWarning}</div>}
       {(twilioDialer.isActive || officeBridge?.bridgeToken) && <div role="status" style={{ marginBottom:12,padding:'9px 12px',borderRadius:8,background:'#142b33',border:'1px solid rgba(162,210,184,.35)',color:'#c2dfd3',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',fontSize:11 }}>
         <strong style={{color:'#e3c789'}}>Twilio Stream</strong>
+        {officeBridge?.bridgeToken && <span style={{color:'#92e1bc',fontWeight:800}}>Computer microphone muted · office line carries speech</span>}
         <span>{officeBridge?.bridgeToken ? 'Office '+(officeBridge.officeStatus||'calling')+' · Client '+(officeBridge.clientStatus||'not called') : 'Direct dial · '+twilioDialer.callStatus}</span>
         <span>Listening: {phase==='live'&&dgStatus==='connected'?'active':phase==='live'?'connecting':'awaiting call audio'}</span>
         {!officeBridge?.bridgeToken&&twilioDialer.isActive&&<button type="button" onClick={()=>twilioDialer.hangup()} style={{background:'#422629',border:'1px solid #93534d',borderRadius:6,color:'#ffd5cc',padding:'5px 10px',cursor:'pointer'}}>End Twilio call</button>}
