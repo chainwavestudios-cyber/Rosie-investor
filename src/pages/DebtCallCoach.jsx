@@ -195,7 +195,7 @@ export default function DebtCallCoach() {
         <SmartLeadsTab />
       </PopOutTab>
       {tab === 'newleads' && <NewLeadsTab />}
-      <PopOutTab storageKey="hotleads_tab" title="Hot Leads" icon="🔥" active={tab === 'hotleads'} defaultSize={{ width: 940, height: 700 }} zIndex={14600}>
+      <PopOutTab storageKey="hotleads_tab" title="Hot Leads" icon="🔥" active={tab === 'hotleads'} defaultSize={{ width: 1180, height: 780 }} zIndex={14600}>
         <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} onOpenHeatMap={() => setHeatMapVisible(true)} />
       </PopOutTab>
       {tab === 'pipeline' && <PipelineTab onOpenLead={(lead) => setPipelineLead(lead)} />}
