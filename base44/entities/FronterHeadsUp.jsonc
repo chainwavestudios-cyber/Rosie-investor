@@ -55,6 +55,10 @@
       "type": "string",
       "title": "Active advisor call SID"
     },
+    "browserCallSid": {
+      "type": "string",
+      "title": "Optional browser pickup leg SID"
+    },
     "lineKey": {
       "type": "string",
       "title": "Twilio Line Key (for listen)"
