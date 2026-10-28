@@ -369,8 +369,8 @@ export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: num
       const hosts = [...new Set(activity.urls.map((url) => hostOf(url)).filter(Boolean))];
       reasons.push(`${activity.label}: clicked ${hosts.slice(0, 2).join(', ') || `${activity.clicks} link`}`);
     }
-    if (signals.linkKeys.length >= 2) { score += weights.depth; }
-    if (signals.welcomeAudioAt) { score += weights.welcome; }
+    if (new Set(activity.urls.filter((url) => CREDENTIAL_LINKS.some((link) => url.includes(link.match)))).size >= 2) score += weights.depth;
+    if (signals.welcomeAudioAt && activity.urls.some((url) => !CREDENTIAL_LINKS.some((link) => url.includes(link.match)))) score += weights.welcome;
     if (activity.qualify) score += weights.qualify;
     if (activity.siteVisit) score += weights.site;
   }
@@ -386,30 +386,30 @@ export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: num
   const night = byKey.get('reminder_night');
   const hour = byKey.get('reminder_hour');
   if (night?.opens && hour?.opens) {
-    score += 18;
+    score += rules.patterns.bothReminders;
     reasons.push('Opened both the night-before and the reminder email');
   }
   const followUp = byKey.get('followup_intro');
   if (followUp && (followUp.clicks >= 2 || followUp.clicks + followUp.opens >= 3)) {
-    score += 20;
-    reasons.push('Follow-up introduction: 2+ links — Introduction 2 is due');
+    score += rules.patterns.followUpTwoLinks;
+    reasons.push('Follow-up interaction pattern — review before next outreach');
   }
   const creds = byKey.get('creds_welcome');
   if (creds) {
     // Repeat opens, and coming back the next morning, are the pattern that makes a hot lead.
-    const repeatPattern = creds.opens >= 3 || (creds.opens >= 2 && creds.siteVisit);
-    if (repeatPattern || (creds.opens >= 1 && creds.qualify)) forcedHot = true;
+    const repeatPattern = creds.opens >= rules.patterns.credsRepeatOpens || (creds.opens >= rules.patterns.credsOpensWithSite && creds.siteVisit);
+    if (creds.qualify && rules.patterns.credsQualifyIsHot) forcedHot = true;
     if (repeatPattern) {
-      score += 12;
+      score += rules.patterns.credsRepeatPattern;
       reasons.push(`Credentials email opened ${creds.opens}× — hot pattern`);
     }
   }
   const golden = byKey.get('golden');
-  if (golden && golden.qualify) { score += 12; reasons.push('Golden Boy opened and watched the avatar — Golden A Buy'); }
+  if (golden && golden.qualify) { score += rules.patterns.goldenAvatar; reasons.push('Reached Golden Boy qualification page'); }
 
   if (system === 'fronter') {
-    if (signals.clicks > 0) { score += 8; reasons.push('Engaged with the cold outreach'); }
-    else if (signals.opens >= 2) { score += 6; reasons.push('Opened the cold outreach more than once'); }
+    if (signals.clicks > 0) { score += rules.patterns.fronterClick; reasons.push('Engaged with the cold outreach'); }
+    else if (signals.opens >= 2) { score += rules.patterns.fronterRepeatOpens; reasons.push('Opened the cold outreach more than once'); }
   }
 
   const floor = system === 'coach' ? MIGRATION_START_SCORE : 0;
