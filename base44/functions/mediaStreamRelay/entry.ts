@@ -95,7 +95,7 @@ function buildOpeningLine(config: any, lead: any): string {
     const opener = config.inboundOpener
       || `Quick question for you—we recently sent a notice to your address regarding active credit flags across Experian, TransUnion, and Equifax in {{state}}. It shows you're carrying around $20,000 in high-interest credit card debt, and that you qualify for the state rate-drop update. Did you happen to receive that notice in the mail yet, or are you still paying those high rates?`;
     return renderLeadTemplate(opener, lead, {
-      agentName: config.inboundAgentName,
+      agentName: String(config.inboundAgentName || '').trim() || 'Sarah',
       region: lead?.inboundRegion,
       fallbackFirstName: 'there',
     });
@@ -215,7 +215,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
     : (config.systemPrompt || FRONTER_SCRIPT_SYSTEM_PROMPT);
   // Inbound calls render the full contact-card tag set; outbound keeps its original substitutions.
   const filledPrompt = isInboundAdam
-    ? renderLeadTemplate(systemPrompt, lead, { agentName: config.inboundAgentName, region: lead?.inboundRegion })
+    ? renderLeadTemplate(systemPrompt, lead, { agentName: String(config.inboundAgentName || '').trim() || 'Sarah', region: lead?.inboundRegion })
     : systemPrompt
       .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
       .replace(/\{\{last_name\}\}/g, lead?.lastName || '')
@@ -228,7 +228,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   const promptSections = [filledPrompt];
   if (isInboundAdam) {
     if (config.inboundScriptFlow) {
-      promptSections.push(`INBOUND CALL EXECUTION FLOW:\n${renderLeadTemplate(config.inboundScriptFlow, lead, { agentName: config.inboundAgentName, region: lead?.inboundRegion })}`);
+      promptSections.push(`INBOUND CALL EXECUTION FLOW:\n${renderLeadTemplate(config.inboundScriptFlow, lead, { agentName: String(config.inboundAgentName || '').trim() || 'Sarah', region: lead?.inboundRegion })}`);
     }
   } else {
     if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
