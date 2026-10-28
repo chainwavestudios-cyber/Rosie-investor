@@ -232,7 +232,7 @@ function EditEntryForm({ entry, onDone }) {
     try {
       await base44.entities.KnowledgeBase.update(entry.id, {
         question: question.trim(),
-        answer: clean[0],
+        answer: clean[Math.min(starredIdx, clean.length - 1)],
         answersJson: serializeAnswers(clean),
         starredAnswerIndex: Math.min(starredIdx, clean.length - 1),
         variations: variations.trim(),
