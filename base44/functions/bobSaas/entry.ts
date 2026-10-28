@@ -276,6 +276,63 @@ const secureGateway = async (req: Request) => {
       lastHeartbeat:r.lastHeartbeat,liveMonitorConsent:r.liveMonitorConsent
     }))});
   }
+  // AI-assisted workflow design. Customer actively submits instructions for a
+  // one-time LLM call. The model receives the draft in plaintext; never submit
+  // this without explaining third-party processing in the customer UI.
+  if(action==='designFlow'){
+    requireFlowAdmin();
+    const instructions=str(data.request,4000);
+    if(instructions.length<20)return bad('Describe your call process in more detail.');
+    const previous=data.currentFlow&&typeof data.currentFlow==='object'?
+      JSON.stringify(data.currentFlow).slice(0,12000):'No existing draft.';
+    const result=await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt:`You are BOB's expert sales-training workflow architect.
+      Generate an actionable, realistic multi-stage call simulator based on the user's requirements.
+      You can simulate incoming queue, AI receptionist/transfer, prospect discovery, objections,
+      mock credit check, closer handoff, full closing process, follow-up and completion.
+      Actions in the simulation are only mock: never imply a real credit bureau check, phone call,
+      actual email, actual SMS, real CRM update or completed transaction.
+      Return a concise explanation and a single flow with title, description, type (inbound, outbound,
+      queue or follow_up), and 2-12 ordered stages. Each stage has type
+      (incoming_queue, transfer_agent, discovery, objection, mock_credit, closer_handoff,
+      closing, follow_up, completed), label, goal, instructions, introMessage, voice
+      (flux-drew-en default), actions as an array of IDs:
+      qualify, mock_credit, send_email, send_text, capture_data, confirm_debt, transfer,
+      callback, completed.
+      The first stage should be the realistic entry point. Configure transitions via ordered stages.
+      Include requirements for manager/trainee responsibilities in stage instructions, but not
+      fabricated customer data or real financial decisions.
+      Existing draft: ${previous}
+      Request: ${instructions}`,
+      response_json_schema:{type:'object',properties:{
+        explanation:{type:'string'},
+        flow:{type:'object',properties:{
+          title:{type:'string'},description:{type:'string'},type:{type:'string'},
+          stages:{type:'array',items:{type:'object',properties:{
+            type:{type:'string'},label:{type:'string'},goal:{type:'string'},
+            instructions:{type:'string'},introMessage:{type:'string'},voice:{type:'string'},
+            actions:{type:'array',items:{type:'string'}}
+          }}}
+        }}
+      },required:['explanation','flow']}
+    });
+    const raw=result&&typeof result==='object'?result:{};
+    const flow=raw.flow||{};
+    const allowedTypes=['incoming_queue','transfer_agent','discovery','objection','mock_credit','closer_handoff','closing','follow_up','completed'];
+    const allowedActions=['qualify','mock_credit','send_email','send_text','capture_data','confirm_debt','transfer','callback','completed'];
+    return Response.json({success:true,explanation:str(raw.explanation,1300),flow:{
+      title:str(flow.title,120),description:str(flow.description,1500),
+      type:['inbound','outbound','queue','follow_up'].includes(flow.type)?flow.type:'inbound',
+      stages:(Array.isArray(flow.stages)?flow.stages:[]).slice(0,15).map((stage:any)=>({
+        id:crypto.randomUUID().slice(0,12),
+        type:allowedTypes.includes(stage.type)?stage.type:'discovery',
+        label:str(stage.label,100),goal:str(stage.goal,1000),
+        instructions:str(stage.instructions,3500),introMessage:str(stage.introMessage,700),
+        voice:/^(flux|aura)-[a-z]+-en$/.test(stage.voice)?stage.voice:'flux-drew-en',
+        scriptId:'',actions:(Array.isArray(stage.actions)?stage.actions:[]).filter((a:string)=>allowedActions.includes(a)).slice(0,12)
+      }))
+    }});
+  }
   if (action==='setDeepgramKey') {
     requireAdmin();
     const key=str(data.key,500);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookOpen, Bot, ChevronRight, Copy, FilePlus, GitBranch, Lock, MessageSquare, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookOpen, Bot, ChevronRight, FilePlus, GitBranch, Lock, MessageSquare, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { decryptCustomerContent, encryptCustomerContent } from '@/lib/bobKnowledgeCrypto';
 import { BOB_ACTIONS,BOB_FLOW_STAGES,BOB_VARIABLES,STAGE_LABELS,actionFromCue,createFlow,newStage,validateFlow } from '@/lib/bobSimulation';
 import './BobSite.css';
