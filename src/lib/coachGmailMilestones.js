@@ -80,6 +80,30 @@ export const MILESTONE_FILTERS = [
   { key: 'followup', label: 'Follow up' },
 ];
 
+// Default priority keeps true hot leads and completed journeys at the top.
+// Hot requires corroboration from the established Gmail/first-party scoring rules.
+export function engagementPriority(person) {
+  if (person.eliteJourney) return 600;
+  if (person.allLinksAndAudio) return 550;
+  if (person.hotLead) return 500;
+  if (person.goldListener) return 400;
+  if (person.flags?.calendar) return 350;
+  if (person.percent >= 75) return 300;
+  if (person.flags?.company) return 250;
+  if (person.clicks) return 200;
+  if (person.percent > 0) return 150;
+  return 0;
+}
+
+export function compareEngagementPeople(a, b, sort = 'priority') {
+  const scoreDiff = (Number(b.score) || 0) - (Number(a.score) || 0);
+  const recent = new Date(b.lastEngagementAt || b.lastAt || 0).getTime() - new Date(a.lastEngagementAt || a.lastAt || 0).getTime();
+  if (sort === 'recent') return recent || engagementPriority(b) - engagementPriority(a) || scoreDiff;
+  if (sort === 'audio') return (Number(b.percent) || 0) - (Number(a.percent) || 0) || engagementPriority(b) - engagementPriority(a) || scoreDiff;
+  if (sort === 'score') return scoreDiff || engagementPriority(b) - engagementPriority(a) || recent;
+  return engagementPriority(b) - engagementPriority(a) || scoreDiff || recent;
+}
+
 export function matchesMilestoneFilter(person, filter) {
   switch (filter) {
     case 'gold': return person.goldListener;
