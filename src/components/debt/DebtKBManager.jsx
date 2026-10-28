@@ -499,20 +499,17 @@ function DocUploader({ category, onSaved }) {
         kbName: 'Debt Settlement',
       });
       const entries = result?.entries || result?.data?.entries || [];
-      setStatus(`Extracted ${entries.length} entries. Saving to KB…`);
-      // Save entries with debt category
+      setStatus(`Extracted ${entries.length} suggestions. Sending to Review Queue…`);
       for (const e of entries) {
-        await base44.entities.KnowledgeBase.create({
-          question: e.question,
-          answer: e.answer,
-          category: e.category === 'raw_chunk' ? 'raw_chunk' : category,
-          source: file.name,
-          kbName: 'Debt Settlement',
-          tags: `${e.keywords || ''} file_hash:${hash}`.trim(),
-          created_date: new Date().toISOString(),
+        if (!e.question?.trim() || !e.answer?.trim()) continue;
+        await base44.entities.DebtKBProposal.create({
+          question: e.question, answer: e.answer,
+          category: e.category === 'raw_chunk' ? 'debt_doc' : category,
+          source: `Document — ${file.name}`, status: 'pending_review',
+          tags: `${e.keywords || ''} file_hash:${hash}`.trim(), sourceHash: hash,
         });
       }
-      setStatus(`✓ ${entries.length} entries extracted and saved from ${file.name}!`);
+      setStatus(`✓ ${entries.length} document suggestions queued for review; no live answers changed.`);
       onSaved();
       setTimeout(() => setStatus(''), 5000);
     } catch (e) {
@@ -548,18 +545,16 @@ function WebScraper({ category, onSaved }) {
     try {
       const result = await base44.functions.invoke('kbScrapeUrl', { url: url.trim() });
       const entries = result?.entries || result?.data?.entries || [];
-      setStatus(`Extracted ${entries.length} entries. Saving to KB…`);
+      setStatus(`Extracted ${entries.length} website suggestions. Queuing for review…`);
       for (const e of entries) {
-        await base44.entities.KnowledgeBase.create({
-          question: e.question,
-          answer: e.answer,
-          category: e.category === 'raw_document' ? 'raw_document' : category,
-          source: url.trim(),
-          kbName: 'Debt Settlement',
-          created_date: new Date().toISOString(),
+        if (!e.question?.trim() || !e.answer?.trim()) continue;
+        await base44.entities.DebtKBProposal.create({
+          question: e.question, answer: e.answer,
+          category: e.category === 'raw_document' ? 'debt_web' : category,
+          source: `Website — ${url.trim()}`,status: 'pending_review',
         });
       }
-      setStatus(`✓ ${entries.length} entries saved from ${url}!`);
+      setStatus(`✓ ${entries.length} website suggestions awaiting KB review.`);
       setUrl('');
       onSaved();
       setTimeout(() => setStatus(''), 5000);
@@ -691,9 +686,10 @@ ${transcriptText}`,
     setSaving(true);
     const toSave = extractedEntries.filter((_, i) => selectedEntries.has(i));
     for (const e of toSave) {
-      await base44.entities.KnowledgeBase.create({ ...e, category, kbName: 'Debt Settlement', source: 'MP3 Call Recording', tags: `file_hash:${fileHash}`, created_date: new Date().toISOString() });
+      if (!e.question?.trim() || !e.answer?.trim()) continue;
+      await base44.entities.DebtKBProposal.create({ ...e, category, status: 'pending_review', source: 'MP3 Call Recording', tags: `file_hash:${fileHash}`, sourceHash: fileHash });
     }
-    setStatus(`✓ ${toSave.length} entries saved!`);
+    setStatus(`✓ ${toSave.length} selected call answers queued for approval; not live yet.`);
     setExtractedEntries([]); setSelectedEntries(new Set()); setTranscript('');
     onSaved();
     setSaving(false);
@@ -814,19 +810,16 @@ ${bulkText}`,
       for (const h of hotpoints) {
         const answer = h.guidance + (h.strategy ? `\n📋 Agent Strategy: ${h.strategy}` : '');
         const validTypes = ['objection', 'closing', 'discovery', 'red_flag', 'buying_signal', 'general', ''];
-        await base44.entities.KnowledgeBase.create({
-          question: h.trigger,
-          answer,
-          category,
-          kbName: 'Debt Settlement',
+        if (!h.trigger?.trim() || !answer.trim()) continue;
+        await base44.entities.DebtKBProposal.create({
+          question: h.trigger,answer,category,status:'pending_review',
           tags: validTypes.includes(h.type) ? (h.type === 'general' ? '' : h.type) : '',
-          source: 'bulk_upload',
-          created_date: new Date().toISOString(),
+          source: 'AI Hotpoint Extraction',
         });
       }
       setBulkText('');
       onSaved();
-      alert(`✓ Extracted ${hotpoints.length} hotpoints!`);
+      alert(`Extracted ${hotpoints.length} hotpoint suggestions into the Review Queue. They are not live until approved.`);
     } catch (e) {
       alert('Extraction failed: ' + (e?.message || String(e)));
     }
