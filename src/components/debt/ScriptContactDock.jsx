@@ -27,7 +27,7 @@ const initial = lead => ({
   phone: lead?.phone || '',
   debtAmount: formatDebt(lead?.debtAmount),
 });
-export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingEmail, smsOpen, onSmsOpen, emailRequest = 0 }) {
+export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingEmail, smsOpen, onSmsOpen, emailRequest = 0, smsActionEnabled = false }) {
   const { sessionToken, sessionUserId, user } = useDebtCoachAuth();
   const [draft, setDraft] = useState(() => initial(lead));
   const baseRef = useRef(initial(lead));
@@ -155,9 +155,9 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
       <div style={{display:'flex',gap:7,alignItems:'center',flexWrap:'wrap',marginTop:10}}>
         <button type="button" disabled={!lead?.id || busy || !dirty} onClick={save} style={{...smallBtn,color:green,opacity:(!lead?.id || busy || !dirty) ? 0.55 : 1}}>{busy?'Saving…':dirty?'Save contact changes':'Contact saved'}</button>
         <button type="button" disabled={!lead?.id || busy || sendingEmail} onClick={email} style={{...smallBtn,color:'#a7cdfd'}}>{sendingEmail?'Sending…':'✉ Send credentials email'}</button>
-        <button type="button" disabled={!lead?.id || busy} onClick={()=>smsOpen?onSmsOpen(false):openSms()} style={{...smallBtn,color:gold}}>✉ {smsOpen?'Hide text message':'Send text message'}</button>
+        {smsActionEnabled && <button type="button" disabled={!lead?.id || busy} onClick={()=>smsOpen?onSmsOpen(false):openSms()} style={{...smallBtn,color:gold}}>✉ {smsOpen?'Hide text message':'Send text message'}</button>}
       </div>
-      {smsOpen && <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid rgba(154,198,188,.2)'}}>
+      {smsActionEnabled && smsOpen && <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid rgba(154,198,188,.2)'}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:8}}>
           <strong style={{color:ink,fontSize:12}}>SMS via Android phone</strong>
           <span style={{color:muted,fontSize:11}}>To: {normalize(draft.phone) || 'Add a mobile number'}</span>
