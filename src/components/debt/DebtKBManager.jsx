@@ -9,6 +9,7 @@ import { computeFileHash, checkDuplicateHash } from '@/lib/fileDedup';
 import MultiAnswerEditor, { parseAnswers, serializeAnswers } from '@/components/debt/MultiAnswerEditor';
 import CustomerQADocUploader from '@/components/debt/CustomerQADocUploader';
 import { saveQAWithPriority } from '@/lib/kbPriority';
+import DebtKBReviewQueue from '@/components/debt/DebtKBReviewQueue';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -125,12 +126,15 @@ export default function DebtKBManager({ readOnly = false }) {
 
   return (
     <div>
+      {/* Shared review gate: AI Chat and BOB proposals are never auto-published. */}
+      <DebtKBReviewQueue readOnly={readOnly} onPublished={loadEntries}/>
+
       {/* BOB shared learning banner */}
       <div style={{ marginBottom: '16px', padding: '10px 16px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
         <span style={{ fontSize: '16px' }}>🤖</span>
         <div>
           <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>BOB uses this knowledge</div>
-          <div style={{ color: '#6b7280', fontSize: '10px' }}>Every entry here — scripts, Q&A, docs, calls, websites — feeds BOB's brain in the Training tab. BOB gets smarter with every upload.</div>
+          <div style={{ color: '#6b7280', fontSize: '10px' }}>The approved Debt Settlement KB is shared with the legacy BOB trainer and Live Q&A. AI Chat and BOB transcript extractions must be reviewed before publication. The standalone BOB SaaS has its own organization-scoped KB.</div>
         </div>
       </div>
 
