@@ -27,7 +27,6 @@ import CoachTabBar from '@/components/debt/CoachTabBar';
 import useCoachTabOrder from '@/hooks/useCoachTabOrder';
 import HotCallAnalytics from '@/components/debt/HotCallAnalytics';
 import LeadGenTab from '@/components/debt/LeadGenTab';
-import DccMarketingTab from '@/components/debt/marketing/DccMarketingTab';
 import NewLeadsTab from '@/components/debt/NewLeadsTab';
 import SmartLeadsTab from '@/components/debt/SmartLeadsTab';
 import HotLeadsTab from '@/components/debt/HotLeadsTab';
@@ -77,7 +76,9 @@ export default function DebtCallCoach() {
   const location = useLocation();
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get('tab');
-    if (requested && tabMap[requested]) setTab(requested);
+    // Old Marketing bookmarks now open the unified Email Campaigns workspace.
+    const destination = requested === 'marketing' ? 'campaigns' : requested;
+    if (destination && tabMap[destination]) setTab(destination);
   }, [location.search, tabMap]);
 
   // Alt+D hotkey → toggle Deal Monitor popout
@@ -169,7 +170,6 @@ export default function DebtCallCoach() {
       <PopOutTab storageKey="smartleads_tab" title="Smart Leads" icon="🧠" active={tab === 'smartleads'}>
         <SmartLeadsTab />
       </PopOutTab>
-      {tab === 'marketing' && isAdmin && <DccMarketingTab username={user?.username} />}
       {tab === 'newleads' && <NewLeadsTab />}
       <PopOutTab storageKey="hotleads_tab" title="Hot Leads" icon="🔥" active={tab === 'hotleads'} defaultSize={{ width: 940, height: 700 }} zIndex={14600}>
         <HotLeadsTab onOpenLead={(lead) => setHotLead(lead)} onOpenHeatMap={() => setHeatMapVisible(true)} />
