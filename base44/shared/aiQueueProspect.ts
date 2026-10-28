@@ -11,6 +11,7 @@ export async function preserveUnansweredAiCaller(service, leadId, conf, alert) {
   if (!lead) return { ok:false,reason:'missing_fronter_lead' };
 
   let debtId = lead.migratedDebtLeadId || alert?.migratedDebtLeadId || '';
+  let newProspect = false;
   if (!debtId) {
     const existing = await service.entities.DebtLead.filter(
       {sourceFronterLeadId:leadId}, {limit:1}
@@ -39,8 +40,10 @@ export async function preserveUnansweredAiCaller(service, leadId, conf, alert) {
     for (const key of Object.keys(contact)) if(contact[key]===undefined) delete contact[key];
     const created = await service.entities.DebtLead.create(contact);
     debtId = created?.id || '';
+    newProspect = !!debtId;
   }
   await service.entities.FronterLead.update(leadId,{
+    status:'migrated',
     migratedAt:lead.migratedAt||now,migratedDebtLeadId:debtId,
     callStatus:'recording_queue',lastCallResult:'queued_no_connect',
     assignedQueue:'AI - Chris personal recording queue',
@@ -55,7 +58,7 @@ export async function preserveUnansweredAiCaller(service, leadId, conf, alert) {
 
   // The routeState and migratedDebtLeadId are the persistent popup keys.
   // Record ONE notification on first migration, never one per webhook retry.
-  if(!lead.migratedDebtLeadId && debtId){
+  if(newProspect){
     const fullName=[lead.firstName,lead.lastName].filter(Boolean).join(' ').trim()||'New caller';
     const debt=Number(lead.debtAmount)>0
       ? Number(lead.debtAmount).toLocaleString('en-US')+' dollars reported debt'
