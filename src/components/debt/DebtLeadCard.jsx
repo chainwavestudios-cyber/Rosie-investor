@@ -28,12 +28,27 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [emailSaveState, setEmailSaveState] = useState('');
 
   // Functional updates prevent an AI update and a keyboard event from
   // overwriting one another through a stale render of the lead object.
   const update = (field, value) => {
     if (onLeadFieldEdit) onLeadFieldEdit(field, value);
     else onLeadChange(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Persist the email independently as soon as the agent leaves the field.
+  // Live AI/background refreshes must never make a typed email disappear.
+  const persistEmail = async (value) => {
+    if (!lead.id) return;
+    setEmailSaveState('saving');
+    try {
+      await base44.entities.DebtLead.update(lead.id, { email: value });
+      setEmailSaveState('saved');
+    } catch (error) {
+      setEmailSaveState('error');
+      console.error('Email auto-save failed', error);
+    }
   };
 
   const save = async () => {
@@ -113,7 +128,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
             <Field label="First" value={lead.firstName} onChange={v => update('firstName', v)} />
             <Field label="Last" value={lead.lastName} onChange={v => update('lastName', v)} />
             <Field label="Phone" value={lead.phone} onChange={v => update('phone', v)} />
-            <div style={{ gridColumn: '1 / -1' }}><Field label="Email" value={lead.email} onChange={v => update('email', v)} /></div>
+            <div style={{ gridColumn: '1 / -1' }}><Field label="Email" value={lead.email} onChange={v => { update('email', v); setEmailSaveState(''); }} onBlur={persistEmail} />{emailSaveState === 'saved' && <span style={{color:'#4ade80',fontSize:10}}>✓ Email saved</span>}{emailSaveState === 'error' && <span role="alert" style={{color:'#ef7777',fontSize:10}}>Email not saved — use Save Lead to retry.</span>}</div>
             <div style={{ gridColumn: '1 / -1' }}><Field label="Address" value={lead.address} onChange={v => update('address', v)} /></div>
             <Field label="City" value={lead.city} onChange={v => update('city', v)} />
             <Field label="State" value={lead.state} onChange={v => update('state', v)} />
@@ -252,11 +267,11 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
   );
 }
 
-function Field({ label, value, onChange, type = 'text' }) {
+function Field({ label, value, onChange, onBlur, type = 'text' }) {
   return (
     <div>
       <label style={ls}>{label}</label>
-      <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} style={inp} />
+      <input type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} onBlur={onBlur ? e => onBlur(e.target.value) : undefined} style={inp} />
     </div>
   );
 }
