@@ -6,6 +6,7 @@
 export const AUDIO_MODE_DEFAULTS = [
   { name: 'Computer Setup', saved: false },
   { name: 'Cell Setup', saved: false },
+  { name: 'Twilio Stream', saved: true, transport: 'twilio' },
 ];
 
 export function audioModes(setups) {
@@ -33,6 +34,7 @@ export function findAudioDevice(devices = [], savedId = '', savedLabel = '') {
 }
 
 export function resolveAudioMode(preset, inputs = [], outputs = [], isLoopback = () => false) {
+  if (preset?.transport === 'twilio') return { valid: true, problems: [], micId: '', customerId: '', outputId: '', agentGain: 1, customerGain: 1 };
   if (!preset?.saved) return { valid: false, problems: ['Choose and save the devices for this mode first.'], micId: '', customerId: '', outputId: '' };
   const problems = [];
   const agent = findAudioDevice(inputs, preset.micDeviceId, preset.micLabel);
@@ -88,6 +90,7 @@ function sameSelectedDevice(devices, id, savedId, savedLabel) {
 }
 
 export function isAudioModeEdited(mode, selected, inputs = [], outputs = []) {
+  if (mode?.transport === 'twilio') return false;
   if (!mode?.saved) return true;
   if (!sameSelectedDevice(inputs, selected.micDeviceId, mode.micDeviceId, mode.micLabel)) return true;
   if (!sameSelectedDevice(inputs, selected.customerMicId, mode.customerDeviceId, mode.customerLabel)) return true;
