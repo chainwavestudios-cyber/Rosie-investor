@@ -2238,7 +2238,7 @@ ${recentText}`,
       </div>
       {/* Call controls stay in the page, without floating panels. */}
       <div className="dcc-live-setup-bar" style={{ marginBottom:11,padding:'10px 12px',background:'linear-gradient(115deg,rgba(15,38,46,.88),rgba(15,26,41,.9))',border:'1px solid rgba(122,184,163,.24)',borderRadius:10,display:'flex',gap:9,alignItems:'center',flexWrap:'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <div style={{ display: activeAudioMode?.transport === 'twilio' ? 'none' : 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
             <option value="">— Select agent microphone —</option>
@@ -2255,7 +2255,7 @@ ${recentText}`,
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <div style={{ display: activeAudioMode?.transport === 'twilio' ? 'none' : 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
             <button onClick={() => loadDevices(true)} disabled={phase === 'live'} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
@@ -2294,7 +2294,7 @@ ${recentText}`,
           onSave={saveAudioSetup}
         />
 
-        {outputDevices.length > 0 && (
+        {activeAudioMode?.transport !== 'twilio' && outputDevices.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🔊 Preferred Output</label>
             <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase==='live'} title="Stored as a preferred playback device; browser/system output routing remains in effect" style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
