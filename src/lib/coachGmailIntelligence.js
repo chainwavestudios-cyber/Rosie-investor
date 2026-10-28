@@ -36,6 +36,9 @@ export function composeGmailIntelligence(report) {
     }
     const p = people.get(id);
     p.sent++;
+    p.audioBestPercent = Math.max(Number(p.audioBestPercent || 0), Number(send.audioBestPercent || 0));
+    p.audioCompleted = !!p.audioCompleted || !!send.audioCompleted;
+    p.calendarOpened = !!p.calendarOpened || !!send.calendarOpened;
     p.opens += Number(send.nonProxyOpens || 0);
     p.proxyOpens += Number(send.proxyOpens || 0);
     p.lastSentAt = mostRecent(p.lastSentAt, send.sentAt);
@@ -50,6 +53,7 @@ export function composeGmailIntelligence(report) {
       if (!isAuto && event.type === 'qualify_visit') p.qualifyVisits++;
       feed.push({
         ...event, id: event.id || send.sendId + ':' + event.type + ':' + event.at,
+        eventType: event.type, trackedAt: event.at, leadName: p.name,
         leadId: send.contactId, name: p.name, email: p.email, phone: p.phone,
         source: 'coach', onFile: p.onFile, templateName: send.templateName,
         subject: send.subject, sendId: send.sendId,
