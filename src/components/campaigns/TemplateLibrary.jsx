@@ -23,7 +23,7 @@ export default function TemplateLibrary({ username, onBack }) {
 
   const load = useCallback(async () => {
     const page = await base44.entities.EmailCampaignTemplate.list('-created_date', 100).catch(() => []);
-    setTemplates(page?.items || page || []);
+    setTemplates((page?.items || page || []).filter(t=>t.source!=='fronter' && !/golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test([t.name,t.subject,t.bodyHtml].join(' '))));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -37,6 +37,8 @@ export default function TemplateLibrary({ username, onBack }) {
   const save = async () => {
     if (!draft.name.trim()) { setError('Give the template a name.'); return; }
     if (!draft.bodyHtml.trim()) { setError('Paste the email HTML — the library stores the design, the campaign fills the tags.'); return; }
+    const contents=[draft.name,draft.subject,draft.bodyHtml].join(' ');
+    if(draft.source==='fronter' || /golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test(contents) || !/debt advisors of america|debtadvisorsofamerica\.com|\bDAA\b/i.test(contents)) { setError('Only Debt Advisors of America templates can be saved for Gmail campaigns.');return; }
     setBusy('save');
     setError('');
     try {
@@ -83,7 +85,7 @@ export default function TemplateLibrary({ username, onBack }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ color: GOLD, fontSize: '15px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>📚 Email Template Library</div>
           <div style={{ color: MUTED, fontSize: '11px', marginTop: '3px' }}>
-            Self-contained HTML with hosted images. Personalization tags are filled per recipient at send time — {'{{FirstName}}'}, {'{{RosieInviteLink}}'}, {'{{ChrisInviteLink}}'}, {'{{UnsubscribeUrl}}'} and {'{{CompanyMailingAddress}}'} all resolve.
+            DAA-only Gmail templates. Personalized, tracked welcome audio and link engagement are connected to each email — {'{{FirstName}}'}, {'{{RosieInviteLink}}'}, {'{{ChrisInviteLink}}'}, {'{{UnsubscribeUrl}}'} and {'{{CompanyMailingAddress}}'} all resolve.
           </div>
         </div>
         <Btn tone="gold" onClick={() => edit(null)}>＋ New template</Btn>
@@ -134,7 +136,7 @@ export default function TemplateLibrary({ username, onBack }) {
           {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '10px' }}>{error}</div>}
         </Card>
       ) : (
-        <Card title="Templates" hint="Copied in from your Debt Call Coach mailers and Fronter templates from step 3 of a campaign.">
+        <Card title="DAA Gmail templates" hint="Only Debt Advisors of America designs are available here. Cold outreach from Fronter is isolated in its own system.">
           {notice && <div style={{ color: GOLD, fontSize: '11px', marginBottom: '10px' }}>{notice}</div>}
           {!templates.length && <div style={{ color: DIM, fontSize: '12px' }}>Nothing in the library yet — add one, or copy an existing mailer in from step 3.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '10px' }}>
