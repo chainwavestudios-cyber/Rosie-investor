@@ -43,9 +43,9 @@ export default function BobBrainChat({ kbEntries, transcripts, onKBChanged }) {
       } else if (rememberMatch) {
         const q = rememberMatch[1].trim();
         const a = rememberMatch[2].trim();
-        await base44.entities.KnowledgeBase.create({ question: q, answer: a, category: 'debt_faq', kbName: 'Debt Settlement', source: 'BobBrain Chat', created_date: new Date().toISOString() });
-        setMessages(prev => [...prev, { role: 'bob', text: `✓ Got it. I'll remember: "${q}"` }]);
-        onKBChanged?.();
+        await base44.entities.DebtKBProposal.create({ question: q, answer: a, category: 'debt_faq', status: 'pending_review', source: 'BOB Brain Chat' });
+        setMessages(prev => [...prev, { role: 'bob', text: `Queued for KB approval: "${q}". The live KB has not changed.` }]);
+        window.dispatchEvent(new CustomEvent('debt_kb_updated'));
       } else {
         const ctx = kbEntries.slice(0, 60).map(e => `Q: ${e.question}\nA: ${(e.answer || '').slice(0, 300)}`).join('\n');
         const transcriptCtx = transcripts.slice(0, 8).map(t => `[${t.sourceName}]: ${(t.transcriptText || '').slice(0, 400)}`).join('\n---\n');
