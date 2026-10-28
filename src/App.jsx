@@ -53,6 +53,7 @@ import BobMarketing from './pages/bob/BobMarketing';
 import { BobLogin, BobSignup, BobInquiry } from './pages/bob/BobAccess';
 import BobPortal from './pages/bob/BobPortal';
 import BobInternalPage from './pages/bob/BobInternalPage';
+import BobSecurity from './pages/bob/BobSecurity';
 
 const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/oauth/consent'];
 
@@ -121,6 +122,7 @@ function App() {
               <Route path="/bob/login" element={<BobLogin />} />
               <Route path="/bob/signup" element={<BobSignup />} />
               <Route path="/bob/inquire" element={<BobInquiry />} />
+              <Route path="/bob/security" element={<BobSecurity />} />
               <Route path="/bob/portal" element={<BobPortal />} />
               <Route path="/bob/internal" element={<DebtCoachAuthProvider><BobInternalPage /></DebtCoachAuthProvider>} />
               {/* Protected */}

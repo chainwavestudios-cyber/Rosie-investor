@@ -6,10 +6,10 @@ export function BobBrand() {
   return <Link className="bob-brand" to="/bob"><span className="bob-brand-mark">B</span><span>BOB <small>TRAINING INTELLIGENCE</small></span></Link>;
 }
 export function BobNav() {
-  return <nav className="bob-nav"><BobBrand/><div className="bob-nav-links"><Link to="/bob#features">Platform</Link><Link to="/bob/inquire">Talk to sales</Link><Link className="bob-btn bob-btn-ghost" to="/bob/login">Training portal</Link></div></nav>;
+  return <nav className="bob-nav"><BobBrand/><div className="bob-nav-links"><Link to="/bob#features">Platform</Link><Link to="/bob/security">Security & code</Link><Link to="/bob/inquire">Talk to sales</Link><Link className="bob-btn bob-btn-ghost" to="/bob/login">Training portal</Link></div></nav>;
 }
 export function BobFooter() {
-  return <footer className="bob-footer"><div className="bob-wrap bob-footer-inner"><span>© {new Date().getFullYear()} BOB Training Intelligence · Powered by Rosie AI</span><span>Train with intelligence. Sell with confidence.</span></div></footer>;
+  return <footer className="bob-footer"><div className="bob-wrap bob-footer-inner"><span>© {new Date().getFullYear()} BOB Training Intelligence · Powered by Rosie AI</span><span><Link to="/bob/security" style={{color:"#d7b978"}}>Security design & source code</Link> · Train with intelligence. Sell with confidence.</span></div></footer>;
 }
 const features=[
   {Icon:Headphones,title:'Voice-first simulations',description:'Train with a live AI customer using conversational voice, dynamic responses, and realistic call pacing.'},
@@ -17,7 +17,7 @@ const features=[
   {Icon:BookOpen,title:'Your own training brain',description:'Each organization maintains its own playbook, policies, objection responses, and sales knowledge.'},
   {Icon:Users,title:'Team & seat controls',description:'Allocate trainee seats, appoint team administrators, and manage your training roster.'},
   {Icon:ChartNoAxesCombined,title:'Session intelligence',description:'Review training transcripts, activity and progress in a dedicated organization dashboard.'},
-  {Icon:ShieldCheck,title:'Organization separation',description:'Private company workspaces with isolated training content, members, and session records.'},
+  {Icon:ShieldCheck,title:'Customer-held encryption keys',description:'Encrypted company knowledge and session data. Inspect our actual implementation and its security limits.'},
 ];
 export default function BobMarketing(){
   return <div className="bob-site"><BobNav/><main>
