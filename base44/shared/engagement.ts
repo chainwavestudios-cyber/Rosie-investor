@@ -412,13 +412,14 @@ export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: num
     else if (signals.opens >= 2) { score += rules.patterns.fronterRepeatOpens; reasons.push('Opened the cold outreach more than once'); }
   }
 
-  const floor = system === 'coach' ? MIGRATION_START_SCORE : 0;
+  const floor = system === 'coach' ? rules.migrationStartScore : 0;
   score = Math.max(floor, Math.min(100, Math.round(score)));
 
   // The pattern rule outranks the number: a lead the credential/welcome behaviour
   // has tagged hot reads hot on the badge, the banner and the leaderboard alike.
-  const hotLead = score >= HOT_SCORE || forcedHot;
-  const tier = hotLead ? 'hot' : score >= ENGAGED_SCORE ? 'engaged' : score >= WARMING_SCORE ? 'warming' : 'cold';
+  const hasMeaningfulAction = inSystem.some((activity) => activity.clicks > 0 || activity.qualify);
+  const hotLead = (score >= rules.hotScore && hasMeaningfulAction) || forcedHot;
+  const tier = hotLead ? 'hot' : score >= rules.engagedScore ? 'engaged' : score >= rules.warmingScore ? 'warming' : 'cold';
   const tierLabel = { hot: 'Hot', engaged: 'Engaged', warming: 'Warming', cold: 'Cold' }[tier];
 
   if (signals.lastAt) {
@@ -438,7 +439,7 @@ function actionFor(signals: LeadSignals, system: SystemKey, hotLead: boolean): s
   if (system === 'fronter') {
     if (signals.qualifyAt) return 'Call now — they reached the qualification page';
     if (hotLead || signals.clicks > 0) return 'Call now — working the cold outreach, promote to a lead card';
-    if (signals.opens >= 2) return 'Call now — repeat opens on the cold outreach';
+    if (signals.opens >= 2) return 'Review interest — repeat opens are not verified intent';
     if (signals.opens > 0) return 'Follow up — the prospect opened the email';
     return 'No fronter email activity yet — send the cold outreach';
   }
@@ -446,16 +447,16 @@ function actionFor(signals: LeadSignals, system: SystemKey, hotLead: boolean): s
   if (byKey.get('reminder_night')?.opens && byKey.get('reminder_hour')?.opens) return 'Call now — they opened both reminders for the appointment';
   if ((byKey.get('followup_intro')?.clicks || 0) >= 2) return 'Send Introduction 2 — they clicked 2+ links';
   if (hotLead) return 'Call now — HOT LEAD: repeat behaviour on the credentials email';
-  if (signals.welcomeAudioAt) return 'Call now — they listened to the welcome message';
+  if (signals.welcomeAudioAt) return 'Review welcome-message link click — listening is unverified';
   if (signals.clicks > 0) return 'Call now — they are clicking through the email';
   if (signals.opens > 0) return 'Send the follow-up — reading but not clicking yet';
   return 'No coach email activity yet — start with the credentials email';
 }
 
 /** One call: a lead's signals plus its score in one system. */
-export function scoreForSystem(leadId: string, events: any[], system: SystemKey, nowMs: number) {
+export function scoreForSystem(leadId: string, events: any[], system: SystemKey, nowMs: number, rules: ScoreRules = DEFAULT_SCORING) {
   const signals = signalsForLead(leadId, events, nowMs);
-  return { signals, ...scoreSignals(signals, system, nowMs) };
+  return { signals, ...scoreSignals(signals, system, nowMs, rules) };
 }
 
 /** Both systems at once — a lead can only score in the one it lives in. */
