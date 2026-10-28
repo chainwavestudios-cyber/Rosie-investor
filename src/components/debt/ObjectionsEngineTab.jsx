@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { findObjectionMatches } from '@/lib/objectionDetection';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -31,6 +32,20 @@ export default function ObjectionsEngineTab({ readOnly }) {
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceProgress, setEnhanceProgress] = useState({ done: 0, total: 0, changed: 0 });
   const [aiGen, setAiGen] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
+  const [testText, setTestText] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const filtered = objections.filter(o =>
+    (filter === 'all' || (filter === 'disabled' ? o.enabled === false : o.priority === filter)) &&
+    [o.title, o.responseText, o.triggerPhrases].some(v => String(v || '').toLowerCase().includes(search.trim().toLowerCase()))
+  );
+  const matchResult = testText.trim()
+    ? findObjectionMatches(testText, objections, {}, Date.now(), 0)[0]
+    : null;
+  const titles = objections.map(o => String(o.title || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim());
+  const duplicates = titles.filter((title, i) => titles.indexOf(title) !== i).length;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -53,7 +68,7 @@ export default function ObjectionsEngineTab({ readOnly }) {
   const startAdd = () => { setForm(blankForm()); setEditing('new'); };
   const startEdit = (o) => {
     setForm({
-      title: o.title || '', triggerPhrases: o.triggerPhrases || '', responseText: o.responseText || '',
+      title: o.title || '', triggerPhrases: parsePhrases(o.triggerPhrases).join('\n'), responseText: o.responseText || '',
       mindset: o.mindset || '', goal: o.goal || '', priority: o.priority || 'medium',
       enabled: o.enabled !== false, sortOrder: o.sortOrder || 0,
     });
@@ -63,9 +78,8 @@ export default function ObjectionsEngineTab({ readOnly }) {
 
   const save = async () => {
     if (!form.title.trim() || !form.responseText.trim()) { alert('Title and response are required.'); return; }
-    let phrases = [];
-    try { phrases = JSON.parse(form.triggerPhrases || '[]'); if (!Array.isArray(phrases)) throw new Error(); }
-    catch { alert('Trigger phrases must be a valid JSON array, e.g. ["not interested", "i\'m good"]'); return; }
+    const phrases = parseEditablePhrases(form.triggerPhrases);
+    if (!phrases.length) { alert('Enter at least one customer trigger phrase.'); return; }
     const payload = { ...form, triggerPhrases: JSON.stringify(phrases) };
     try {
       if (editing === 'new') await base44.entities.Objection.create(payload);
@@ -92,14 +106,23 @@ export default function ObjectionsEngineTab({ readOnly }) {
     catch (e) { alert('Update failed: ' + (e?.message || String(e))); }
   };
 
-  const parsePhrases = (s) => { try { return JSON.parse(s || '[]'); } catch { return []; } };
+  function parsePhrases(value) {
+    try { const data = JSON.parse(value || '[]'); return Array.isArray(data) ? data.filter(v => typeof v === 'string') : []; }
+    catch { return []; }
+  }
+  function parseEditablePhrases(value) {
+    const str = String(value || '').trim();
+    if (!str) return [];
+    if (str.startsWith('[')) return parsePhrases(str);
+    return [...new Set(str.split(/\r?\n/).map(p => p.trim()).filter(Boolean))];
+  }
 
   // ── AI generation helpers ──
   const aiGenTriggers = async () => {
     if (!form.title.trim()) { alert('Enter a title first.'); return; }
     setAiGen('triggerPhrases');
     try {
-      const existing = parsePhrases(form.triggerPhrases);
+      const existing = parseEditablePhrases(form.triggerPhrases);
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt settlement sales trainer. Given the objection title below, generate 8-12 different trigger phrases — the exact words a customer might say that match this objection. Include variations in phrasing, tone, and length (short and long, formal and casual). Do NOT duplicate any existing phrases. Return a JSON object: {"phrases": ["phrase1", "phrase2", ...]}.
 
@@ -109,7 +132,7 @@ Existing trigger phrases (do not duplicate): ${JSON.stringify(existing)}`,
       });
       const newPhrases = (res?.phrases || []).map(p => p.trim()).filter(Boolean);
       const merged = [...new Set([...existing, ...newPhrases])];
-      setForm(p => ({ ...p, triggerPhrases: JSON.stringify(merged, null, 2) }));
+      setForm(p => ({ ...p, triggerPhrases: merged.join('\n') }));
     } catch (e) { alert('AI generation failed: ' + (e?.message || String(e))); }
     setAiGen(null);
   };
@@ -118,7 +141,7 @@ Existing trigger phrases (do not duplicate): ${JSON.stringify(existing)}`,
     if (!form.title.trim()) { alert('Enter a title first.'); return; }
     setAiGen('mindset');
     try {
-      const phrases = parsePhrases(form.triggerPhrases);
+      const phrases = parseEditablePhrases(form.triggerPhrases);
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt settlement sales trainer. Based on the objection title and trigger phrases below, write a concise "Customer Mindset" — what the customer is thinking and feeling when they raise this objection. 2-3 sentences. Return ONLY the mindset text, no labels or explanation.
 
@@ -135,7 +158,7 @@ Trigger phrases: ${JSON.stringify(phrases)}`,
     if (!form.title.trim()) { alert('Enter a title first.'); return; }
     setAiGen('goal');
     try {
-      const phrases = parsePhrases(form.triggerPhrases);
+      const phrases = parseEditablePhrases(form.triggerPhrases);
       const res = await base44.integrations.Core.InvokeLLM({
         prompt: `You are a debt settlement sales trainer. Based on the objection title and trigger phrases below, write a concise "Agent Goal" — what the agent should achieve when responding to this objection. 2-3 sentences. Return ONLY the goal text, no labels or explanation.
 
@@ -204,7 +227,8 @@ Return ONLY the rewritten answer text, nothing else.`,
           <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '2px' }}>Live transcript scanner — detects customer objections and surfaces the response for the agent in real time.</div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {!readOnly && <button onClick={enhanceKb} disabled={enhancing} title="Review and rewrite all KB answers with confident, empathetic, flow-controlling tone (facts unchanged)" style={{ background: enhancing ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: enhancing ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: enhancing ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: enhancing ? 0.7 : 1, whiteSpace: 'nowrap' }}>{enhancing ? `⏳ ${enhanceProgress.done}/${enhanceProgress.total}` : '📖 Review & Enhance KB'}</button>}
+          {!readOnly && <button type="button" onClick={() => setShowAdvanced(v => !v)} style={{ background:'rgba(255,255,255,.06)', color:'#c1cfd0', border:'1px solid rgba(255,255,255,.12)', borderRadius:7, padding:'8px 12px', cursor:'pointer', fontSize:11 }}>Advanced</button>}
+          {!readOnly && showAdvanced && <button onClick={enhanceKb} disabled={enhancing} title="Review and rewrite all KB answers with confident, empathetic, flow-controlling tone (facts unchanged)" style={{ background: enhancing ? 'rgba(167,139,250,0.15)' : 'linear-gradient(135deg,#a78bfa,#7c3aed)', color: enhancing ? '#a78bfa' : '#fff', border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: enhancing ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: enhancing ? 0.7 : 1, whiteSpace: 'nowrap' }}>{enhancing ? `⏳ ${enhanceProgress.done}/${enhanceProgress.total}` : '📖 Review & Enhance KB'}</button>}
           {!readOnly && <button onClick={startAdd} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 18px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>+ Add Objection</button>}
         </div>
       </div>
@@ -216,6 +240,31 @@ Return ONLY the rewritten answer text, nothing else.`,
         </div>
       )}
 
+      <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:12,fontSize:11,color:'#98abae'}}>
+        <span><strong style={{color:'#e8e0d0'}}>{objections.length}</strong> objections</span>
+        <span><strong style={{color:'#e5b38e'}}>{objections.filter(o => o.priority === 'high' && o.enabled !== false).length}</strong> high alerts</span>
+        <span><strong style={{color:'#77d1b5'}}>{objections.filter(o => o.enabled !== false).length}</strong> active</span>
+        {duplicates > 0 && <span style={{color:'#e3b77f'}}>⚠ {duplicates} repeated title{duplicates > 1 ? 's' : ''} — review, not automatically removed</span>}
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:12}}>
+        <input aria-label="Search objections" placeholder="Search objections, phrases or responses…" value={search}
+          onChange={e=>setSearch(e.target.value)} style={{...inp,flex:'2 1 250px',borderRadius:8,padding:10}}/>
+        <select aria-label="Filter by priority" value={filter} onChange={e=>setFilter(e.target.value)}
+          style={{...inp,flex:'1 1 155px',borderRadius:8,padding:10}}>
+          <option value="all">All priorities</option><option value="high">High</option>
+          <option value="medium">Medium</option><option value="low">Low</option><option value="disabled">Disabled</option>
+        </select>
+      </div>
+      <div style={{background:'#0e1c29',border:'1px solid rgba(154,198,188,.23)',borderRadius:10,padding:12,marginBottom:14}}>
+        <div style={{color:'#d5bb86',fontSize:10,fontWeight:800,letterSpacing:'1px',marginBottom:8}}>LIVE TRIGGER TEST</div>
+        <input aria-label="Test an objection phrase" value={testText} onChange={e=>setTestText(e.target.value)}
+          placeholder="Type what the customer says to see which objection would fire…" style={{...inp,borderRadius:7,padding:10}} />
+        {testText.trim() && <div role="status" style={{marginTop:8,fontSize:11,color:matchResult?'#92d7b9':'#99a9b2'}}>
+          {matchResult ? 'Matched: ' + matchResult.objection.title + ' · ' + (matchResult.objection.priority||'medium') + ' priority · ' + Math.round(matchResult.score*100) + '% phrase overlap'
+                       : 'No objection detected with the current trigger rules.'}
+        </div>}
+        <div style={{color:'#6b8591',fontSize:10,marginTop:6}}>Uses the same matching logic as Live Call. No AI credits consumed.</div>
+      </div>
       {/* Priority legend */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
         {Object.entries(PRIO_LABELS).map(([k, label]) => (

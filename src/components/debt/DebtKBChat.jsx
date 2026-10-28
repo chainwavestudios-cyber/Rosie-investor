@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
-const GOLD = '#10b981';
+const GOLD = '#daba71';
 const DARK = '#0a0f1e';
 const CAT_COLORS = {
   debt_agent: '#60a5fa',
@@ -27,7 +27,7 @@ const CAT_LABELS = {
 
 export default function DebtKBChat() {
   const [messages, setMessages] = useState([
-    { role: 'ai', text: "👋 Hi! I'm your AI knowledge-base assistant. Send me text, paste scripts, upload images (screenshots, docs photos), or audio (call recordings) — I'll analyze the content and figure out the best way to store it in your debt settlement KB. What do you want to add today?", entries: [] },
+    { role: 'ai', text: "Hi! Ask me questions about the published Debt Settlement knowledge base, or send scripts, images, and recordings. New AI-extracted material goes into the shared Review Queue first; it will not change live answers until approved in Knowledge Base.", entries: [] },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -46,8 +46,8 @@ export default function DebtKBChat() {
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const all = await base44.entities.KnowledgeBase.list('-created_date', 50);
-      setHistory((all || []).filter(e => (e.source || '').includes('AI Chat')));
+      const rows = await base44.entities.DebtKBProposal.filter({ source: { $regex: 'AI Chat', $options: 'i' } }, { sort: '-created_date', limit: 50 });
+      setHistory(rows?.items || rows || []);
     } catch { setHistory([]); }
     setHistoryLoading(false);
   }, []);
@@ -143,9 +143,11 @@ export default function DebtKBChat() {
         next[next.length - 1] = { role: 'ai', text: aiResponse, entries, answerMode: mode === 'answer', loading: false };
         return next;
       });
-      if (mode === 'ingest') loadHistory();
-      // Notify other KB views that content was added
-      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+      if (mode === 'ingest') {
+        loadHistory();
+        // A proposed entry was queued; refresh the review board, not live answer caches.
+        window.dispatchEvent(new CustomEvent('debt_kb_updated'));
+      }
     } catch (e) {
       setMessages(prev => {
         const next = [...prev];
@@ -171,7 +173,7 @@ export default function DebtKBChat() {
           <span style={{ fontSize: '18px' }}>🤖</span>
           <div>
             <div style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold' }}>AI Knowledge Ingestion Chat</div>
-            <div style={{ color: '#6b7280', fontSize: '10px' }}>Send text, images, or audio — AI decides the best way to store it</div>
+            <div style={{ color: '#8a9ab8', fontSize: '10px' }}>Published answers for questions · AI suggestions require approval</div>
           </div>
         </div>
 
@@ -210,7 +212,7 @@ export default function DebtKBChat() {
                 {/* Saved entries */}
                 {m.entries && m.entries.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ color: m.answerMode ? '#60a5fa' : GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>{m.answerMode ? `📚 Sources (${m.entries.length})` : `✓ Saved ${m.entries.length} entr${m.entries.length === 1 ? 'y' : 'ies'}`}</div>
+                    <div style={{ color: m.answerMode ? '#60a5fa' : GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>{m.answerMode ? `Sources (${m.entries.length})` : `Awaiting review (${m.entries.length})`}</div>
                     {m.entries.map((e, j) => {
                       const color = CAT_COLORS[e.category] || '#6b7280';
                       return (
@@ -277,17 +279,17 @@ export default function DebtKBChat() {
       <div style={{ background: '#0d1b2a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
         <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>💡 How to use</div>
         <div style={{ color: '#8a9ab8', fontSize: '11px', lineHeight: 1.6 }}>
-          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Ingest:</strong> Paste scripts, upload images/audio — AI structures and saves them automatically.</div>
-          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Ask:</strong> Ask any question about the KB or your database — AI answers from your data.</div>
+          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Propose:</strong> Paste scripts or upload images/audio. AI structures suggestions for Knowledge Base → Review Queue. Nothing publishes automatically.</div>
+          <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e8e0d0' }}>Ask:</strong> Ask questions about the published KB. Contact and staff records are not exposed by this chat.</div>
         </div>
 
         {/* Ingestion history */}
         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📜 Ingestion History</div>
+          <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Proposal History</div>
           {historyLoading ? (
             <div style={{ color: '#6b7280', fontSize: '11px' }}>Loading…</div>
           ) : history.length === 0 ? (
-            <div style={{ color: '#4a5568', fontSize: '11px' }}>No entries ingested via chat yet.</div>
+            <div style={{ color: '#4a5568', fontSize: '11px' }}>No AI chat proposals yet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {history.map((h, i) => {
@@ -300,6 +302,7 @@ export default function DebtKBChat() {
                       <span style={{ color: '#4a5568', fontSize: '9px', marginLeft: 'auto' }}>{time}</span>
                     </div>
                     <div style={{ color: '#e8e0d0', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.3 }}>{h.question}</div>
+                    <div style={{color:h.status==='approved'?'#85cdb1':h.status==='rejected'?'#e6a4a0':'#dbc28d',fontSize:9,marginTop:2}}>{h.status==='approved'?'Published':h.status==='rejected'?'Rejected':'Awaiting human review'}</div>
                     <div style={{ color: '#8a9ab8', fontSize: '10px', lineHeight: 1.4, marginTop: '2px' }}>{(h.answer || '').slice(0, 120)}{(h.answer || '').length > 120 ? '…' : ''}</div>
                   </div>
                 );
