@@ -526,6 +526,41 @@ export default async function(req) {
       const okBase = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
       const okStatusUrl = `${okBase}/functions/dialerVoiceHandler?Mode=aiQueueMerged` +
         `&LeadId=${encodeURIComponent(okLeadId)}&Conf=${encodeURIComponent(okConf)}`;
+      // Only an active queue can be merged. A caller in the appointment
+      // speech-hold can be reclaimed into the *same* conference at pickup.
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const service = createClientFromRequest(req).asServiceRole;
+        const matching = await service.entities.FronterHeadsUp.filter({ conferenceName: okConf, status: 'active' });
+        const alert = matching?.[0];
+        if (!alert || ['merging', 'merged', 'appointment_booked'].includes(alert.routeState)) {
+          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>This caller is no longer waiting in the queue.</Say><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
+        }
+        const callerSid = alert.customerCallSid || params.get('CallerCallSid') || '';
+        if (!callerSid) throw new Error('Missing customer call SID');
+        let alreadyWaiting = false;
+        try {
+          const confSid = await (async () => {
+            const found = await twilioFetch(`/Conferences.json?FriendlyName=${encodeURIComponent(okConf)}&Status=in-progress`);
+            return found.conferences?.[0]?.sid || '';
+          })();
+          if (confSid) {
+            const participants = await twilioFetch(`/Conferences/${confSid}/Participants.json`);
+            alreadyWaiting = (participants.participants || []).some((p: any) => p.call_sid === callerSid);
+          }
+        } catch {}
+        if (!alreadyWaiting) {
+          const holdUrl = `${okBase}/functions/dialerVoiceHandler?Mode=inboundHoldMusic`;
+          const callerTwiml = `<Response><Dial><Conference startConferenceOnEnter="false" endConferenceOnExit="false" beep="false" waitUrl="${xmlEscape(holdUrl)}" waitMethod="GET">${xmlEscape(okConf)}</Conference></Dial></Response>`;
+          await twilioFetch(`/Calls/${callerSid}.json`, {
+            method: 'POST', body: new URLSearchParams({ Twiml: callerTwiml }),
+          });
+        }
+        await service.entities.FronterHeadsUp.update(alert.id, { routeState: 'merging' });
+      } catch (e) {
+        console.warn('[AI Queue] Cannot reclaim customer for merge:', e?.message);
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>The caller is no longer available. The queue will stay open if they reconnect.</Say><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
+      }
       console.log('[dialerVoiceHandler] → Closer approved the merge:', speech || digits || 'no input');
       return new Response(queueMergeTwiml(okConf, okStatusUrl), { headers: { 'Content-Type': 'text/xml' } });
     }
