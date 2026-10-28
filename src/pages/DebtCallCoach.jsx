@@ -168,11 +168,13 @@ export default function DebtCallCoach() {
       <AppointmentTimersBar onOpenLead={(lead) => setPipelineLead(lead)} />
 
       {/* Cross-portal switcher */}
-      <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} />
+      <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} compact />
 
       {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
       <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={setTab} onMove={moveTab} onReset={resetTabOrder} />
 
+      <div className="dcc-current-section" aria-live="polite"><span className="dcc-path">Debt Call Coach /</span><strong>{friendlyTab(tabMap[tab]?.label||'Live Call')}</strong></div>
+      <main className="dcc-workspace-body" aria-label={friendlyTab(tabMap[tab]?.label||'Live Call')}>
       {tab === 'live' && <DebtLiveCall debtCoachUser={user} onScriptContextChange={setScriptCallContext} onCallStart={(callLead) => { setLiveCallActive(true); if (callLead?.id) setClosingLeadId(callLead.id); }} onCallEnd={() => setLiveCallActive(false)} />}
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
@@ -210,8 +212,9 @@ export default function DebtCallCoach() {
       {tab === 'admin' && isAdmin && <DebtCoachAdminPanel />}
       {tab === 'aicredits' && isSuperAdmin && <AICreditsTab />}
       {tab === 'aireports' && isAdmin && <AICostReportsTab />}
+      </main>
 
-      {/* Floating WCR Checklist — available on all tabs */}
+      {/* WCR checklist accessible from header, no floating launcher */}
       <WCRChecklist username={user?.username} showLauncher={false} />
 
       {/* Profile Timer Watcher — shows popup reminders, can reopen profile */}
