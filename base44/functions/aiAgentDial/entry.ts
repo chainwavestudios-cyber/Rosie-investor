@@ -119,6 +119,8 @@ export default async function(req) {
           await base44.asServiceRole.entities.FronterLead.update(leadRecord.id, {
             lastCalledAt: new Date().toISOString(),
             callCount: (leadRecord.callCount || 0) + 1,
+            callStatus: 'ai_outbound_active',
+            lastCallResult: 'dialing',
           });
         } catch {}
       }
@@ -146,12 +148,15 @@ export default async function(req) {
             // A late Twilio completion must not erase a confirmed handoff.
             if (currentLead?.status !== 'transferred' && currentLead?.lastCallResult !== 'transferred' && currentLead?.callStatus !== 'recording_queue' && currentLead?.lastCallResult !== 'queued_no_connect') {
               updates.lastCallResult = 'connected';
+              updates.callStatus = 'ai_outbound_complete';
             }
             updates.lastCallDurationSeconds = parseInt(callDuration) || 0;
           } else if (callStatus === 'no-answer' || callStatus === 'failed') {
             updates.lastCallResult = 'no_answer';
+            updates.callStatus = 'ai_outbound_complete';
           } else if (callStatus === 'busy') {
             updates.lastCallResult = 'no_answer';
+            updates.callStatus = 'ai_outbound_complete';
           }
           if (Object.keys(updates).length > 0) {
             await base44.asServiceRole.entities.FronterLead.update(leadId, updates);
