@@ -12,6 +12,12 @@ import { BOB_CHARACTERS, DEFAULT_THINK_MODEL } from '@/components/debt/bob/BobCh
 import { BobBrand } from './BobMarketing';
 import BobVault, { BobVaultLock } from './BobVault';
 import BobBillingPanel from './BobBillingPanel';
+import BobFlowStudio from './BobFlowStudio';
+import BobSupervisor from './BobSupervisor';
+import BobCallFlowControls from './BobCallFlowControls';
+import useBobLiveMonitor from '@/hooks/useBobLiveMonitor';
+import { sealRecording } from '@/lib/bobAudioCrypto';
+import { mockCustomer,applyTokens,clearCues } from '@/lib/bobSimulation';
 import { encryptCustomerContent, decryptCustomerContent } from '@/lib/bobKnowledgeCrypto';
 import './BobSite.css';
 
@@ -41,7 +47,9 @@ const tabs=[
   {id:'knowledge',label:'Knowledge base',Icon:BookOpen,admin:true},
   {id:'team',label:'Trainees & seats',Icon:Users,admin:true},
   {id:'settings',label:'Organization settings',Icon:Settings2,admin:true},
-  {id:'billing',label:'Seats & billing',Icon:KeyRound,admin:true}
+  {id:'billing',label:'Seats & billing',Icon:KeyRound,admin:true},
+  {id:'workflow',label:'Workflow studio',Icon:BookOpen,admin:true},
+  {id:'supervisor',label:'Manager cockpit',Icon:Users,admin:true}
 ];
 const errorMessage=(err)=>err?.response?.data?.error||err?.response?.data?.message||err?.message||String(err);
 
@@ -53,6 +61,14 @@ export default function BobPortal(){
   const [vaultKey,setVaultKey]=useState(null),[decryptedDocs,setDecryptedDocs]=useState([]),[sessionHeaders,setSessionHeaders]=useState({});
   const [newOrg,setNewOrg]=useState({name:'',industry:'General sales',seatLimit:5,ownerEmail:''});
   const [newMember,setNewMember]=useState({email:'',displayName:'',role:'trainee'});
+  const [flows,setFlows]=useState([]),[scripts,setScripts]=useState([]);
+  const [selectedFlowId,setSelectedFlowId]=useState(''),[stageIndex,setStageIndex]=useState(0);
+  const [previousSessionId,setPreviousSessionId]=useState(''),[priorDialogue,setPriorDialogue]=useState([]);
+  const [simActions,setSimActions]=useState([]),[creditReport,setCreditReport]=useState(null);
+  const [recordConsent,setRecordConsent]=useState(false),[monitorConsent,setMonitorConsent]=useState(false),[coachTalkConsent,setCoachTalkConsent]=useState(false);
+  const presenceRef=useRef(null),recordContextRef=useRef(null);
+  const [presence,setPresence]=useState(null);
+  const monitorRoom=useBobLiveMonitor();
 
   const [settings,setSettings]=useState({name:'',industry:'',preferredVoice:'flux-cliff-en',seatLimit:3,status:'trial'});
   const [deepgramKey,setDeepgramKey]=useState('');
@@ -66,12 +82,34 @@ export default function BobPortal(){
     messagesRef.current=[...messagesRef.current,entry];
     setMessages(messagesRef.current);
   },[]);
-  const voiceCall=useDebtBobVoice({onTranscript,recordingPolicy:'disabled',lazyMicDevices:true});
+  const onRecordingBlob=useCallback(async(blob)=>{
+    const record=recordContextRef.current;
+    if(!record?.key || !record?.organizationId || !record?.presenceToken || !record?.consented)return;
+    try{
+      // No unencrypted audio ever goes to the file service.
+      const sealed=await sealRecording(record.key,blob,record.organizationId);
+      const result=await base44.integrations.Core.UploadPrivateFile({file:sealed.file});
+      if(!result?.file_uri)throw new Error('Private recording upload did not return a file URI.');
+      await api('recordingSaved',{organizationId:record.organizationId,
+        presenceToken:record.presenceToken,callId:record.callId,fileUri:result.file_uri,
+        encryptedIv:sealed.iv,sizeBytes:sealed.file.size,
+        durationSeconds:Math.max(0,Math.round((Date.now()-record.started)/1000))});
+      setNotice('Call audio saved encrypted in your organization private storage.');
+    }catch(e){setError('Private recording could not be saved: '+errorMessage(e));}
+  },[]);
+  const voiceCall=useDebtBobVoice({onTranscript,onRecordingBlob,
+    recordingPolicy:recordConsent?'encrypted':'disabled',lazyMicDevices:true});
   const org=ctx?.organizations?.find(o=>o.id===orgId);
   const isPlatform=!!ctx?.isPlatformAdmin;
   const isMember=!!org && org.myRole!=='platform';
   const isAdmin=!!org && ['admin','owner'].includes(org.myRole);
+  const isManager=org?.myRole==='manager';
+  const isSupervisor=isAdmin||isManager;
+  const canDesign=isAdmin||(isManager&&!!org?.managerCanConfigure);
   const canConfigure=isPlatform||isAdmin;
+  const selectedFlow=flows.find(f=>f.dbId===selectedFlowId);
+  const selectedStage=selectedFlow?.stages?.[stageIndex];
+  const customer=mockCustomer(orgId+selectedFlowId,{});
   const availableSeats=Math.max(0,(Number(org?.seatLimit)||0)-members.filter(m=>m.status==='active').length);
   const reloadContext=useCallback(async()=>{
     const data=await api('context');
@@ -102,7 +140,46 @@ export default function BobPortal(){
     setMembers(isManager?results[2].members||[]:[]);
   },[orgId,isPlatform,ctx?.organizations]);
   useEffect(()=>{reloadOrg().catch(e=>setError(errorMessage(e)));},[reloadOrg]);
-  useEffect(()=>{setVaultKey(null);setDecryptedDocs([]);setSessionHeaders({});setSelectedSession(null);},[orgId]);
+  useEffect(()=>{
+    setVaultKey(null);setDecryptedDocs([]);setSessionHeaders({});setSelectedSession(null);
+    setFlows([]);setScripts([]);setSelectedFlowId('');setStageIndex(0);setPriorDialogue([]);
+    setCreditReport(null);setSimActions([]);setPreviousSessionId('');setPresence(null);
+  },[orgId]);
+  const reloadFlowLibrary=useCallback(async()=>{
+    if(!vaultKey||!orgId||!isMember){setFlows([]);setScripts([]);return;}
+    const [flowData,scriptData]=await Promise.all([
+      api('listFlows',{organizationId:orgId}),api('listScripts',{organizationId:orgId})
+    ]);
+    const unpack=async row=>{try{return{...await decryptCustomerContent(vaultKey,row.encryptedPayload,orgId),dbId:row.id};}
+      catch{return null;}};
+    const [unpackedFlows,unpackedScripts]=await Promise.all([
+      Promise.all((flowData.items||[]).map(unpack)),Promise.all((scriptData.items||[]).map(unpack))
+    ]);
+    setFlows(unpackedFlows.filter(Boolean));setScripts(unpackedScripts.filter(Boolean));
+  },[orgId,vaultKey,isMember]);
+  useEffect(()=>{reloadFlowLibrary().catch(e=>setError(errorMessage(e)));},[reloadFlowLibrary]);
+  useEffect(()=>{
+    const onChange=e=>{if(e.detail?.organizationId===orgId)reloadFlowLibrary().catch(()=>{});};
+    window.addEventListener('bob_flow_saved',onChange);
+    return()=>window.removeEventListener('bob_flow_saved',onChange);
+  },[orgId,reloadFlowLibrary]);
+  useEffect(()=>{
+    let alive=true;if(!vaultKey||!previousSessionId){setPriorDialogue([]);return;}
+    const session=sessions.find(s=>s.id===previousSessionId);
+    if(!session)return;
+    decryptCustomerContent(vaultKey,session.encryptedPayload,orgId).then(data=>{
+      if(alive)setPriorDialogue(data.transcript||[]);
+    }).catch(e=>{if(alive)setError(errorMessage(e));});
+    return()=>{alive=false;};
+  },[previousSessionId,sessions,vaultKey,orgId]);
+  useEffect(()=>{
+    if(!presence?.sessionToken)return;
+    const token=presence.sessionToken,organizationId=orgId;
+    const heartbeat=()=>api('presenceHeartbeat',{organizationId,sessionToken:token,
+      stage:selectedStage?.label||scenario}).catch(()=>{});
+    const interval=setInterval(heartbeat,25000);
+    return()=>clearInterval(interval);
+  },[presence?.sessionToken,orgId,selectedStage?.label,scenario]);
   useEffect(()=>{
     let mounted=true;
     if(!vaultKey||!orgId){setDecryptedDocs([]);return;}
@@ -125,8 +202,12 @@ export default function BobPortal(){
   },[sessions,vaultKey,orgId]);
   useEffect(()=>{
     if(org){setSettings({name:org.name,industry:org.industry,preferredVoice:org.preferredVoice||'flux-cliff-en',
-      seatLimit:org.seatLimit,status:org.status});setVoice(org.preferredVoice||'flux-cliff-en');}
-  },[org?.id,org?.name,org?.industry,org?.preferredVoice,org?.seatLimit,org?.status]);
+      seatLimit:org.seatLimit,status:org.status,
+      managerCanConfigure:!!org.managerCanConfigure,
+      managerCanControlRecording:!!org.managerCanControlRecording,
+      allowSessionRecording:!!org.allowSessionRecording,
+      allowLiveMonitoring:!!org.allowLiveMonitoring});setVoice(org.preferredVoice||'flux-cliff-en');}
+  },[org?.id,org?.name,org?.industry,org?.preferredVoice,org?.seatLimit,org?.status,org?.managerCanConfigure,org?.managerCanControlRecording,org?.allowSessionRecording,org?.allowLiveMonitoring]);
   useEffect(()=>{if(isPlatform)api('listInquiries').then(d=>setInquiries(d.inquiries||[])).catch(()=>{});},[isPlatform]);
 
   async function act(fn,success='Saved.'){
@@ -139,9 +220,13 @@ export default function BobPortal(){
   },'Organization created. You can now assign trainees.');};
   const addMember=async(e)=>{e.preventDefault();await act(async()=>{
     const result=await api('addMember',{organizationId:orgId,...newMember});setNewMember({email:'',displayName:'',role:'trainee'});
-    if(result.invitationStatus!=='sent')throw new Error('Seat assigned, but the invitation email failed. Share the portal URL with this trainee.');
+    if(result.invitationStatus!=='sent')setNotice('Seat assigned but automated email delivery failed; share the portal URL directly.');
   },'Training seat assigned. Ask your trainee to sign in with that email.');};
 
+  const changeRole=async(memberId,role)=>{
+    await act(()=>api('updateMemberRole',{organizationId:orgId,memberId,role}),
+      'Team member role updated.');
+  };
   const saveSettings=async(e)=>{e.preventDefault();await act(()=>api('setOrg',{organizationId:orgId,...settings}),'Organization settings saved.');};
   const saveKey=async(e)=>{e.preventDefault();await act(async()=>{await api('setDeepgramKey',{organizationId:orgId,key:deepgramKey});setDeepgramKey('');},'Deepgram credential updated. The key is stored encrypted, not displayed.');};
 

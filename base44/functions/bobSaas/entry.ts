@@ -198,14 +198,14 @@ const secureGateway = async (req: Request) => {
     }))});
   }
   if(action==='addKnowledge'){
-    requireAdmin();
+    requireFlowAdmin();
     if(!org.keyVerifier)return bad('Set up customer-owned encryption first.',409);
     const row=await db.BOBKnowledge.create({organizationId:org.id,encryptedPayload:encrypted(data.encryptedPayload),
         createdBy:email,createdAt:now()});
     return Response.json({success:true,id:row.id});
   }
   if(action==='deleteKnowledge'){
-    requireAdmin();
+    requireFlowAdmin();
     const row=await db.BOBKnowledge.get(str(data.documentId,100)).catch(()=>null);
     if(!row||row.organizationId!==org.id)return bad('Not found.',404);
     await db.BOBKnowledge.delete(row.id);

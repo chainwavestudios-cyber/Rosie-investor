@@ -29,13 +29,14 @@ export default function BobFlowStudio({org,vaultKey,canDesign,api,notify}){
    await api(type==='flow'?'saveFlow':'saveScript',{organizationId:org.id,itemId:payload.dbId,encryptedPayload});
    await refresh();
    if(type==='flow')setFlow(null);else setScript(null);
+   window.dispatchEvent(new CustomEvent('bob_flow_saved',{detail:{organizationId:org.id}}));
    notify?.('Saved to your encrypted organization training library.');
   }catch(e){setError(e.message||'Could not save.');}finally{setSaving(false);}
  };
  const remove=async(type,item)=>{
   if(!window.confirm('Permanently delete this '+type+'?'))return;
   setBusy(true);setError('');
-  try{await api(type==='flow'?'deleteFlow':'deleteScript',{organizationId:org.id,itemId:item.dbId});await refresh();}
+  try{await api(type==='flow'?'deleteFlow':'deleteScript',{organizationId:org.id,itemId:item.dbId});await refresh();window.dispatchEvent(new CustomEvent('bob_flow_saved',{detail:{organizationId:org.id}}));}
   catch(e){setError(e.message);}finally{setBusy(false);}
  };
  const setField=(key,value)=>setFlow(current=>({...current,[key]:value}));
