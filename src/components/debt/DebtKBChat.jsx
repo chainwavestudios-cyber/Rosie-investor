@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#daba71';
 const DARK = '#0a0f1e';
@@ -26,6 +27,7 @@ const CAT_LABELS = {
 };
 
 export default function DebtKBChat() {
+  const {sessionUserId,sessionToken}=useDebtCoachAuth();
   const [messages, setMessages] = useState([
     { role: 'ai', text: "Hi! Ask me questions about the published Debt Settlement knowledge base, or send scripts, images, and recordings. New AI-extracted material goes into the shared Review Queue first; it will not change live answers until approved in Knowledge Base.", entries: [] },
   ]);
@@ -134,8 +136,11 @@ export default function DebtKBChat() {
         fileUrl: file?.url || null,
         fileType: file?.type || null,
         fileName: file?.file?.name || null,
+        sessionUserId,sessionToken,
       });
-      const mode = res?.mode || res?.data?.mode || 'ingest';
+      const out=res?.data||res;
+      if(out?.error)throw new Error(out.error);
+      const mode = out?.mode || 'ingest';
       const aiResponse = res?.response || res?.data?.response || 'Done.';
       const entries = res?.entries || res?.data?.entries || [];
       setMessages(prev => {
@@ -156,7 +161,7 @@ export default function DebtKBChat() {
       });
     }
     setBusy(false);
-  }, [input, pendingFile, busy]);
+  }, [input, pendingFile, busy, sessionUserId, sessionToken]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
