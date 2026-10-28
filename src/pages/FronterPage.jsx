@@ -550,10 +550,12 @@ export default function FronterPage() {
                 lineKey: item.lineKey || 'TWILIO_FROM_NUMBER',
                 leadId: item.leadId,
               });
-              if (res?.data?.error) window.alert('Grab failed: ' + res.data.error);
+              const data = res?.data || res;
+              if (data?.error) throw new Error(data.error);
+              return data;
             } catch (e) {
               const msg = e?.response?.data?.error || e?.message || String(e);
-              window.alert('Grab failed: ' + msg);
+              throw new Error('Grab failed: ' + msg);
             }
           }}
         />
