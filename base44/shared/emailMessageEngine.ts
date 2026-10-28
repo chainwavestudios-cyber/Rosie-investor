@@ -140,9 +140,10 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
   let html = await hostEmbeddedImages(base44, opts.html || '');
   // Every personal welcome link gets the token belonging to THIS Gmail send.
   // This migration is Coach-only: campaign/Fronter links are never rewritten.
-  if (opts.contactKind === 'debt_lead' && opts.source !== 'campaign' && token) {
+  if (opts.contactKind === 'debt_lead' && token) {
     const welcome = `https://debtsolutions.cc/welcome?m=${encodeURIComponent(token)}`;
-    html = html.replace(/https?:\/\/abitaboutme\.base44\.app\/?(?=["'<>\s]|&|$)/gi, welcome)
+    html = html.replace(/\{\{\s*personalMessageUrl\s*\}\}/gi, welcome)
+      .replace(/https?:\/\/abitaboutme\.base44\.app\/?(?=["'<>\s]|&|$)/gi, welcome)
       .replace(/https:\/\/rosieai-investorpage\.base44\.app\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome)
       .replace(/https?:\/\/(?:www\.)?debtsolutions\.cc\/welcome(?:\?m=[A-Za-z0-9_-]+)?\/?(?=["'<>\s]|&|$)/gi, welcome);
   }
@@ -168,10 +169,18 @@ export async function sendTrackedEmail(base44: any, opts: TrackedSend): Promise<
 
   // The Debt Call Coach's customer-facing links use the branded domain.
   // Other sources retain the existing tracking host and behavior.
-  const coachTrackingBase = opts.contactKind === 'debt_lead' && opts.source !== 'campaign'
+  const coachTrackingBase = opts.contactKind === 'debt_lead'
     ? 'https://debtsolutions.cc/functions' : undefined;
   const body = opts.track === false ? html : injectTracking(html, contactId, sendId, templateId, templateName, token, coachTrackingBase);
-  const mimeMessage = buildMime(recipient, subject, body, opts.text, opts.inlineImages);
+  // Plain-text email alternatives must also point to this send's own welcome
+  // token (not a bare link or unresolved {{personalMessageUrl}} variable).
+  let textPart = opts.text;
+  if (textPart && opts.contactKind === 'debt_lead') {
+    const welcome = `https://debtsolutions.cc/welcome?m=${encodeURIComponent(token)}`;
+    textPart = textPart.replace(/\{\{\s*personalMessageUrl\s*\}\}/gi,welcome)
+      .replace(/https?:\/\/(?:www\.)?debtsolutions\.cc\/welcome(?:\?m=[A-Za-z0-9_-]+)?/gi,welcome);
+  }
+  const mimeMessage = buildMime(recipient, subject, body, textPart, opts.inlineImages);
 
   try {
     const { messageId } = await sendViaGmail(base44, recipient, mimeMessage);
