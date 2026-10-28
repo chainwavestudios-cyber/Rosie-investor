@@ -121,6 +121,8 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     });
   }, [size.width]);
 
+  // Open without changing restored coordinates; used by Live Call auto-layout.
+  const openAtSavedPosition = useCallback(() => setPoppedOut(true), []);
   const [layoutSaved, setLayoutSaved] = useState(false);
   const saveLayout = useCallback(() => {
     if (!username) return false;
@@ -187,5 +189,5 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     </>
   );
 
-  return { poppedOut, toggle, popOut, onDragStart, onResizeStart, floatingStyle, size, setSize, setPosition, center, resizeHandles, saveLayout, layoutSaved };
+  return { poppedOut, toggle, popOut, openAtSavedPosition, onDragStart, onResizeStart, floatingStyle, size, setSize, setPosition, center, resizeHandles, saveLayout, layoutSaved };
 }

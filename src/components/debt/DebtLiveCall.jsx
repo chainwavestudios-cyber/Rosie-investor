@@ -247,9 +247,18 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username, 9998, false);
   const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username, 9998, false);
   const [showCustomerStats, setShowCustomerStats] = useState(false);
-  const allPoppedOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
+  const allPoppedOut = transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+  // Open the three Live Call floating tools at the operator's stored positions.
+  // Contact cards stay docked/open, and Smart Close opens from the parent workspace.
+  useEffect(() => {
+    if (phase !== 'live') return;
+    scriptsPanel.openAtSavedPosition();
+    transcriptPanel.openAtSavedPosition();
+    aiPanel.openAtSavedPosition();
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [micMuted, setMicMuted] = useState(false);
 
   // Toggle the agent mic stream tracks on/off (mutes audio sent to Deepgram)
@@ -2470,7 +2479,6 @@ ${recentText}`,
         {allPoppedOut && phase === 'live' && (
           <button
             onClick={() => {
-              leadPanel.saveLayout();
               transcriptPanel.saveLayout();
               scriptsPanel.saveLayout();
               aiPanel.saveLayout();
@@ -2568,7 +2576,7 @@ ${recentText}`,
       {(() => {
         // Responsive docked layout adapts to laptop and ultrawide workstations.
         const gridCols = 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))';
-        const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
+        const allOut = transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
 
         return (
           <>
@@ -2618,20 +2626,19 @@ ${recentText}`,
               {aiPanel.poppedOut ? (
                 <div style={{ ...aiPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
                   <div onMouseDown={aiPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-                    <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>🤖 AI Assistant</span>
+                    <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>❓ Live Q&A Only</span>
                     <button onClick={aiPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
                   </div>
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    <DebtAIPanel
-                      transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
-                      profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
-                      memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion} liveQAItems={qaItems} liveCoachTips={coachTips}
-                      canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
-                      username={coachUser?.username}
-                      activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
-                      onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                      autoOpenPopup={false}
-                    />
+                  <div style={{ flex: 1, overflow: 'auto', padding: 12, color: '#d5dce7' }}>
+                    {(!qaItems || qaItems.length === 0) && <div style={{color:'#8a9ab8',fontSize:12}}>Waiting for a customer question…</div>}
+                    {(qaItems || []).slice().reverse().map((item, index) => (
+                      <div key={item.id || item.ts || index} style={{marginBottom:12,padding:12,border:'1px solid rgba(245,158,11,.2)',borderRadius:7,background:'#10202d'}}>
+                        <div style={{fontSize:12,color:'#f0c57b',fontWeight:700}}>{item.question || 'Question detected'}</div>
+                        {item.reallyAsking && <div style={{fontSize:11,color:'#b9c8d6',marginTop:5}}>Interpreted: {item.reallyAsking}</div>}
+                        <div style={{fontSize:12,whiteSpace:'pre-wrap',lineHeight:1.5,marginTop:8}}>{item.loading ? 'Finding approved answer…' : item.answer || 'No verified answer available'}</div>
+                        <div style={{fontSize:10,color:'#8494a6',marginTop:5}}>{item.source === 'kb_direct' ? 'Verified KB' : item.source || 'Live Q&A'}</div>
+                      </div>
+                    ))}
                   </div>
                   {aiPanel.resizeHandles}
                 </div>
