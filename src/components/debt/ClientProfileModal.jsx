@@ -435,7 +435,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
           <div>
             {(local.appointmentDate || local.nightBeforeReminderSentAt || local.apptEmailOpenedAt) && (
               <div style={{ marginBottom: '14px', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.15)' }}>
-                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Appointment Email Tracking</div>
+                <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Appointment Email Tracking</div>
                 <ApptTrackingBadges lead={local} />
                 {local.appointmentDate && (
                   <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>
@@ -450,7 +450,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
         {tab === 'hardship' && (
           <div>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>⚠️ Hardship Details</div>
+            <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Hardship Details</div>
             <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '4px', padding: '12px', marginBottom: '16px', color: '#8a9ab8', fontSize: '11px' }}>
               Document the financial hardship that led this customer to seek debt settlement. This auto-populates from the call transcript when the customer discusses their situation.
             </div>
@@ -474,7 +474,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
             {/* Appointment tracking badges */}
             {(local.appointmentDate || local.apptEmailOpenedAt || local.nightBeforeReminderSentAt || local.hourBeforeReminderSentAt) && (
               <div style={{ marginBottom: '16px', padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.15)' }}>
-                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Appointment Email Tracking</div>
+                <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Appointment Email Tracking</div>
                 <ApptTrackingBadges lead={local} />
                 {local.appointmentDate && (
                   <div style={{ color: '#8a9ab8', fontSize: '11px', marginTop: '6px' }}>
@@ -488,7 +488,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
             {/* Email template buttons — manual send from contact card */}
             {emailTemplates.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
-                <div style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>📧 Quick Send Emails</div>
+                <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '8px' }}>Quick Send Emails</div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {emailTemplates.map(tpl => {
                     const isOpened = emailOpens.has(tpl.id);
@@ -525,7 +525,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
             {/* Contact Info */}
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Information</div>
+            <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Information</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
               <div><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
@@ -565,7 +565,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
             {/* AI Notes — the biggest block on the overview: what the client's calls
                 added up to, written from the calls and editable here. */}
             <div style={{ marginBottom: '16px' }}>
-              <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>🤖 AI Notes</div>
+              <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>AI Notes</div>
               <textarea
                 value={local.notes || ''}
                 onChange={e => update('notes', e.target.value)}
@@ -603,7 +603,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
         {tab === 'qa' && (
           <div>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>❓ Q&A History — {qaHistory.length} questions</div>
+            <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Q&A History · {qaHistory.length} questions</div>
             {qaHistory.length === 0 ? (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No Q&A history for this customer yet. Questions asked during calls will appear here with timestamps.</div>
             ) : (
@@ -653,7 +653,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               </div>
             )}
 
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📝 Saved Call Transcripts — {callTranscripts.length} calls</div>
+            <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Saved Call Transcripts · {callTranscripts.length} calls</div>
             {callTranscripts.length === 0 ? (
               <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No saved call transcripts yet. Transcripts are saved as a permanent record when a call ends properly.</div>
             ) : (
@@ -731,7 +731,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
 
         {tab === 'credit_report' && (
           <div>
-            <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>📷 Credit Report Photo</div>
+            <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '12px' }}>Credit Report Photo</div>
             {creditPhotoLoading ? (
               <div style={{ color: '#6b7280', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>Loading credit report photo…</div>
             ) : creditPhotoUrl ? (
