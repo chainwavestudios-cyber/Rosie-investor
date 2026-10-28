@@ -29,7 +29,7 @@ export default function DebtGmailEngagement({ view = 'report' }) {
     if (!sessionUserId || !sessionToken || !isAdmin) return;
     setLoading(true);
     try {
-      const result = await base44.functions.invoke('debtCoachGmailReport', { sessionUserId, sessionToken, days, view });
+      const result = await base44.functions.invoke('sendDebtEmail', { action: 'gmailReport', sessionUserId, sessionToken, days, view });
       if (result.data?.error) throw new Error(result.data.error);
       setData(result.data);
       setError('');
