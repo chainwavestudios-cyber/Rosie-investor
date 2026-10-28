@@ -437,31 +437,23 @@ export default async function(req) {
           const alert = alerts?.[0];
           // A completed advisor conversation or late Twilio retry must never
           // call Chris again after the prospect has already been merged.
-          if (alert && alert.routeType === 'ai_agent' && !['merged', 'appointment_booked'].includes(alert.routeState)) {
+          if (alert && alert.routeType === 'ai_agent' && !['merged', 'appointment_booked', 'recording_queue'].includes(alert.routeState)) {
             const configRows = await service.entities.AIAgentConfig.filter({ configName: 'default' });
             const config = configRows?.[0] || {};
             const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
             if (attempt === 1 && Number(alert.advisorAttempt || 0) === 1) {
-              const started = await startAiAdvisorAttempt(service, config, leadId, conf, callerSid, queuedAt, 2, appUrl);
-              if (!started) {
-                await service.entities.FronterHeadsUp.update(alert.id, { advisorAttempt: 2, routeState: 'appointment_available' });
-              }
-            } else if (attempt === 2 && Number(alert.advisorAttempt || 0) === 2) {
-              await service.entities.FronterHeadsUp.update(alert.id, { routeState: 'appointment_available' });
-              await service.entities.FronterLead.update(leadId, {
-                callStatus: 'queue_callback', lastCallResult: 'queued_no_connect',
+              // Lock attempt 1 before starting attempt 2. A repeated status
+              // webhook must never start two calls to Chris's cell.
+              await service.entities.FronterHeadsUp.update(alert.id, {
+                advisorAttempt: -2, routeState: 'dialing_secondary',
               });
-              // Speech recognition cannot operate inside a conference waitUrl.
-              // Move just the prospect to the existing speech-aware custom hold
-              // IVR. The transfer card stays active and can pull them back.
-              if (config.callbackBookingEnabled !== false && callerSid) {
-                const bookingUrl = `${appUrl}/functions/appointmentVoiceHandler?step=hold&source=ai&leadId=${encodeURIComponent(leadId)}`;
-                try {
-                  await twilioFetch(`/Calls/${callerSid}.json`, {
-                    method: 'POST', body: new URLSearchParams({ Url: bookingUrl, Method: 'GET' }),
-                  });
-                } catch (e) { console.warn('[AI Queue] Could not move caller into appointment hold:', e?.message); }
-              }
+              const started = await startAiAdvisorAttempt(service, config, leadId, conf, callerSid, queuedAt, 2, appUrl);
+              if (!started) await preserveUnansweredAiCaller(service, leadId, conf, alert);
+            } else if (attempt === 2 && Number(alert.advisorAttempt || 0) === 2) {
+              // Both numbers failed or reached voicemail. Keep the customer's
+              // conference alive with the custom recording, migrate to Debt
+              // Call Coach, raise the popup and free Alex for the next lead.
+              await preserveUnansweredAiCaller(service, leadId, conf, alert);
             }
           }
         } catch (e) { console.warn('[AI Queue] Advisor fallback failed:', e?.message); }
@@ -614,7 +606,30 @@ export default async function(req) {
             // The customer joining an empty conference is not a completed
             // transfer. Only advisor-side start/join confirms a live handoff.
             const isCustomerJoin = event.includes('join') && customerSid && joiningSid === customerSid;
-            if (!isCustomerJoin && !['merged', 'appointment_booked'].includes(active.routeState)) {
+            if (isCustomerJoin && active.routeState === 'caller_queued' && Number(active.advisorAttempt || 0) === 0) {
+              // Queue audio is already playing. Only now ring the primary
+              // physical advisor line, then automatically the secondary.
+              await base44.entities.FronterHeadsUp.update(active.id, {
+                advisorAttempt:-1,routeState:'advisor_dialing',
+              });
+              const configRows = await base44.entities.AIAgentConfig.filter({configName:'default'});
+              const config = configRows?.[0] || {};
+              const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+              const started = await startAiAdvisorAttempt(base44, config, mergedLeadId, conf,
+                customerSid, active.queueStartedAt || new Date().toISOString(), 1, appUrl);
+              if (!started) {
+                const second = await startAiAdvisorAttempt(base44, config, mergedLeadId, conf,
+                  customerSid, active.queueStartedAt || new Date().toISOString(), 2, appUrl);
+                if (!second) await preserveUnansweredAiCaller(base44, mergedLeadId, conf, active);
+              }
+            }
+            // Only a confirmed ADVISOR conference join completes the merge.
+            // A conference-start event or the waiting caller joining must
+            // never mark the lead transferred.
+            const isApprovedAdvisorJoin = event.includes('join') && !isCustomerJoin &&
+              joiningSid && customerSid && joiningSid !== customerSid &&
+              ['advisor_accepted','browser_ringing'].includes(active.routeState);
+            if (isApprovedAdvisorJoin && !['merged', 'appointment_booked'].includes(active.routeState)) {
               await base44.entities.FronterHeadsUp.update(active.id, { routeState: 'merged', status: 'closed' });
               await base44.entities.FronterLead.update(mergedLeadId, {
                 status: 'transferred', lastCallResult: 'transferred',
