@@ -159,7 +159,10 @@ export default async function(req: Request): Promise<Response> {
       const valid = await verifyPassword(password || '', user.passwordHash);
       if (!valid) return Response.json({ error: 'Invalid username or password' }, { status: 401 });
       const sessionToken = crypto.randomUUID();
-      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, { sessionToken });
+      // Migrate legacy password hashes only after a successful login.
+      const legacy = !user.passwordHash?.startsWith('pbkdf2:');
+      const patch = legacy ? { sessionToken, passwordHash: await hashPassword(password) } : { sessionToken };
+      await base44.asServiceRole.entities.DebtCoachUser.update(user.id, patch);
       return Response.json({ user: sanitizeUser(user), sessionToken, mustResetPassword: user.mustResetPassword });
     }
 
