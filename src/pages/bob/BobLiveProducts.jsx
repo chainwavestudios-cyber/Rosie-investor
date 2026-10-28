@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Headphones, MessagesSquare, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Headphones, MessagesSquare, ShieldCheck } from 'lucide-react';
 import { BobNav, BobFooter } from './BobMarketing';
 import './BobSite.css';
 
