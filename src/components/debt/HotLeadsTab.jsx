@@ -202,28 +202,42 @@ export default function HotLeadsTab({onOpenLead,onOpenHeatMap}) {
           : !visible.length
           ?<div className="hl-empty">{search?'No matching contacts.':filter!=='all'?'No contacts in this category.':'No hot leads yet. Tag a contact to add it here.'}</div>
           :<div className="hl-queue-scroll" role="listbox" aria-label="Hot leads">
-            {visible.map(({lead,p})=><button type="button" key={lead.id} className="hl-lead-row" role="option" aria-selected={selectedId===lead.id} onClick={()=>setSelectedId(lead.id)}>
-              <span className="hl-avatar">{(lead.firstName?.[0]||'?').toUpperCase()}{(lead.lastName?.[0]||'').toUpperCase()}</span>
-              <span className="hl-lead-identity">
-                <span className="hl-lead-name">{fullname(lead)}<span className={'hl-lead-badge '+p.kind}>{p.label}</span></span>
-                <span className="hl-lead-meta">
-                  {currency(lead.debtAmount)} debt
-                  {lead.debtCoachOwner?' · '+lead.debtCoachOwner:''}
-                  {lead.appointmentDate?' · Appt '+formatDate(lead.appointmentDate):lead.callbackAt?' · Callback '+formatDate(lead.callbackAt):''}
+            <div className="hl-table-header" aria-hidden="true">
+              <span>Contact</span><span>Debt / calls</span><span>Next touch / owner</span><span>Email activity</span><span>Priority</span>
+            </div>
+            {visible.map(({lead,p})=>{
+              const nextIsCallback=lead.callbackAt && (!lead.appointmentDate || (parseTime(lead.callbackAt)||Infinity)<(parseTime(lead.appointmentDate)||Infinity));
+              const nextDate=nextIsCallback?lead.callbackAt:lead.appointmentDate;
+              return <button type="button" key={lead.id} className="hl-lead-row hl-data-row" role="option" aria-selected={selectedId===lead.id} onClick={()=>setSelectedId(lead.id)} title={"View intelligence for "+fullname(lead)}>
+                <span className="hl-cell hl-cell-contact">
+                  <strong>{fullname(lead)}</strong>
+                  <small>{lead.phone||lead.email||'No phone saved'}</small>
                 </span>
-                {(p.change||p.callbackOverdue||p.high)&&<span className="hl-row-signal">{p.reasons[0]}</span>}
-              </span>
-              <span className="hl-lead-right">
-                {Number.isFinite(Number(lead.intentScore))&&lead.intentScore!=null&&<span className="hl-score">Intent {Math.round(Number(lead.intentScore))}</span>}
-                <ChevronRight size={15}/>
-              </span>
-            </button>)}
+                <span className="hl-cell">
+                  <strong>{currency(lead.debtAmount)}</strong>
+                  <small>{Number(lead.callCount||0)} calls</small>
+                </span>
+                <span className="hl-cell">
+                  <strong>{nextDate?(nextIsCallback?'Call ':'Appt ')+formatDate(nextDate):'No follow-up'}</strong>
+                  <small>{lead.debtCoachOwner||'Unassigned'}</small>
+                </span>
+                <span className="hl-cell">
+                  <strong>{p.clickCount?p.clickCount+'/3 links':p.opened?'Email opened':'No activity yet'}</strong>
+                  <small>{lead.intentScore!=null?'Intent '+Math.round(Number(lead.intentScore)):'Not scored'}</small>
+                </span>
+                <span className="hl-cell hl-cell-priority">
+                  <span className={'hl-lead-badge '+p.kind}>{p.label}</span>
+                  <small>{p.reasons[0]||('Tagged '+ago(lead.hotLeadTaggedAt))}</small>
+                </span>
+              </button>;
+            })}
           </div>}
         {hasMore&&<div className="hl-loadmore"><button type="button" disabled={loadingMore} onClick={loadMore}>{loadingMore?'Loading…':'Load more hot leads'}</button></div>}
         <div className="hl-queue-foot">Sorted within loaded leads. Load more to include older tagged contacts in the priority ranking.</div>
       </section>
 
       <aside className="hl-side">
+        <HotLeadsCalendar events={calendar} loading={calendarLoading} error={calendarError} onRefresh={loadCalendar} leads={leads} username={user?.username} onOpenLead={onOpenLead}/>
         <section className="hl-detail">
           <div className="hl-panel-heading"><strong>Contact intelligence</strong><span>{selected?'Selected contact':'Select a lead'}</span></div>
           {!selected?<div className="hl-empty"><UserRound size={22}/>Select a lead from the queue to see recent signals, details and actions.</div>:
@@ -272,7 +286,6 @@ export default function HotLeadsTab({onOpenLead,onOpenHeatMap}) {
               </div>
             </div>}
         </section>
-        <HotLeadsCalendar events={calendar} loading={calendarLoading} error={calendarError} onRefresh={loadCalendar} leads={leads} username={user?.username} onOpenLead={onOpenLead}/>
       </aside>
     </div>
     <p className="hl-disclaimer">Priority is based on available saved signals—not a prediction of enrollment. Email opens and link clicks may be incomplete. Times use Eastern Time.</p>
