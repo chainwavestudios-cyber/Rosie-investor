@@ -25,7 +25,7 @@ import { startLiveFeed } from '@/lib/debtLiveFeed';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
-import { useDebtCoachValue } from '@/lib/debtCoachStorage';
+import { useDebtCoachValue, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
 import { useObjectionEngine } from '@/hooks/useObjectionEngine';
@@ -109,6 +109,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const firstDeviceScanRef = useRef(false);
   const restoredAudioModeRef = useRef('');
   const [audioModeMessage, setAudioModeMessage] = useState('');
+  const [savingAudioMode, setSavingAudioMode] = useState(false);
   const modes = audioModes(audioSetups);
   const activeAudioMode = modes[activeSetupIndex] || modes[0];
   const audioModeValidation = resolveAudioMode(activeAudioMode, micDevices, outputDevices, isLoopbackSource);
@@ -1933,16 +1934,28 @@ ${recentText}`,
   };
 
   // Save is an explicit action, never triggered by changing a dropdown.
-  const saveAudioSetup = () => {
-    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady) return;
+  const saveAudioSetup = async () => {
+    if (phase === 'live' || testingAgent || testingCustomer || !audioModeReady || savingAudioMode) return;
     const result = captureAudioMode(activeAudioMode, currentAudioSelection, micDevices, outputDevices, isLoopbackSource);
     if (!result.valid) {
       setAudioModeMessage(result.problems.join(' '));
       return;
     }
-    setAudioSetups(modes.map((s, i) => i === activeSetupIndex ? result.mode : s));
-    setError('');
-    setAudioModeMessage(`Saved ${result.mode.name}: agent, customer input, preferred output, and both gain levels.`);
+    setSavingAudioMode(true);
+    setAudioModeMessage(`Saving ${result.mode.name} to your account…`);
+    try {
+      const next = modes.map((s, i) => i === activeSetupIndex ? result.mode : s);
+      const saved = await setAllDebtCoachValues(coachUser?.username, {
+        audioSetupsJson: next, activeAudioSetup: activeSetupIndex,
+        defaultMicDeviceId: micDeviceId, defaultCustomerMicId: customerMicId,
+        defaultOutputDeviceId: outputDeviceId, agentMicGain: agentGain, customerMicGain: customerGain,
+      });
+      if (!saved) throw new Error('The server did not confirm the save.');
+      setError('');
+      setAudioModeMessage(`Saved ${result.mode.name} to your account. Verify audio levels before calling.`);
+    } catch (e) {
+      setAudioModeMessage(`Save failed: ${e?.message || 'Please retry.'}`);
+    } finally { setSavingAudioMode(false); }
   };
 
   const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
@@ -1971,6 +1984,7 @@ ${recentText}`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+            <option value="">— Select agent microphone —</option>
             {micDevices.length === 0 && <option>Default microphone</option>}
             {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
           </select>
@@ -2011,17 +2025,22 @@ ${recentText}`,
         </div>
 
         <AudioSetupSwitcher
-          setups={audioSetups || DEFAULT_AUDIO_SETUPS}
+          setups={modes}
           activeIndex={activeSetupIndex}
-          disabled={phase === 'live'}
+          disabled={phase === 'live' || testingAgent || testingCustomer || savingAudioMode}
+          loading={!audioModeReady}
+          dirty={audioModeDirty}
+          validation={audioModeValidation}
+          message={audioModeDirty && activeAudioMode?.saved && !savingAudioMode ? '' : audioModeMessage}
           onUse={useAudioSetup}
           onRename={renameAudioSetup}
+          onSave={saveAudioSetup}
         />
 
         {outputDevices.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <label style={{ ...ls, marginBottom: 0 }}>🔊 Audio Output</label>
-            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
+            <label style={{ ...ls, marginBottom: 0 }}>🔊 Preferred Output</label>
+            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase==='live'} title="Stored as a preferred playback device; browser/system output routing remains in effect" style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
               {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
             </select>
           </div>
