@@ -100,6 +100,16 @@ export default async function (req: Request): Promise<Response> {
     if (previously.length) {
       return Response.json({ success: true, status: previously[0].status, messageId: previously[0].gatewayMessageId, duplicate: true });
     }
+    // Prevent a double-click or browser retry with a new ID from issuing the
+    // same message twice within a short window.
+    const recent = listRows(await sdk.asServiceRole.entities.SmsMessage.filter(
+      { leadId, direction: 'outbound', provider: 'android_smsgate' },
+      { sort: '-sentAt', limit: 10 }
+    ));
+    if (recent.some((sms: any) => norm(sms.toNumber) === to && sms.body === message
+      && Date.now() - Date.parse(sms.sentAt || '') < 45000)) {
+      return Response.json({ error: 'This same text was just sent. Check its status instead of sending twice.' }, { status: 409 });
+    }
     const payload = { id: requestId, phoneNumbers: [to], deviceId: DEVICE_ID, textMessage: { text: message }, ttl: 3600, withDeliveryReport: true };
     const upstream = await fetch(API_ROOT + '/3rdparty/v1/messages', {
       method: 'POST',

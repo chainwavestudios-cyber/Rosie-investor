@@ -50,6 +50,11 @@ export default async function (req: Request): Promise<Response> {
         for (const r of existing) await sdk.asServiceRole.entities.SmsOptIn.update(r.id, { active: true, optedInAt: new Date().toISOString() });
       }
       const known = rows(await sdk.asServiceRole.entities.DebtLead.filter({ phone: from }, { limit: 1 }))[0];
+      const inboundId = String(p.messageId || '');
+      const alreadyLogged = inboundId && rows(await sdk.asServiceRole.entities.SmsMessage.filter(
+        { gatewayMessageId: inboundId, provider: 'android_smsgate' }, { limit: 1 }
+      )).length > 0;
+      if (alreadyLogged) return Response.json({ success: true, duplicate: true });
       await sdk.asServiceRole.entities.SmsMessage.create({
         direction: 'inbound', provider: 'android_smsgate',
         fromNumber: from, toNumber: number(p.recipient),
