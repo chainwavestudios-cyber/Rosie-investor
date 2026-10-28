@@ -3,7 +3,7 @@
  * Absolute timestamps and per-agent database-backed settings.
  */
 import {useState,useEffect,useCallback,useRef} from 'react';
-import {getDebtCoachValue,setDebtCoachValue,getCachedDebtCoachValue} from '@/lib/debtCoachStorage';
+import {getDebtCoachValue,setAllDebtCoachValues,getCachedDebtCoachValue} from '@/lib/debtCoachStorage';
 import {normalizeProfileTimerSound,playProfileTimerSound} from './profileTimerSounds';
 import {BellRing,X,ArrowUpRight} from 'lucide-react';
 
@@ -39,9 +39,10 @@ export async function setProfileTimer(username,lead,hours,minutes,sound){
     fireAt,timerKey:'manual_'+lead.id+'_'+fireAt,type:'profile',
     sound:normalizeProfileTimerSound(sound||preference(username)),
   };
-  await setDebtCoachValue(username,'profile_timers',[
+  const saved=await setAllDebtCoachValues(username,{profile_timers:[
     ...existing.filter(t=>!(t.leadId===lead.id&&t.type!=='event')),timer
-  ]);
+  ]});
+  if(!saved)return false;
   window.dispatchEvent(new CustomEvent('profile_timer_set',{detail:timer}));
   return true;
 }
@@ -62,18 +63,19 @@ export async function setEventReminders(username,lead,eventISO,eventTitle){
   })).filter(t=>t.fireAt>Date.now());
   if(!incoming.length)return;
   const ids=new Set(incoming.map(identity));
-  await setDebtCoachValue(username,'profile_timers',[
+  const saved=await setAllDebtCoachValues(username,{profile_timers:[
     ...existing.filter(t=>!ids.has(identity(t))),...incoming
-  ]);
-  window.dispatchEvent(new CustomEvent('profile_timer_set'));
+  ]});
+  if(saved)window.dispatchEvent(new CustomEvent('profile_timer_set'));
 }
 
 export async function cancelProfileTimer(username,leadId){
   if(!username||!leadId)return;
   const existing=rows(await getDebtCoachValue(username,'profile_timers',[]));
-  await setDebtCoachValue(username,'profile_timers',
-    existing.filter(t=>!(t.leadId===leadId&&t.type!=='event')));
-  window.dispatchEvent(new CustomEvent('profile_timer_cancelled',{detail:{leadId}}));
+  const saved=await setAllDebtCoachValues(username,{profile_timers:
+    existing.filter(t=>!(t.leadId===leadId&&t.type!=='event'))});
+  if(saved)window.dispatchEvent(new CustomEvent('profile_timer_cancelled',{detail:{leadId}}));
+  return saved;
 }
 
 export function getActiveTimer(username,leadId){
@@ -107,7 +109,8 @@ export default function ProfileTimerWatcher({username,onOpenProfile}){
     checkingRef.current=true;
     try{
       const ids=new Set(due.map(identity));
-      await setDebtCoachValue(username,'profile_timers',saved.filter(t=>!ids.has(identity(t))));
+      const persisted=await setAllDebtCoachValues(username,{profile_timers:saved.filter(t=>!ids.has(identity(t)))});
+      if(!persisted)console.warn('[ProfileTimer] Could not persist expired-timer cleanup.');
       const fresh=due.filter(t=>!firedRef.current.has(identity(t)));
       if(!fresh.length)return;
       fresh.forEach(t=>firedRef.current.add(identity(t)));
