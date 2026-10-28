@@ -526,7 +526,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
             )}
             {/* Contact Info */}
             <div className="dcc-profile-section-title" style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>Contact Information</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+            <div className="dcc-profile-fields-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div><label style={ls}>First Name</label><input value={local.firstName || ''} onChange={e => update('firstName', e.target.value)} style={inp} /></div>
               <div><label style={ls}>Last Name</label><input value={local.lastName || ''} onChange={e => update('lastName', e.target.value)} style={inp} /></div>
               <div><label style={ls}>Phone</label><input value={local.phone || ''} onChange={e => update('phone', e.target.value)} style={inp} /></div>
