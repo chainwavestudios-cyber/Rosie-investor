@@ -20,7 +20,7 @@ import InterviewPage from './pages/InterviewPage';
 import TrainingPage from './pages/TrainingPage';
 import AssistantPortal from './pages/AssistantPortal';
 import SuperAdminPortal from './pages/SuperAdminPortal';
-import EmailEngagementPage from './pages/EmailEngagementPage';
+import DebtEmailEngagementPage from './pages/DebtEmailEngagementPage';
 import DebtWelcomeExperience from './pages/DebtWelcomeExperience';
 import AutomationCenter from './pages/AutomationCenter';
 import AdminFrontPage from './pages/AdminFrontPage';
@@ -56,7 +56,7 @@ import BobInternalPage from './pages/bob/BobInternalPage';
 import BobSecurity from './pages/bob/BobSecurity';
 import BobLiveProducts from './pages/bob/BobLiveProducts';
 
-const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/oauth/consent'];
+const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/email-engagement', '/oauth/consent'];
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -147,7 +147,7 @@ function App() {
               <Route path="/assistant-portal" element={<DebtCoachAuthProvider><AssistantPortal /></DebtCoachAuthProvider>} />
               <Route path="/superadmin-portal" element={<DebtCoachAuthProvider><SuperAdminPortal /></DebtCoachAuthProvider>} />
               <Route path="/adminfrontpage" element={<DebtCoachAuthProvider><AdminFrontPage /></DebtCoachAuthProvider>} />
-              <Route path="/email-engagement" element={<DebtCoachAuthProvider><EmailEngagementPage standalone /></DebtCoachAuthProvider>} />
+              <Route path="/email-engagement" element={<DebtCoachAuthProvider><DebtEmailEngagementPage /></DebtCoachAuthProvider>} />
               <Route path="/automations" element={<DebtCoachAuthProvider><AutomationCenter /></DebtCoachAuthProvider>} />
               <Route path="/evidence-review" element={<DebtCoachAuthProvider><EvidenceReview /></DebtCoachAuthProvider>} />
               <Route path="/notifications" element={<Notifications />} />
