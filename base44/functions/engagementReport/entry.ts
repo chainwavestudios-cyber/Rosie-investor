@@ -68,6 +68,51 @@ async function readAll(entity: any, query: any, max: number, sort: string) {
   return rows.slice(0, max);
 }
 
+/**
+ * The send log the report counts against.
+ *
+ * EmailMessage is what every tracked send writes today — credentials & welcome,
+ * follow-ups, campaign mail, reminders. EmailLog is the older log that only some
+ * senders also wrote, so it is folded in only for a send EmailMessage does not
+ * already hold: counting both would double every campaign send.
+ */
+async function readSends(base44: any, since: string) {
+  const [messages, legacy] = await Promise.all([
+    readAll(base44.asServiceRole.entities.EmailMessage, { sentAt: { $gte: since } }, MAX_SENDS, '-sentAt'),
+    readAll(base44.asServiceRole.entities.EmailLog, { sentAt: { $gte: since } }, MAX_SENDS, '-sentAt'),
+  ]);
+
+  const rows: any[] = messages
+    .filter((message: any) => message.status !== 'failed' && message.status !== 'skipped_duplicate' && !message.unsentAt)
+    .map((message: any) => ({
+      leadId: message.contactId || '',
+      toName: message.contactName || '',
+      toEmail: message.contactEmail || '',
+      templateId: message.templateId || '',
+      templateName: message.templateName || '',
+      subject: message.subject || '',
+      sentAt: message.sentAt || message.created_date,
+    }));
+
+  const seen = new Set(rows.map((row: any) => `${row.leadId || row.toEmail}|${row.templateId || row.templateName}`));
+  legacy.forEach((log: any) => {
+    const key = `${log.leadId || log.toEmail || ''}|${log.templateId || log.templateName || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({
+      leadId: log.leadId || '',
+      toName: log.toName || '',
+      toEmail: log.toEmail || '',
+      templateId: log.templateId || '',
+      templateName: log.templateName || '',
+      subject: log.subject || '',
+      sentAt: log.sentAt || log.created_date,
+    });
+  });
+
+  return rows.sort((a: any, b: any) => String(b.sentAt || '').localeCompare(String(a.sentAt || ''))).slice(0, MAX_SENDS);
+}
+
 /** One contact card: its score in each system, and what to do next. */
 async function scoreOne(base44: any, leadId: string, rules: any) {
   const page = await base44.asServiceRole.entities.EmailTrackingEvent.filter({ leadId }, { sort: '-trackedAt', limit: 200 });
@@ -114,7 +159,7 @@ async function buildReport(base44: any, body: any, rules: any) {
 
   const [rawEvents, sends, fronterTemplates, coachTemplates] = await Promise.all([
     readAll(base44.asServiceRole.entities.EmailTrackingEvent, { trackedAt: { $gte: since } }, MAX_EVENTS, '-trackedAt'),
-    readAll(base44.asServiceRole.entities.EmailLog, { sentAt: { $gte: since } }, MAX_SENDS, '-sentAt'),
+    readSends(base44, since),
     readAll(base44.asServiceRole.entities.FronterEmailTemplate, {}, 300, '-created_date'),
     readAll(base44.asServiceRole.entities.DebtEmailTemplate, {}, 300, '-created_date'),
   ]);
