@@ -89,7 +89,7 @@ function textSimilarity(a, b) {
 }
 
 export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextChange, launchAction }) {
-  const { user: coachUser, can } = useDebtCoachAuth();
+  const { user: coachUser, can, sessionToken, sessionUserId } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
   const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
@@ -125,6 +125,15 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const twilioMediaRef = useRef(false);
   const twilioDialerRef = useRef(null);
   const [twilioWarning, setTwilioWarning] = useState('');
+  const [officeBridge, setOfficeBridge] = useState(null);
+  const officeBridgeRef = useRef(null);
+  const officeMonitorStartedRef = useRef(false);
+  const lastLaunchTokenRef = useRef(null);
+  const officeActionBusyRef = useRef(false);
+  const setOffice = useCallback((next) => {
+    officeBridgeRef.current = typeof next==='function' ? next(officeBridgeRef.current) : next;
+    setOfficeBridge(officeBridgeRef.current);
+  }, []);
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
   const [testingAgent, setTestingAgent] = useState(false);
@@ -455,20 +464,21 @@ Agent line: "${firstAgentLines}"`,
     leadId: lead?.id || null,
     onCallStream: (streams) => {
       if (!streams) {
-        if (twilioMediaRef.current) {
-          twilioMediaRef.current = false;
-          stopCallRef.current?.();
-        }
+        if (twilioMediaRef.current) stopCallRef.current?.();
         return;
       }
-      if (!streams.localStream?.getAudioTracks?.().length || !streams.remoteStream?.getAudioTracks?.().length) {
-        setTwilioWarning('Twilio connected but both voice tracks are not available. The call may be connected; Live transcription has not started.');
+      const remoteAvailable=!!streams.remoteStream?.getAudioTracks?.().length;
+      const agentAvailable=!!streams.localStream?.getAudioTracks?.().length;
+      if (!remoteAvailable || (!streams.mixOnly && !agentAvailable)) {
+        setTwilioWarning('Twilio connected but the voice track is not ready. The phone call may be connected; Live transcription has not started.');
         return;
       }
       if (twilioMediaRef.current || phaseRef.current === 'live') return;
       twilioMediaRef.current = true;
       setTwilioWarning('');
-      startCallRef.current?.(false, false, {agentStream: streams.localStream, customerStream: streams.remoteStream});
+      startCallRef.current?.(false, false, streams.mixOnly
+        ? {agentStream:streams.remoteStream,customerStream:null,mixOnly:true}
+        : {agentStream:streams.localStream,customerStream:streams.remoteStream});
     },
   });
   twilioDialerRef.current = twilioDialer;
@@ -1518,7 +1528,7 @@ ${recentText}`,
     // would put the agent's own voice (and the room) on the customer channel.
     const customerLabel = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
     const customerSlotUsable = !!customerMicId && (!customerLabel || isLoopbackSource(customerLabel));
-    const dualMode = twilioStreams ? true : !!customerMicId && !!micDeviceId && !testModeArg && customerSlotUsable;
+    const dualMode = twilioStreams ? !twilioStreams.mixOnly : !!customerMicId && !!micDeviceId && !testModeArg && customerSlotUsable;
 
     let agentStream, customerStream;
     let feedDual = dualMode;
@@ -1558,7 +1568,7 @@ ${recentText}`,
       }
       }
     } catch (e) {
-      setError('Microphone/audio access denied.');
+      setError(twilioStreams ? 'Twilio audio stream unavailable.' : 'Microphone/audio access denied.');
       setPhase('idle'); setDgStatus('error'); return;
     }
     if (dualMode && !feedDual) {
@@ -1662,6 +1672,13 @@ ${recentText}`,
     if (streamRef.current) { if (!wasTwilio) streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { if (!wasTwilio) customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (wasTwilio) twilioDialerRef.current?.hangup();
+    if (officeBridgeRef.current?.bridgeToken) {
+      base44.functions.invoke('officeLineBridge', {
+        action:'end', leadId:officeBridgeRef.current.leadId,
+        bridgeToken:officeBridgeRef.current.bridgeToken, sessionUserId,sessionToken
+      }).catch(()=>{});
+      setOffice(null);
+    }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     if (recordingUri && transcriptRecordIdRef.current) {
       base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: recordingUri }).catch(() => {});
@@ -2034,6 +2051,10 @@ ${recentText}`,
     if (!s) return;
     setActiveSetupIndex(idx);
     setError('');
+    if (s.transport === 'twilio') {
+      setAudioModeMessage('Twilio Stream uses connected WebRTC call audio, not the Computer/Cell audio inputs.');
+      return;
+    }
     if (!s.saved) {
       setMicDeviceId(''); setCustomerMicId(''); setOutputDeviceId('');
       setAgentGain(1); setCustomerGain(1);
