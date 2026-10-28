@@ -4,6 +4,7 @@
  * The page you are on is highlighted; admin-only portals stay hidden from fronters.
  */
 import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, Target, BriefcaseBusiness, Headphones, ChartNoAxesCombined, Workflow, FileCheck2, ChevronRight } from 'lucide-react';
 
 const ITEMS = [
   { key: 'superadmin', label: 'Super Admin Portal', icon: '🛡', path: '/superadmin-portal', accent: '#f59e0b', adminOnly: true },
@@ -15,8 +16,29 @@ const ITEMS = [
   { key: 'evidence', label: 'Evidence Review', icon: '📄', path: '/evidence-review', accent: '#e879f9', adminOnly: true },
 ];
 
-export default function PortalNavButtons({ current, isAdmin = false }) {
+const COMPACT_ICONS = { superadmin:ShieldCheck,fronter:Target,assistant:BriefcaseBusiness,coach:Headphones,engagement:ChartNoAxesCombined,automations:Workflow,evidence:FileCheck2 };
+
+export default function PortalNavButtons({ current, isAdmin = false, compact = false }) {
   const navigate = useNavigate();
+  // Only Debt Call Coach opts into compact mode. Existing portal appearances
+  // and their access rules remain unchanged.
+  if (compact) return (
+    <nav className="dcc-portal-nav" aria-label="Switch between workspaces">
+      <span className="dcc-portal-nav-label">WORKSPACES <ChevronRight size={13} aria-hidden="true"/></span>
+      <div className="dcc-portal-nav-scroll">
+        {ITEMS.filter(item=>!item.adminOnly||isAdmin).map(item=>{
+          const active=item.key===current;
+          const Icon=COMPACT_ICONS[item.key];
+          return <button key={item.key} type="button" onClick={()=>{if(!active)navigate(item.path);}}
+            aria-current={active?'page':undefined} aria-label={item.label}
+            title={active?`${item.label} — current workspace`:`Switch to ${item.label}`}
+            disabled={active} className={'dcc-portal-link'+(active?' is-active':'')}>
+              <Icon size={14} strokeWidth={1.8} aria-hidden="true"/><span>{item.label}</span>
+            </button>;
+        })}
+      </div>
+    </nav>
+  );
 
   return (
     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', margin: '14px 0 18px' }}>

@@ -5,6 +5,7 @@
  * tabs can be open simultaneously on a wide monitor.
  */
 import { useEffect } from 'react';
+import { ArrowUpRight, PanelTopClose, LocateFixed } from 'lucide-react';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -35,32 +36,23 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
         <div style={{ padding: '40px 20px', textAlign: 'center', background: 'rgba(16,185,129,0.05)', border: `1px dashed ${GOLD}55`, borderRadius: '8px' }}>
           <div style={{ color: GOLD, fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>{icon} {title} is open in a floating window</div>
           <div style={{ color: '#8a9ab8', fontSize: '12px', marginBottom: '14px' }}>Can't see it? Bring it to the center of the screen or dock it back here.</div>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-            <button onClick={panel.center} style={{ background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none', borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>⊕ Bring Window Here</button>
-            <button onClick={panel.toggle} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '6px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>⤡ Dock Into Tab</button>
+          <div style={{ display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap' }}>
+            <button type="button" onClick={panel.center} className="dcc-inline-popout-btn"><LocateFixed size={13}/> Locate window</button>
+            <button type="button" onClick={panel.toggle} className="dcc-inline-popout-btn"><PanelTopClose size={13}/> Dock into tab</button>
           </div>
         </div>
       )}
       {/* Inline mode — only show when this tab is active and not popped out */}
       {active && !panel.poppedOut && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
-            <button
-              onClick={panel.popOut}
-              title="Pop out this tab into a floating, draggable, resizable window"
-              style={{
-                background: `linear-gradient(135deg,${GOLD},#22c55e)`, color: DARK, border: 'none',
-                borderRadius: '6px', padding: '8px 18px', cursor: 'pointer',
-                fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
-                display: 'flex', alignItems: 'center', gap: '6px',
-                boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
-              }}
-            >
-              ⤢ Pop Out Window
+        <section className="dcc-tab-content" aria-label={title}>
+          <div className="dcc-content-popout-bar">
+            <button type="button" className="dcc-inline-popout-btn" onClick={panel.popOut}
+              title={`Open ${title} as a movable window (optional)`}>
+              <ArrowUpRight size={14} aria-hidden="true"/> Detach {title}
             </button>
           </div>
           {children}
-        </div>
+        </section>
       )}
 
       {/* Floating mode — always rendered when popped out, regardless of active tab */}
@@ -68,9 +60,9 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
         <div
           style={{
             ...panel.floatingStyle,
-            background: DARK,
-            border: `1px solid ${GOLD}44`,
-            borderRadius: '8px',
+            background: '#0e1c28',
+            border: '1px solid rgba(176,198,170,.33)',
+            borderRadius: '10px',
             boxShadow: '0 16px 64px rgba(0,0,0,0.8)',
           }}
         >
@@ -86,7 +78,7 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
               cursor: 'move',
               userSelect: 'none',
               flexShrink: 0,
-              background: 'rgba(0,0,0,0.2)',
+              background: 'linear-gradient(110deg,rgba(24,51,48,.95),rgba(15,27,42,.96))',
             }}
           >
             <span style={{ color: GOLD, fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>

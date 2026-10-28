@@ -1,89 +1,105 @@
+/**
+ * Debt Call Coach's compact, two-row navigation.
+ * Keeps SavedLayout per-user drag ordering, deep-link tab IDs and permissions.
+ * The quick-jump menu is an additional view into the SAME tab registry.
+ */
+import { useEffect, useRef } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import {
+  Radio, ScrollText, Flag, Phone, Inbox, Flame, GraduationCap,
+  Target, BrainCircuit, KanbanSquare, Mic2, Mail, Send, Search,
+  ChartNoAxesCombined, ShieldCheck, BookOpen, MessageSquareText,
+  UsersRound, BarChart3, WalletCards, FileBarChart2, Video,
+  Settings2, RotateCcw, GripVertical, ChevronDown
+} from 'lucide-react';
 
-const GOLD = '#10b981';
-const MUTED = '#8a9ab8';
+const ICONS={
+  live:Radio,scripts:ScrollText,closing:Flag,calls:Phone,
+  newleads:Inbox,hotleads:Flame,bob:GraduationCap,leadgen:Target,
+  smartleads:BrainCircuit,pipeline:KanbanSquare,pitches:Mic2,
+  emails:Mail,campaigns:Send,emailfinder:Search,
+  engagement:ChartNoAxesCombined,objections:ShieldCheck,kb:BookOpen,
+  kbchat:MessageSquareText,profile:UsersRound,stats:BarChart3,
+  compliance:ShieldCheck,aicredits:WalletCards,aireports:FileBarChart2,
+  protoface:Video,admin:Settings2,
+};
+const cleanLabel=(label='')=>label.replace(/^[^ ]+\s+/u,'').trim()||label;
 
-// Two-row tab bar for the Debt Call Coach page. Row 0 renders above row 1 and
-// every tab can be dragged to any position in either row.
 export default function CoachTabBar({ rows, tabMap, active, onSelect, onMove, onReset }) {
-  const handleDragEnd = (result) => {
-    if (!result.destination) return;
+  const firstRow=useRef(null),secondRow=useRef(null);
+  const handleDragEnd=({source,destination})=>{
+    if(!destination) return;
+    if(source.droppableId===destination.droppableId&&source.index===destination.index)return;
     onMove(
-      { row: Number(result.source.droppableId), index: result.source.index },
-      { row: Number(result.destination.droppableId), index: result.destination.index },
+      {row:Number(source.droppableId),index:source.index},
+      {row:Number(destination.droppableId),index:destination.index}
     );
   };
+  // The active tab remains findable even when the saved row has many entries.
+  useEffect(()=>{
+    for (const row of [firstRow.current,secondRow.current]){
+      const button=Array.from(row?.querySelectorAll('[data-coach-tab]')||[])
+        .find(el=>el.dataset.coachTab===active);
+      if(button&&row){
+        const left=button.offsetLeft-row.offsetLeft;
+        if(left<row.scrollLeft || left+button.offsetWidth>row.scrollLeft+row.clientWidth){
+          row.scrollTo({left:Math.max(0,left-24),behavior:'auto'});
+        }
+      }
+    }
+  },[active,rows]);
 
-  return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="dcc-coach-tabs" style={{ margin:'11px 0 17px',padding:'8px 10px 4px',background:'linear-gradient(125deg,#101d2a,#101f2a)',border:'1px solid rgba(139,184,173,.19)',borderRadius:12 }}>
-        <style>{` .dcc-coach-tabs button{transition:background .15s,color .15s,border-color .15s}.dcc-coach-tabs button:focus-visible{outline:2px solid #d7ba7a;outline-offset:2px}@media(prefers-reduced-motion:reduce){.dcc-coach-tabs button{transition:none!important}} `}</style>
-        {[0, 1].map((rowIndex) => (
-          <div
-            key={rowIndex}
-            style={{ display:'flex', alignItems:'flex-end',borderBottom:rowIndex===0?'1px solid rgba(138,186,165,.15)':'none',gap:9 }}
-          >
-            <Droppable droppableId={String(rowIndex)} direction="horizontal">
-              {(provided, snapshot) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  style={{
-                    display:'flex',gap:3,flex:1,minHeight:rowIndex===0?'34px':'3px',padding:'3px 0',
-                    overflowX:'auto',background:snapshot.isDraggingOver?'rgba(16,185,129,.07)':'transparent',
-                  }}
-                >
-                  {rows[rowIndex].map((id, index) => {
-                    const tabDef = tabMap[id];
-                    if (!tabDef) return null;
-                    return (
-                      <Draggable key={id} draggableId={id} index={index}>
-                        {(drag, snap) => (
-                          <button
-                            ref={drag.innerRef}
-                            {...drag.draggableProps}
-                            {...drag.dragHandleProps}
-                            onClick={() => onSelect(id)}
-                            title="Click to open · drag to reorder"
-                            aria-current={active===id?'page':undefined}
-                            style={{
-                              padding:'8px 12px',
-                              background:active===id?'linear-gradient(125deg,rgba(34,124,93,.28),rgba(19,76,68,.12))':snap.isDragging?'rgba(255,255,255,.07)':'transparent',
-                              border:'1px solid '+(active===id?'rgba(67,184,144,.4)':'transparent'),
-                              borderBottom:'2px solid '+(active===id?'#49d6a7':'transparent'),
-                              borderRadius:'7px 7px 4px 4px',
-                              color:active===id?'#b9f2d9':'#99aebb',
-                              cursor:'pointer',
-                              fontSize:12,
-                              fontWeight:active===id?800:550,
-                              whiteSpace: 'nowrap',
-                              opacity: snap.isDragging ? 0.75 : 1,
-                            }}
-                          >
-                            {tabDef.label}
-                          </button>
-                        )}
-                      </Draggable>
-                    );
-                  })}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-            {rowIndex === 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 0 8px 12px', flexShrink: 0 }}>
-                <span style={{ color:'#738e96',fontSize:9,letterSpacing:'.4px',whiteSpace:'nowrap' }}>Drag to arrange</span>
-                <button
-                  onClick={onReset}
-                  style={{background:'rgba(255,255,255,.035)',color:'#9db5ba',border:'1px solid rgba(161,187,191,.18)',borderRadius:6,padding:'5px 8px',cursor:'pointer',fontSize:10}}
-                >
-                  ↺ Reset order
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+  const visible=Object.keys(tabMap).map(id=>({id, label:cleanLabel(tabMap[id].label)}));
+  return <div className="dcc-tab-wrap" role="region" aria-label="Debt Call Coach sections">
+    <div className="dcc-tab-toolbar">
+      <div className="dcc-tab-toolbar-title"><span className="dcc-tab-toolbar-dot"/> COACH SECTIONS <span className="dcc-tab-count">{visible.length}</span></div>
+      <div className="dcc-tab-toolbar-actions">
+        <label className="dcc-tab-jump">
+          <Search size={14} aria-hidden="true"/>
+          <span className="sr-only">Jump to section</span>
+          <select aria-label="Jump to section" value={active} onChange={e=>onSelect(e.target.value)}>
+            <option value="" disabled>Jump to section…</option>
+            {visible.map(({id,label})=><option key={id} value={id}>{label}</option>)}
+          </select>
+          <ChevronDown size={13} aria-hidden="true"/>
+        </label>
+        <button type="button" onClick={onReset} className="dcc-tab-reset" title="Restore the default tab order" aria-label="Reset tab arrangement"><RotateCcw size={13}/> Reset</button>
       </div>
+    </div>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      {[0,1].map(index=><div key={index} className={'dcc-tab-row'+(index===1?' is-core':'')}>
+        <span className="dcc-tab-row-label" title={index===1?'Day-to-day calling tools':'Additional tools'}>
+          {index===1?'CALLING':'TOOLS'}
+        </span>
+        <Droppable droppableId={String(index)} direction="horizontal">
+          {(provided,snapshot)=><div
+            ref={node=>{provided.innerRef(node);(index===0?firstRow:secondRow).current=node;}}
+            {...provided.droppableProps}
+            className={'dcc-tab-scroll'+(snapshot.isDraggingOver?' is-dropping':'')}
+            role="tablist" aria-label={index===1?'Calling tabs':'Tool tabs'}>
+            {(rows[index]||[]).map((id,tabIndex)=>{
+              const definition=tabMap[id]; if(!definition)return null;
+              const Icon=ICONS[id]||BookOpen;
+              const selected=id===active;
+              return <Draggable key={id} draggableId={id} index={tabIndex}>
+                {(drag,dragState)=><button
+                  ref={drag.innerRef} {...drag.draggableProps} {...drag.dragHandleProps}
+                  data-coach-tab={id}
+                  role="tab" aria-selected={selected}
+                  className={'dcc-tab-item'+(selected?' is-active':'')+(dragState.isDragging?' is-dragging':'')}
+                  onClick={()=>onSelect(id)}
+                  title={cleanLabel(definition.label)+' — select; drag to rearrange'}>
+                  <Icon size={14} strokeWidth={1.9} aria-hidden="true"/>
+                  <span>{cleanLabel(definition.label)}</span>
+                  {selected&&<span className="dcc-tab-active-dot" aria-hidden="true"/>}
+                </button>}
+              </Draggable>;
+            })}
+            {provided.placeholder}
+          </div>}
+        </Droppable>
+        <GripVertical className="dcc-tab-grip-hint" size={14} aria-hidden="true"/>
+      </div>)}
     </DragDropContext>
-  );
+  </div>;
 }
