@@ -2,7 +2,7 @@
  * Quiet, live contact dock for the script reading mode. A single Save & Send
  * action commits on-screen edits BEFORE the email/SMS backend reads the card.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
@@ -30,6 +30,7 @@ const initial = lead => ({
 export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingEmail, smsOpen, onSmsOpen, emailRequest = 0 }) {
   const { sessionToken, sessionUserId, user } = useDebtCoachAuth();
   const [draft, setDraft] = useState(() => initial(lead));
+  const baseRef = useRef(initial(lead));
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [text, setText] = useState('');
@@ -37,14 +38,17 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
   const [smsSending, setSmsSending] = useState(false);
   const [smsResult, setSmsResult] = useState(null);
   useEffect(() => {
+    baseRef.current = initial(lead);
     setDraft(initial(lead)); setFeedback(''); setConsent(false); setSmsResult(null);
   }, [lead?.id]);
   useEffect(() => {
-    // Avoid replacing unsaved typing with a stale re-render from Live Call.
-    setDraft(previous => {
-      const old = initial(lead);
-      return Object.keys(old).every(key => String(previous[key]) === String(old[key])) ? old : previous;
-    });
+    // Refresh confirmed server-side values, retaining only actual unsaved typing.
+    const next = initial(lead);
+    const last = baseRef.current;
+    setDraft(previous => Object.fromEntries(
+      Object.keys(next).map(key => [key, String(previous[key]) === String(last[key]) ? next[key] : previous[key]])
+    ));
+    baseRef.current = next;
   }, [lead?.email, lead?.phone, lead?.debtAmount]);
   useEffect(() => {
     const name = lead?.firstName || 'there';
@@ -80,6 +84,7 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
       window.dispatchEvent(new CustomEvent('debt_script_contact_saved', { detail: { leadId: lead.id, updates } }));
       window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
       onSaved?.(updates);
+      setDraft(previous => ({ ...previous, ...updates, debtAmount: updates.debtAmount != null ? String(updates.debtAmount) : previous.debtAmount }));
     }
     setFeedback(Object.keys(updates).length ? '✓ Contact card updated' : '✓ Contact card is current');
     return true;

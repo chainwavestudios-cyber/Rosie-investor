@@ -362,13 +362,14 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {/* Script tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '12px', overflowX: 'auto', flexShrink: 0, gap: 0 }}>
-        {scripts.map(s => (
-          <button key={s.id} onClick={() => setActiveId(s.id)}
-            style={{ background: activeId === s.id ? `${GOLD}10` : 'none', border: 'none', borderBottom: activeId === s.id ? `2px solid ${GOLD}` : '2px solid transparent', color: activeId === s.id ? GOLD : '#6b7280', padding: '8px 14px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>
-            {s.name}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.07)', marginBottom: '10px', overflowX: 'auto', flexShrink: 0, gap: 8 }}>
+        <label style={{display:'flex',alignItems:'center',gap:8,minWidth:0,flex:'1 1 240px'}}>
+          <span style={{color:'#aab9be',fontSize:10,fontWeight:800,letterSpacing:'.8px',whiteSpace:'nowrap'}}>SCRIPT</span>
+          <select aria-label="Choose script" value={active?.id || ''} onChange={e=>setActiveId(e.target.value)}
+            style={{...inp,padding:'8px 10px',background:'#102231',color:'#e8e0d0',fontWeight:700,flex:1,minWidth:110,borderRadius:8}}>
+            {scripts.map(s=><option value={s.id} key={s.id}>{s.name}{s.scriptType && s.scriptType !== 'custom' ? ' · '+s.scriptType : ''}</option>)}
+          </select>
+        </label>
         {showNewForm ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', flexShrink: 0, background: 'rgba(0,0,0,0.2)', borderRadius: '4px', margin: '4px' }}>
             <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addScript(); if (e.key === 'Escape') setShowNewForm(false); }} placeholder="Script name…" autoFocus style={{ ...inp, width: '120px', padding: '4px 8px', fontSize: '11px' }} />
