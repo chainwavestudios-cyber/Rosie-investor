@@ -11,6 +11,7 @@ import { Play, Pause, CalendarDays, ExternalLink, Headphones, ShieldCheck } from
 const AUDIO = 'https://media.base44.com/files/public/user_698c0a03e173fb21bfe27203/4bc8d43a8_Recording0025.mp3';
 const IMAGE = 'https://media.base44.com/images/public/6ad190ed13c97cfb279c4aaf/6dc1b806b_Gemini_Generated_Image_s4jw3gs4jw3gs4jw.jpeg';
 const CALENDAR = 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ2-pm-4DGAK3fbv_ESQ_GV1hj1cPDUnaYord46WIejKIh_5mWbfdiV5azx_vxkxyX_JesOFrsvR';
+const COMPANY_WEBSITE = 'https://www.debtadvisorsofamerica.com/';
 const GREEN = '#34d399';
 const GOLD = '#d9b877';
 const fmt = (n) => { const t = Math.max(0, Math.floor(Number(n) || 0)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
@@ -139,6 +140,18 @@ export default function DebtWelcomeExperience() {
             style={{ minWidth: 0, flex: 1, accentColor: GREEN, cursor: 'pointer' }}/>
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: '#b6ccc6' }}>{fmt(duration)}</span>
         </div>
+      </section>
+      <section className="rw-reveal" aria-label="About Debt Advisors of America" style={{ animationDelay: '.11s', marginTop: 17, display: 'flex', gap: 16, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', border: '1px solid #436a61', borderRadius: 16, background: 'linear-gradient(115deg,#17352f,#13242d)', padding: '20px clamp(18px,4vw,30px)' }}>
+        <div style={{ flex: '1 1 280px' }}>
+          <div style={{ fontSize: 10, letterSpacing: 1.7, fontWeight: 750, color: GOLD, marginBottom: 7 }}>GET TO KNOW THE COMPANY</div>
+          <h2 style={{ font: 'normal 22px Georgia,serif', margin: '0 0 7px' }}>Debt Advisors of America</h2>
+          <p style={{ fontSize: 13, lineHeight: 1.6, color: '#b8c8c5', margin: 0 }}>Visit our official website to learn about the company, our approach, and available debt relief options.</p>
+        </div>
+        <a className="rw-focus" href={COMPANY_WEBSITE} target="_blank" rel="noopener noreferrer" onClick={() => submit('website_click')}
+          style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '13px 19px', borderRadius: 9, background: GREEN, border: '1px solid #c8f7e5', color: '#09291e', fontSize: 13, fontWeight: 780, textDecoration: 'none' }}>
+          Visit Our Company Website <ExternalLink size={17}/>
+        </a>
+        <div style={{ width: '100%', color: '#9bbab2', fontSize: 11, marginTop: -5 }}>www.debtadvisorsofamerica.com · Opens in a new tab</div>
       </section>
       <section className="rw-reveal" style={{ animationDelay: '.15s', marginTop: 17, border: '1px solid #3a4a56', borderRadius: 16, background: 'linear-gradient(115deg,#13232d,#0f2a27)', padding: '24px clamp(18px,4vw,30px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, color: GOLD }}><CalendarDays size={22}/><span style={{ fontSize: 11, fontWeight: 750, letterSpacing: 1.7 }}>YOUR NEXT STEP</span></div>
