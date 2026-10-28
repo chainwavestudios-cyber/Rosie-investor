@@ -7,7 +7,7 @@ import './BobSite.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
-async function textFromFile(file){
+export async function textFromFile(file){
   if(file.size>12*1024*1024)throw new Error('Documents must be under 12MB.');
   const name=file.name.toLowerCase();
   if(/\.(txt|csv|md)$/i.test(name))return file.text();
