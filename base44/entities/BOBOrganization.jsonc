@@ -65,6 +65,26 @@
     "stripeCheckoutSessionId": {
       "type": "string",
       "title": "stripeCheckoutSessionId"
+    },
+    "managerCanConfigure": {
+      "type": "boolean",
+      "title": "managerCanConfigure",
+      "default": false
+    },
+    "managerCanControlRecording": {
+      "type": "boolean",
+      "title": "managerCanControlRecording",
+      "default": false
+    },
+    "allowSessionRecording": {
+      "type": "boolean",
+      "title": "allowSessionRecording",
+      "default": false
+    },
+    "allowLiveMonitoring": {
+      "type": "boolean",
+      "title": "allowLiveMonitoring",
+      "default": false
     }
   },
   "required": [

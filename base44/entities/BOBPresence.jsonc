@@ -1,0 +1,73 @@
+{
+  "name": "BOBPresence",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organizationId"
+    },
+    "traineeEmail": {
+      "type": "string",
+      "title": "traineeEmail"
+    },
+    "status": {
+      "type": "string",
+      "title": "status"
+    },
+    "stage": {
+      "type": "string",
+      "title": "stage"
+    },
+    "sessionToken": {
+      "type": "string",
+      "title": "sessionToken"
+    },
+    "startedAt": {
+      "type": "string",
+      "title": "startedAt"
+    },
+    "lastHeartbeat": {
+      "type": "string",
+      "title": "lastHeartbeat"
+    },
+    "endedAt": {
+      "type": "string",
+      "title": "endedAt"
+    },
+    "recordingEnabled": {
+      "type": "boolean",
+      "title": "recordingEnabled"
+    },
+    "liveMonitorConsent": {
+      "type": "boolean",
+      "title": "liveMonitorConsent"
+    }
+  },
+  "required": [
+    "organizationId",
+    "traineeEmail",
+    "sessionToken"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

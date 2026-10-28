@@ -21,7 +21,9 @@ const fmtOrg = (o: any) => ({
   status:o.status, industry:o.industry, preferredVoice:o.preferredVoice,
   hasDeepgramKey:!!o.encryptedDeepgramKey, createdAt:o.createdAt, knowledgeSalt:o.knowledgeSalt||'',
   keyVerifier:o.keyVerifier||'', billingStatus:o.billingStatus||'trial',
-  hasSubscription:!!o.stripeSubscriptionId
+  hasSubscription:!!o.stripeSubscriptionId,managerCanConfigure:!!o.managerCanConfigure,
+  managerCanControlRecording:!!o.managerCanControlRecording,
+  allowSessionRecording:!!o.allowSessionRecording,allowLiveMonitoring:!!o.allowLiveMonitoring
 });
 const secureGateway = async (req: Request) => {
   const base44 = createClientFromRequest(req);
@@ -60,6 +62,20 @@ const secureGateway = async (req: Request) => {
     if (member?.role!=='owner' && member?.role!=='admin') throw new Error('Organization administrator permission required.');
   };
 
+  // A manager may design flows only after the OWNER delegates that permission.
+  // Operators without a tenant membership are never granted access to tenant data.
+  const mayConfigure=()=>['owner','admin'].includes(member?.role) ||
+    (member?.role==='manager' && !!org?.managerCanConfigure);
+  const requireFlowAdmin=()=>{
+    requireOrg();
+    if(!mayConfigure())throw new Error('Your organization administrator has not delegated flow editing to your role.');
+  };
+  const mayControlRecording=()=>['owner','admin'].includes(member?.role) ||
+    (member?.role==='manager' && !!org?.managerCanControlRecording);
+  const requireManagement=()=>{
+    requireOrg();
+    if(!['owner','admin','manager'].includes(member?.role))throw new Error('Manager permission required.');
+  };
   const requireSettingsAccess=()=>{
     if(!org||!(isPlatformOrg||['owner','admin'].includes(member?.role)))
        throw new Error('Organization settings permission required.');
@@ -90,7 +106,8 @@ const secureGateway = async (req: Request) => {
       ownerEmail,seatLimit:seats,status:isPlatformAdmin?'active':'trial',
       industry:str(data.industry,80)||'General sales',preferredVoice:'flux-cliff-en',
       knowledgeSalt:btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
-      billingStatus:'trial',createdAt:now()});
+      billingStatus:'trial',managerCanConfigure:false,managerCanControlRecording:false,
+      allowSessionRecording:false,allowLiveMonitoring:false,createdAt:now()});
     await db.BOBMember.create({organizationId:o.id,email:ownerEmail,displayName:'',role:'owner',status:'active',createdAt:now()});
     return Response.json({success:true,organization:fmtOrg(o)});
   }
@@ -111,6 +128,11 @@ const secureGateway = async (req: Request) => {
       if ((members||[]).filter((m:any)=>m.status==='active').length>fields.seatLimit) return bad('Seat limit cannot be below active members.');
     }
     if (isPlatformAdmin && ['active','trial','suspended'].includes(data.status)) fields.status=data.status;
+    // Privacy/roles policies are owned by customer administrators only.
+    if(['owner','admin'].includes(member?.role)){
+      for(const key of ['managerCanConfigure','managerCanControlRecording','allowSessionRecording','allowLiveMonitoring'])
+        if(typeof data[key]==='boolean')fields[key]=data[key];
+    }
     await db.BOBOrganization.update(org.id, fields);
     return Response.json({success:true});
   }
@@ -121,7 +143,7 @@ const secureGateway = async (req: Request) => {
   }
   if (action==='addMember') {
     requireAdmin();
-    const newEmail=emailOf(data.email), role=['trainee','admin'].includes(data.role)?data.role:'trainee';
+    const newEmail=emailOf(data.email), role=['trainee','admin','manager'].includes(data.role)?data.role:'trainee';
     if (!/^\S+@\S+\.\S+$/.test(newEmail)) return bad('Valid trainee email required.');
     const members=await db.BOBMember.filter({organizationId:org.id});
     if (members.some((m:any)=>m.email===newEmail)) return bad('This email is already on the organization.');
@@ -143,6 +165,15 @@ const secureGateway = async (req: Request) => {
     if (!target || target.organizationId!==org.id) return bad('Member not found.',404);
     if (target.role==='owner') return bad('Organization owner cannot be removed.');
     await db.BOBMember.delete(target.id);
+    return Response.json({success:true});
+  }
+  if (action==='updateMemberRole'){
+    requireAdmin();
+    const target=await db.BOBMember.get(str(data.memberId,120)).catch(()=>null);
+    if(!target||target.organizationId!==org.id)return bad('Member not found in this organization.',404);
+    if(target.role==='owner')return bad('The organization owner cannot be reassigned.',403);
+    if(!['trainee','manager','admin'].includes(data.role))return bad('Invalid role.');
+    await db.BOBMember.update(target.id,{role:data.role});
     return Response.json({success:true});
   }
   if(action==='ensureEncryptionSalt'){
@@ -179,6 +210,71 @@ const secureGateway = async (req: Request) => {
     if(!row||row.organizationId!==org.id)return bad('Not found.',404);
     await db.BOBKnowledge.delete(row.id);
     return Response.json({success:true});
+  }
+  // Encrypted scripts and full simulation workflows. Platform operators cannot read
+  // their ciphertext through this endpoint without a customer membership.
+  if(['listFlows','saveFlow','deleteFlow','listScripts','saveScript','deleteScript'].includes(action)){
+    requireOrg();
+    const flows=action.toLowerCase().includes('flow');
+    const table=flows?db.BOBWorkflow:db.BOBScript;
+    if(action==='listFlows'||action==='listScripts'){
+      const rows=await table.filter({organizationId:org.id},'-created_date',150);
+      return Response.json({success:true,items:(rows||[]).map((r:any)=>({
+        id:r.id,encryptedPayload:r.encryptedPayload,createdAt:r.createdAt,updatedAt:r.updatedAt
+      }))});
+    }
+    requireFlowAdmin();
+    if(action==='saveFlow'||action==='saveScript'){
+      if(!org.keyVerifier)return bad('Initialize your vault before editing workflow content.',409);
+      const payload=encrypted(data.encryptedPayload),id=str(data.itemId,120);
+      if(id){
+        const old=await table.get(id).catch(()=>null);
+        if(!old||old.organizationId!==org.id)return bad('Item not found.',404);
+        await table.update(id,{encryptedPayload:payload,updatedAt:now()});
+        return Response.json({success:true,id});
+      }
+      const row=await table.create({organizationId:org.id,encryptedPayload:payload,createdBy:email,createdAt:now(),updatedAt:now()});
+      return Response.json({success:true,id:row.id});
+    }
+    const id=str(data.itemId,120);
+    const old=await table.get(id).catch(()=>null);
+    if(!old||old.organizationId!==org.id)return bad('Item not found.',404);
+    await table.delete(id);
+    return Response.json({success:true});
+  }
+  // Training presence is only metadata: we deliberately do not pretend it is an
+  // audio stream. Actual media monitoring requires a separate opt-in relay.
+  if(action==='presenceStart'){
+    requireOrg();
+    const sessionToken=crypto.randomUUID();
+    await db.BOBPresence.create({organizationId:org.id,traineeEmail:email,status:'live',
+      stage:str(data.stage,120),sessionToken,startedAt:now(),lastHeartbeat:now(),
+      recordingEnabled:false,liveMonitorConsent:data.liveMonitorConsent===true && !!org.allowLiveMonitoring});
+    return Response.json({success:true,sessionToken});
+  }
+  if(action==='presenceHeartbeat'||action==='presenceEnd'){
+    requireOrg();
+    const token=str(data.sessionToken,120);
+    if(!token)return bad('Missing presence session token.');
+    const matches=await db.BOBPresence.filter({organizationId:org.id,sessionToken:token});
+    const presence=(matches||[]).find((r:any)=>r.traineeEmail===email);
+    if(!presence)return bad('Training presence not found.',404);
+    if(action==='presenceEnd'){
+      await db.BOBPresence.update(presence.id,{status:'ended',endedAt:now(),lastHeartbeat:now()});
+    }else{
+      await db.BOBPresence.update(presence.id,{stage:str(data.stage,120),lastHeartbeat:now()});
+    }
+    return Response.json({success:true});
+  }
+  if(action==='liveSessions'){
+    requireManagement();
+    const rows=await db.BOBPresence.filter({organizationId:org.id},'-created_date',100);
+    const cutoff=Date.now()-90000;
+    return Response.json({success:true,sessions:(rows||[]).filter((r:any)=>r.status==='live'&&
+      new Date(r.lastHeartbeat).getTime()>cutoff).map((r:any)=>({
+      traineeEmail:r.traineeEmail,stage:r.stage,startedAt:r.startedAt,
+      lastHeartbeat:r.lastHeartbeat,liveMonitorConsent:r.liveMonitorConsent
+    }))});
   }
   if (action==='setDeepgramKey') {
     requireAdmin();
@@ -221,7 +317,7 @@ const secureGateway = async (req: Request) => {
   if(action==='sessions'){
     requireOrg();
     const rows=await db.BOBTrainingSession.filter({organizationId:org.id},'-created_date',100);
-    const allowed=['owner','admin'].includes(member?.role)?rows:rows.filter((r:any)=>r.traineeEmail===email);
+    const allowed=['owner','admin','manager'].includes(member?.role)?rows:rows.filter((r:any)=>r.traineeEmail===email);
     return Response.json({success:true,sessions:allowed.map((r:any)=>({
       id:r.id,traineeEmail:r.traineeEmail,scenario:r.scenario,mode:r.mode,
       persona:r.persona,difficulty:r.difficulty,voiceModel:r.voiceModel,
@@ -244,7 +340,7 @@ const secureGateway = async (req: Request) => {
     requireOrg();
     const record=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
     if(!record||record.organizationId!==org.id)return bad('Session not found.',404);
-    if(!['owner','admin'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
+    if(!['owner','admin','manager'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
     if(record.encryptedReview)return bad('Review already exists.',409);
     // Plaintext decrypted in browser, processed transiently by model, never persisted here.
     const rows=Array.isArray(data.transcript)?data.transcript.slice(-250).map((t:any)=>({
@@ -278,7 +374,7 @@ ${dialogue}`,
     requireOrg();
     const record=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
     if(!record||record.organizationId!==org.id)return bad('Session not found.',404);
-    if(!['owner','admin'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
+    if(!['owner','admin','manager'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
     if(record.encryptedReview)return bad('Review already saved.',409);
     await db.BOBTrainingSession.update(record.id,{encryptedReview:encrypted(data.encryptedReview),reviewedAt:now()});
     return Response.json({success:true});

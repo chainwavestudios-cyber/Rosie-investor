@@ -1,15 +1,12 @@
 /**
  * CustomerQADocUploader.jsx — Upload a document (PDF/TXT/DOC) holding many
  * questions and answers into the Customer Q&A section of the KB.
- * Uses kbExtractFile to extract Q&A pairs, then saves each with the
- * debt_customer category. Includes a "Priority Answers" checkbox — when
- * checked, answers for questions already in the KB are prepended and starred
- * so they become the first answer surfaced in Q&A lookups.
+ * Uses kbExtractFile to extract Q&A pairs and queues selected suggestions
+ * for supervisor review. Never overwrites a published KB answer implicitly.
  */
 import { useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { computeFileHash, checkDuplicateHash } from '@/lib/fileDedup';
-import { saveQAWithPriority } from '@/lib/kbPriority';
 
 const DARK = '#0a0f1e';
 const ORANGE = '#f59e0b';
@@ -19,7 +16,6 @@ export default function CustomerQADocUploader({ category, onSaved }) {
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [priority, setPriority] = useState(false);
   const [extractedEntries, setExtractedEntries] = useState([]);
   const [selectedEntries, setSelectedEntries] = useState(new Set());
   const [saving, setSaving] = useState(false);
@@ -67,27 +63,20 @@ export default function CustomerQADocUploader({ category, onSaved }) {
   const saveSelected = async () => {
     setSaving(true);
     const toSave = extractedEntries.filter((_, i) => selectedEntries.has(i));
-    let merged = 0;
-    let created = 0;
+    let queued=0,failed=0;
     for (const e of toSave) {
       try {
-        const res = await saveQAWithPriority({
-          question: e.question,
-          answers: [e.answer],
-          category,
-          priority,
-          source: 'document_upload',
-          tags: `file_hash:${fileHash}`,
+        await base44.entities.DebtKBProposal.create({
+          question:e.question,answer:e.answer,category,status:'pending_review',
+          source:'Customer Q&A Document',tags:`file_hash:${fileHash}`,sourceHash:fileHash
         });
-        if (res?.merged) merged++;
-        else created++;
+        queued++;
       } catch (err) {
-        console.warn('Failed to save Q&A:', err?.message || err);
+        failed++;
+        console.warn('Could not queue Q&A:', err?.message||err);
       }
     }
-    setStatus(
-      `✓ Saved ${toSave.length} entries — ${created} new, ${merged} merged into existing questions${priority ? ' (priority)' : ''}.`
-    );
+    setStatus(`${queued} Q&A suggestions queued for KB approval.${failed?` ${failed} could not be queued.`:''} No approved answer was replaced.`);
     setExtractedEntries([]);
     setSelectedEntries(new Set());
     onSaved();
@@ -101,24 +90,8 @@ export default function CustomerQADocUploader({ category, onSaved }) {
         📄 Upload Q&A Document
       </div>
       <div style={{ color: '#6b7280', fontSize: '11px', marginBottom: '16px' }}>
-        Upload a PDF, TXT, or DOC that holds many questions and answers. AI extracts each Q&A pair and saves it to Customer Q&A. Enable Priority Answers to push new answers ahead of existing ones for matching questions.
+        Upload a document containing questions and answers. AI extracts suggestions for your review; selected pairs enter the shared KB Review Queue before any live answer changes. Manage starred answers by editing a published KB entry.
       </div>
-
-      {/* Priority checkbox */}
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', cursor: 'pointer', userSelect: 'none' }}>
-        <input
-          type="checkbox"
-          checked={priority}
-          onChange={(e) => setPriority(e.target.checked)}
-          style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: ORANGE }}
-        />
-        <span style={{ color: priority ? ORANGE : '#8a9ab8', fontSize: '12px', fontWeight: 'bold' }}>
-          ⭐ Priority Answers
-        </span>
-        <span style={{ color: '#6b7280', fontSize: '11px' }}>
-          — new answers become the first answer for questions already in the KB
-        </span>
-      </label>
 
       <input
         ref={fileRef}
@@ -226,7 +199,7 @@ export default function CustomerQADocUploader({ category, onSaved }) {
               opacity: saving || selectedEntries.size === 0 ? 0.5 : 1,
             }}
           >
-            💾 Save {selectedEntries.size} Q&A {priority ? 'with Priority' : ''}
+            Queue {selectedEntries.size} Q&A for Review
           </button>
         </div>
       )}
