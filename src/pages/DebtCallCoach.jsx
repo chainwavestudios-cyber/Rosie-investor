@@ -9,7 +9,6 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { base44 } from '@/api/base44Client';
 import DualClockBar from '@/components/shared/DualClockBar';
 import PortalNavButtons from '@/components/shared/PortalNavButtons';
-import { isComplianceManager } from '@/lib/complianceRoles';
 import DebtLiveCall from '@/components/debt/DebtLiveCall';
 import DebtCoachAdminPanel from '@/components/debt/DebtCoachAdminPanel';
 import DebtKBManager from '@/components/debt/DebtKBManager';
