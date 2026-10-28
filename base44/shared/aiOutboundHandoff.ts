@@ -6,7 +6,6 @@
  * value question was asked and answered. An actual customer response is.
  */
 const textOf = (m) => String(m?.content || '').trim();
-const normalized = (s) => String(s || '').trim().toLowerCase();
 const isUser = (m) => String(m?.role || '').toLowerCase() === 'user';
 const isAgent = (m) => !isUser(m);
 const wantsHuman = (s) => /\b(?:transfer(?: me)?|talk to (?:a |the )?(?:person|human|advisor|chris)|speak to (?:a |the )?(?:person|human|advisor|chris)|connect me|patch me through|put me through|appointment|book (?:a |an )?(?:time|call|appointment))\b/i.test(s);
@@ -18,13 +17,25 @@ const answeredType = (s) => /\b(?:credit cards?|cards?|personal loans?|loans?|bo
 const warmQuestion = (s) => /\b(?:would|could)\b[\s\S]{0,250}\b(?:helpful|help|beneficial|make (?:things|the payments?) (?:easier|manageable))\b[\s\S]{0,100}\?/i.test(s);
 const queueAnnouncement = (s) => /\b(?:placing|putting|transfer(?:ring)?|patch(?:ing)?|connect(?:ing)?)\b[\s\S]{0,90}\b(?:queue|chris|advisor|specialist|line|over)\b/i.test(s);
 export const OUTBOUND_WARM_QUESTION =
-  "Understood. Our debt-relief programs are designed to reduce qualifying unsecured debt balances by about thirty to forty percent and eliminate future interest under the applicable program terms. If that could help your family, would you like me to connect you with Chris, our senior debt advisor? He can explain the details.";
+  "Understood. Well, because of the current rate-drop updates in {{state}}, we can get those monthly payments cut down significantly, typically 30-50 percent,  eliminate all future interest, and make every future payment again principle only.  If all that were true, in a program there are no up front fees and is totally legit, would that be helpful to your family?";
 export const OUTBOUND_QUEUE_NOTICE =
   "Thank you. I'm going to place you in Chris's queue now. There may be a few seconds of silence while I connect you.";
 export const OUTBOUND_DEBT_QUESTION =
-  "Got it. Are those mostly unsecured credit cards, personal loans, or a mix of both?";
-export const OUTBOUND_POST_PERMISSION =
-  "Great, this is Alex with the Debt Verification Desk at Debt Solutions. I'm an automated assistant reaching out about options for high-interest unsecured debt. Are those mostly credit cards, personal loans, or both?";
+  "Got it. And are those mostly major cards like Chase, Citi, Discover, or personal loans?";
+
+// Use the exact user-maintained Step 2 / Step 3 lines from the saved live
+// script. The gate enforces order; it must NOT author new sales language.
+function configuredLine(prompt, section, fallback) {
+  const source = String(prompt || '');
+  const start = source.indexOf(section);
+  if (start < 0) return fallback;
+  const after = source.slice(start + section.length);
+  const match = after.match(/^- Say:\s*"([^"]+)"/m);
+  return match?.[1] || fallback;
+}
+function fillState(text, lead) {
+  return text.replace(/\{\{state\}\}/g, String(lead?.state || ''));
+}
 
 export function outboundHandoffState(conversation = []) {
   const messages = Array.isArray(conversation) ? conversation.filter(m => textOf(m)) : [];
@@ -61,27 +72,12 @@ export function outboundHandoffState(conversation = []) {
   };
 }
 
-export function enforceOutboundHandoff({conversation=[], action='speak', text='', lead=null} = {}) {
+export function enforceOutboundHandoff({conversation=[], action='speak', text='', lead=null, configuredPrompt='' } = {}) {
   const state = outboundHandoffState(conversation);
   const said = String(text || '').trim();
   if (state.optOut) return { action:'end_call', text:'Understood. I will record your request not to be contacted again. Goodbye.', disposition:'opt_out', state };
   if (state.explicitHumanRequest) {
     return {action:'transfer',text:OUTBOUND_QUEUE_NOTICE,disposition:'',state};
-  }
-  // Answering the opening permission question is NOT an opportunity to
-  // pause awkwardly after identifying Alex, nor to claim unverified state
-  // or credit-bureau information. Deliver identity + the debt question now.
-  const clean = Array.isArray(conversation) ? conversation.filter(m=>textOf(m)) : [];
-  const lastUserIndex = clean.map(isUser).lastIndexOf(true);
-  const precedingAgent = lastUserIndex>0 && isAgent(clean[lastUserIndex-1])
-    ? textOf(clean[lastUserIndex-1]) : '';
-  const justAnsweredPermission = /(?:bad time|away from anything|interrupt|is this a good time|have (?:a |one )?moment)/i.test(precedingAgent);
-  const busy = /\b(?:busy|bad time|can't talk|cannot talk|not now|later|another time|working|on the road)\b/i.test(state.lastCustomer);
-  if(justAnsweredPermission && !busy && !state.debtTypeConfirmed){
-    return {action:'speak',text:OUTBOUND_POST_PERMISSION,disposition:'',state};
-  }
-  if(justAnsweredPermission && busy){
-    return {action:'speak',text:'Of course. Is there a better time for a brief call?',disposition:'',state};
   }
   if (state.warmQuestionAsked && state.warmQuestionAnswered) {
     if (state.warmDeclined) {
@@ -92,15 +88,10 @@ export function enforceOutboundHandoff({conversation=[], action='speak', text=''
     }
   }
   if (state.debtTypeConfirmed && !state.warmQuestionAsked) {
-    return {action:'speak',text:OUTBOUND_WARM_QUESTION,disposition:'',state};
+    return {action:'speak',text:fillState(configuredLine(configuredPrompt, 'STEP 3 — THE WARM HANDOFF', OUTBOUND_WARM_QUESTION),lead),disposition:'',state};
   }
   if (action==='transfer' || queueAnnouncement(said)) {
-    return {action:'speak',text:OUTBOUND_DEBT_QUESTION,disposition:'',state};
-  }
-  // Never stop after the standalone identification phrase. Ask the next
-  // qualifying question in the same reply, unless another question is present.
-  if (/^(?:this is|my name is|great[,!.]?\s*this is)\s+alex\b/i.test(said) && !said.includes('?')) {
-    return {action:'speak',text:said.replace(/[.! ]+$/,'')+'. '+OUTBOUND_DEBT_QUESTION,disposition:'',state};
+    return {action:'speak',text:fillState(configuredLine(configuredPrompt, 'STEP 2 — DEBT CONFIRMATION', OUTBOUND_DEBT_QUESTION),lead),disposition:'',state};
   }
   return {action, text:said, disposition:'',state};
 }
