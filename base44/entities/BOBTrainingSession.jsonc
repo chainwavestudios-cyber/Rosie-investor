@@ -45,6 +45,18 @@
     "createdAt": {
       "type": "string",
       "title": "createdAt"
+    },
+    "reviewJson": {
+      "type": "string",
+      "title": "reviewJson"
+    },
+    "reviewedAt": {
+      "type": "string",
+      "title": "reviewedAt"
+    },
+    "score": {
+      "type": "number",
+      "title": "score"
     }
   },
   "required": [

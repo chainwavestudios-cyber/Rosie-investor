@@ -153,6 +153,15 @@ const secureGateway = async (req: Request) => {
       ? (secret.length>=32 ? await decrypt(org.encryptedDeepgramKey,secret):'')
       : (Deno.env.get('DEEPGRAM2_API_KEY')||Deno.env.get('deepgram2')||'');
     if (!raw) return bad('No Deepgram key available. Your organization admin must configure a key.',503);
+    // Trial usage protection: count requests, not only saved calls, so an early hangup
+    // or uncompleted transcript cannot bypass the trial allocation.
+    const cutoff=Date.now()-24*3600*1000;
+    const grants=await db.BOBVoiceGrant.filter({organizationId:org.id});
+    const usedToday=(grants||[]).filter((g:any)=>new Date(g.issuedAt).getTime()>cutoff).length;
+    const maxDaily=org.status==='trial'?12:2000;
+    if(usedToday>=maxDaily) return bad(org.status==='trial'
+      ?'Trial voice session limit reached for today. Contact BOB sales to activate a team plan.'
+      :'Daily voice session allocation reached; contact your BOB administrator.',429);
     const res=await fetch('https://api.deepgram.com/v1/auth/grant',{
       method:'POST',headers:{Authorization:'Token '+raw,'Content-Type':'application/json'},
       body:JSON.stringify({time_to_live_in_seconds:600})
@@ -160,6 +169,7 @@ const secureGateway = async (req: Request) => {
     if (!res.ok) return bad('Deepgram denied a temporary training credential. Check the configured key.',502);
     const granted=await res.json();
     if (!granted.key) return bad('Deepgram did not issue a temporary credential.',502);
+    await db.BOBVoiceGrant.create({organizationId:org.id,traineeEmail:email,issuedAt:now()});
     return Response.json({success:true,key:granted.key,expiresInSeconds:600});
   }
   if (action==='sessions') {
@@ -173,13 +183,49 @@ const secureGateway = async (req: Request) => {
     const transcript=Array.isArray(data.transcript)?data.transcript.slice(-250).map((t:any)=>({
       role: t.role==='bob'?'bob':'trainee',text:str(t.text,800),time:str(t.time,40)
     })):[];
+    // Keep transcript JSON valid even when a conversation is extremely long.
+    let compact=transcript;
+    while(JSON.stringify(compact).length>48000 && compact.length>0) compact=compact.slice(1);
     const saved=await db.BOBTrainingSession.create({
       organizationId:org.id,traineeEmail:email,scenario:str(data.scenario,150),mode:['inbound','outbound'].includes(data.mode)?data.mode:'outbound',
       persona:str(data.persona,100),difficulty:Math.min(10,Math.max(1,Number(data.difficulty)||5)),
       voiceModel:str(data.voiceModel,80),durationSeconds:Math.max(0,Math.min(43200,Number(data.durationSeconds)||0)),
-      transcriptJson:JSON.stringify(transcript).slice(0,50000),notes:str(data.notes,2500),createdAt:now()
+      transcriptJson:JSON.stringify(compact),notes:str(data.notes,2500),createdAt:now()
     });
     return Response.json({success:true,id:saved.id});
+  }
+  if (action==='reviewSession') {
+    requireOrg();
+    const session=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
+    if(!session || session.organizationId!==org.id) return bad('Session not found.',404);
+    if(!isPlatformAdmin && !['owner','admin'].includes(member?.role) && session.traineeEmail!==email)
+      return bad('Not permitted to review this session.',403);
+    if(session.reviewJson) return Response.json({success:true,review:JSON.parse(session.reviewJson),cached:true});
+    const transcript=JSON.parse(session.transcriptJson||'[]');
+    if(transcript.length<4) return bad('Not enough conversation recorded to assess this training.',400);
+    const dialogue=transcript.map((t:any)=>`${t.role==='bob'?'CUSTOMER':'TRAINEE'}: ${str(t.text,600)}`).join('\n').slice(0,24000);
+    const response=await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt:`You are an evidence-based sales training coach. Evaluate ONLY the TRAINEE'S performance from the realistic training call below.
+Industry: ${str(org.industry,100)}. Scenario: ${str(session.scenario,150)}.
+Be constructive and specific, never fabricate statements not in the dialogue. Treat the customer's fictional statements as simulated, not real. Give five sub-scores 0-20 (total 0-100), a 1-2 sentence summary, and 3 prioritized tips. A shorter session gets lower marks for missed steps; do not presume a sale or verified compliance from a simulation.
+Rubric: discovery: learned relevant needs through open questions; listening: acknowledged the customer's answers; clarity: explained simply without unsupported guarantees; objections: acknowledged concerns and answered thoughtfully; nextSteps: made an appropriate next-step ask.
+TRAINING TRANSCRIPT:
+${dialogue}`,
+      response_json_schema:{type:'object',properties:{
+        discovery:{type:'number'},listening:{type:'number'},clarity:{type:'number'},
+        objections:{type:'number'},nextSteps:{type:'number'},
+        summary:{type:'string'},tips:{type:'array',items:{type:'string'}}
+      },required:['discovery','listening','clarity','objections','nextSteps','summary','tips']}
+    });
+    const raw=(response && typeof response==='object')?response:{};
+    const categories=['discovery','listening','clarity','objections','nextSteps'];
+    const review:any={};
+    for(const key of categories)review[key]=Math.max(0,Math.min(20,Math.round(Number(raw[key])||0)));
+    review.score=categories.reduce((t,key)=>t+review[key],0);
+    review.summary=str(raw.summary,600);
+    review.tips=Array.isArray(raw.tips)?raw.tips.slice(0,4).map((t:any)=>str(t,300)):[];
+    await db.BOBTrainingSession.update(session.id,{reviewJson:JSON.stringify(review),reviewedAt:now(),score:review.score});
+    return Response.json({success:true,review,cached:false});
   }
   return bad('Unsupported BOB action.',404);
 };
