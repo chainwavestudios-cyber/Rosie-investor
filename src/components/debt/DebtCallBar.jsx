@@ -55,8 +55,8 @@ export default function DebtCallBar({lead, onLaunch}) {
           onClick={()=>act('contact')}><PhoneCall size={13}/> Contact {name} · Client</button>
         {hasClient&&<span style={{color:'#b7cbc3',fontSize:10}}>Client: {active.clientAnswered?'Connected — ready to merge':active.clientStatus}</span>}
         {hasClient&&!active.merged&&<button type="button" onClick={()=>act('merge')}
-          disabled={!officeConnected||!active.clientAnswered||active.busy} style={actionStyle(true)}>
-          <GitMerge size={13}/> Merge Calls
+          disabled={!officeConnected||!active.clientAnswered||active.busy||active.mergePending} style={actionStyle(true)}>
+          <GitMerge size={13}/> {active.mergePending?'Merging…':'Merge Calls'}
         </button>}
         {active.merged&&<span style={{color:'#91e2b8',fontSize:10,fontWeight:800}}>✓ Office + customer merged</span>}
         <button type="button" onClick={()=>act('end')} disabled={active.busy} style={{...actionStyle(false),color:'#ffb5a6',borderColor:'#a06459'}}>
