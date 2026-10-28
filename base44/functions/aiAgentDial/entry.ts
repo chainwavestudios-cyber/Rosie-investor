@@ -144,7 +144,7 @@ export default async function(req) {
           const currentLead = await base44.asServiceRole.entities.FronterLead.get(leadId);
           if (callStatus === 'completed') {
             // A late Twilio completion must not erase a confirmed handoff.
-            if (currentLead?.status !== 'transferred' && currentLead?.lastCallResult !== 'transferred') {
+            if (currentLead?.status !== 'transferred' && currentLead?.lastCallResult !== 'transferred' && currentLead?.callStatus !== 'recording_queue' && currentLead?.lastCallResult !== 'queued_no_connect') {
               updates.lastCallResult = 'connected';
             }
             updates.lastCallDurationSeconds = parseInt(callDuration) || 0;
