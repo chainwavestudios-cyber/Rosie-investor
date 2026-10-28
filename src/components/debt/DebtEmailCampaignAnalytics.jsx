@@ -35,6 +35,7 @@ export default function DebtEmailCampaignAnalytics(){
  const [rows,setRows]=useState([]),[recCursor,setRecCursor]=useState(null),[recOffset,setRecOffset]=useState(0),[recMore,setRecMore]=useState(false);
  const [recipientStatus,setRecipientStatus]=useState('all'),[search,setSearch]=useState(''),[searchValue,setSearchValue]=useState(''),[rowsBusy,setRowsBusy]=useState(false),[rowsError,setRowsError]=useState(''),[searchLimited,setSearchLimited]=useState(false);
  const [detailsOpen,setDetailsOpen]=useState(true),[selected,setSelected]=useState(null),[selectedDetails,setSelectedDetails]=useState(null),[detailBusy,setDetailBusy]=useState(false);
+ const [quickBusy,setQuickBusy]=useState(''),[actionNote,setActionNote]=useState(''),[meeting,setMeeting]=useState(null),[aiTarget,setAiTarget]=useState(null),[aiInput,setAiInput]=useState(''),[aiHistory,setAiHistory]=useState([]),[aiProposal,setAiProposal]=useState(null);
  const [leadCard,setLeadCard]=useState(null),[exporting,setExporting]=useState(false),[exportNote,setExportNote]=useState('');
  const selectedRef=useRef(activeId);
  const auth=useMemo(()=>({sessionUserId,sessionToken}),[sessionUserId,sessionToken]);
@@ -97,6 +98,45 @@ export default function DebtEmailCampaignAnalytics(){
    catch(e){setSelectedDetails({error:e?.response?.data?.error||e.message||'Unable to read send history.'})}
    finally{setDetailBusy(false)}
  };
+ const orderedRows=useMemo(()=>[...rows].sort((a,b)=>{
+   const score=x=>(x.qualifyVisitAt?1000:0)+(x.clickedAt?400:0)+Math.min(20,n(x.clickCount))*30+(x.openedAt?100:0)+Math.min(20,n(x.openCount))*5;
+   return score(b)-score(a) || new Date(b.sentAt||0)-new Date(a.sentAt||0);
+ }),[rows]);
+ const activity=async(row,result)=>{
+   if(!row.leadId){setActionNote('This recipient has no linked contact card.');return;}
+   setQuickBusy(row.id+result);setActionNote('');
+   try{
+     const lead=await base44.entities.DebtLead.get(row.leadId);
+     await base44.entities.DebtLeadActivity.create({leadId:row.leadId,leadName:row.name,activityType:'call',activityText:result==='left_voicemail'?'☎ Outgoing call — Left voicemail':'📞 Outgoing call — No answer',createdBy:user?.username||'',metadataJson:JSON.stringify({result,source:'email_campaign',campaignId:activeId})});
+     await base44.entities.DebtLead.update(row.leadId,{lastCallAt:new Date().toISOString(),callCount:n(lead.callCount)+1});
+     setActionNote(`${row.name}: ${result==='left_voicemail'?'voicemail':'no answer'} saved.`);
+   }catch(e){setActionNote('Could not save call outcome: '+(e?.message||String(e)))}finally{setQuickBusy('')}
+ };
+ const book=async()=>{
+   if(!meeting?.row?.leadId||!meeting.when)return;
+   setQuickBusy('meeting');try{
+     const start=new Date(meeting.when);if(!Number.isFinite(start.getTime())||start<=new Date())throw Error('Choose a future date and time');
+     const lead=await base44.entities.DebtLead.get(meeting.row.leadId);
+     const result=await base44.functions.invoke('googleCalendarSync',{action:'createEvent',title:'Consultation — '+meeting.row.name,startISO:start.toISOString(),endISO:new Date(start.getTime()+30*60000).toISOString(),description:`Contact: ${meeting.row.name}\nPhone: ${lead.phone||meeting.row.phone||''}\nEmail: ${meeting.row.email}`});
+     const data=result?.data||result;if(data.status!=='success')throw Error(data.error||'Calendar unavailable');
+     await base44.entities.DebtLead.update(meeting.row.leadId,{appointmentDate:start.toISOString(),appointmentTitle:'Consultation',appointmentEventId:data.eventId||'',appointmentEventHtmlLink:data.htmlLink||''});
+     await base44.entities.DebtLeadActivity.create({leadId:meeting.row.leadId,leadName:meeting.row.name,activityType:'calendar_event',activityText:'📅 Consultation — '+start.toLocaleString(),createdBy:user?.username||'',metadataJson:JSON.stringify({eventId:data.eventId,htmlLink:data.htmlLink})});
+     setActionNote('Meeting scheduled for '+meeting.row.name);setMeeting(null);
+   }catch(e){setActionNote('Schedule failed: '+(e?.message||String(e)))}finally{setQuickBusy('')}
+ };
+ const askAI=async()=>{
+   if(!aiInput.trim()||!aiTarget?.leadId)return;
+   const message=aiInput.trim();setAiInput('');setQuickBusy('ai');setAiProposal(null);
+   try{
+     const lead=await base44.entities.DebtLead.get(aiTarget.leadId);
+     const allowed=['firstName','lastName','phone','email','address','city','state','zip','debtAmount','creditorCount','monthlyIncome','employmentStatus','notes','callbackAt'];
+     const current=Object.fromEntries(allowed.map(k=>[k,lead[k]??null]));
+     const result=await base44.integrations.Core.InvokeLLM({prompt:`You assist a human operator editing a debt CRM contact. Interpret the operator's request as a conversation, answer briefly, and propose ONLY explicit contact field changes. Never assume new facts. Allowed fields: ${allowed.join(', ')}. Current contact: ${JSON.stringify(current)}. Operator says: ${message}. Return JSON object with reply:string and updates:object; no other fields. Do not send emails, call people or book appointments.`,response_json_schema:{type:'object',properties:{reply:{type:'string'},updates:{type:'object',additionalProperties:true}},required:['reply','updates']}});
+     const data=result?.data||result;const updates=Object.fromEntries(Object.entries(data.updates||{}).filter(([k,v])=>allowed.includes(k)&&v!==null&&v!==undefined));
+     setAiHistory(h=>[...h,{who:'You',text:message},{who:'Assistant',text:data.reply||'Here are my proposed changes.'}]);if(Object.keys(updates).length)setAiProposal(updates);
+   }catch(e){setAiHistory(h=>[...h,{who:'System',text:'AI request failed: '+(e?.message||String(e))}])}finally{setQuickBusy('')}
+ };
+ const applyAI=async()=>{if(!aiTarget?.leadId||!aiProposal)return;setQuickBusy('aiSave');try{await base44.entities.DebtLead.update(aiTarget.leadId,aiProposal);await base44.entities.DebtLeadActivity.create({leadId:aiTarget.leadId,leadName:aiTarget.name,activityType:'note',activityText:'AI-assisted contact update: '+Object.keys(aiProposal).join(', '),createdBy:user?.username||''});setAiHistory(h=>[...h,{who:'System',text:'Contact card updated.'}]);setAiProposal(null)}catch(e){setActionNote('AI update failed: '+(e?.message||String(e)))}finally{setQuickBusy('')}};
  const exportCSV=async()=>{
    if(!campaign||exporting)return;
    setExporting(true);setExportNote('Preparing full campaign roster…');
@@ -124,7 +164,7 @@ export default function DebtEmailCampaignAnalytics(){
  if(!isAdmin)return <div className="dca-root">Only Debt Call Coach administrators can view campaigns.</div>;
  return <section className="dca-root" aria-label="Gmail campaign intelligence">
    <header className="dca-hero"><div><div className="dca-eyebrow">ROSIE AI · DEBT CALL COACH</div><h2>Campaign <em>Intelligence</em></h2><p>Choose any Gmail campaign. See performance, individual emails and every recorded step of the customer journey.</p></div><button type="button" className="dca-button" onClick={refresh} disabled={busy}><RefreshCw size={16}/>{busy?'Refreshing…':'Refresh'}</button></header>
-   <div className="dca-scope"><ShieldCheck size={15}/> Email Campaigns only. Historical Gmail records remain in Legacy Tracking. Nothing is sent or modified from this view.</div>
+   <div className="dca-scope"><ShieldCheck size={15}/> Email Campaigns only. Historical Gmail records remain in Legacy Tracking. Campaign sending is unchanged. Contact actions update linked contact cards.</div>
    {error&&<div className="dca-error" role="alert"><AlertTriangle size={16}/>{error}</div>}
    <div className="dca-layout">
      <aside className="dca-sidebar">
@@ -188,11 +228,11 @@ export default function DebtEmailCampaignAnalytics(){
        <section className="dca-recipients">
          <div className="dca-recipient-head"><div><div className="dca-eyebrow">RECIPIENT DETAILS</div><h3>Individual Emails &amp; Activity</h3><p>Sent, opened, clicked, failed or skipped — with the actual send record and timeline.</p></div><span className="dca-count">{fmt(total)} records</span></div>
          <div className="dca-toolbar"><label className="dca-search"><Search size={15}/><input aria-label="Search recipients across selected campaign" placeholder="Search name, email, subject, send ID…" value={search} onChange={e=>setSearch(e.target.value)}/></label><div className="dca-filter-row">{recipientStatuses.map(([key,label])=><button key={key} className={recipientStatus===key?'active':''} onClick={()=>setRecipientStatus(key)}>{label}</button>)}</div></div>
-         {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}
+         {rowsError&&<div className="dca-error" role="alert">{rowsError}</div>}{actionNote&&<div role="status" className="dca-note">{actionNote}</div>}
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
          <div className="dca-table-scroll"><table className="dca-table">
-           <thead><tr><th>Recipient</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
-           <tbody>{rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><span>{row.email}</span></td><td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td><td className="dca-row-note">{row.error||row.reason||(row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':'—')}</td><td><button className="dca-row-action" onClick={()=>openRow(row)}>Details <ArrowRight size={13}/></button></td></tr>)}
+           <thead><tr><th>Recipient / Phone</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
+           <tbody>{orderedRows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><span>{row.email}</span><span>{row.phone||'No phone on campaign record'}</span></td><td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td><td className="dca-row-note">{row.error||row.reason||(row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':'—')}</td><td><div style={{display:'flex',gap:5,flexWrap:'wrap',minWidth:260}}><button className="dca-row-action" onClick={()=>openRow(row)}>Details</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>Called · No answer</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Left voicemail</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Schedule meeting</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button></div></td></tr>)}
            {!rows.length&&!rowsBusy&&<tr><td colSpan={7} className="dca-muted">No recipients match this filter.</td></tr>}
            </tbody></table></div>
          {rowsBusy&&<p className="dca-muted">Loading recipients…</p>}
@@ -216,6 +256,8 @@ export default function DebtEmailCampaignAnalytics(){
        </div>}
      </aside>
    </div>}
+   {meeting&&<div className="dca-overlay"><section className="dca-drawer" role="dialog" aria-modal="true" aria-label="Schedule meeting" style={{padding:24}}><h3>Schedule meeting · {meeting.row.name}</h3><label>Appointment date and time <input type="datetime-local" value={meeting.when} onChange={e=>setMeeting(m=>({...m,when:e.target.value}))}/></label><div style={{display:'flex',gap:8,marginTop:20}}><button className="dca-button" disabled={!meeting.when||!!quickBusy} onClick={book}>Create calendar meeting</button><button className="dca-button" onClick={()=>setMeeting(null)}>Cancel</button></div></section></div>}
+   {aiTarget&&<div className="dca-overlay"><section className="dca-drawer" role="dialog" aria-modal="true" aria-label="AI contact assistant" style={{padding:24}}><h3>✦ Contact AI · {aiTarget.name}</h3><p className="dca-muted">Ask questions or describe changes. Review updates before saving to the contact card.</p><div style={{maxHeight:250,overflowY:'auto',marginBottom:12}}>{aiHistory.map((m,i)=><p key={i}><strong>{m.who}: </strong>{m.text}</p>)}</div><textarea style={{width:'100%',minHeight:80,background:'#0d1b2a',color:'#fff'}} value={aiInput} onChange={e=>setAiInput(e.target.value)} placeholder="Example: Update their phone number, add a callback note, change the debt amount…"/><button className="dca-button" disabled={!!quickBusy||!aiInput.trim()} onClick={askAI}>Send to AI</button>{aiProposal&&<div style={{marginTop:15}}><h4>Review changes</h4><pre style={{whiteSpace:'pre-wrap'}}>{JSON.stringify(aiProposal,null,2)}</pre><button className="dca-button" disabled={!!quickBusy} onClick={applyAI}>Approve and update contact</button></div>}<button className="dca-button" style={{marginLeft:8}} onClick={()=>setAiTarget(null)}>Close</button></section></div>}
    <EngagementContactCard target={leadCard} username={user?.username} onClose={()=>setLeadCard(null)}/>
  </section>;
 }

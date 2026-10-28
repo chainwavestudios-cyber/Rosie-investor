@@ -190,7 +190,7 @@ export default function LeadActivityTab({ lead, onLeadPatch, leadType = 'debt' }
 
   // One click while the phone is ringing out — logs the failed call on the
   // timeline and stamps the lead's last-call time and count.
-  const logNoAnswer = async () => {
+  const logNoAnswer = async (voicemail = false) => {
     if (!lead.id || loggingNoAnswer) return;
     setLoggingNoAnswer(true);
     try {
@@ -200,14 +200,14 @@ export default function LeadActivityTab({ lead, onLeadPatch, leadType = 'debt' }
         leadId: lead.id,
         leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
         activityType: 'call',
-        activityText: `📞 Outgoing call — No answer (${at})`,
+        activityText: `📞 Outgoing call — ${voicemail ? 'Left voicemail' : 'No answer'} (${at})`,
         createdBy: coachUser?.username || '',
-        metadataJson: JSON.stringify({ result: 'no_answer' }),
+        metadataJson: JSON.stringify({ result: voicemail ? 'left_voicemail' : 'no_answer' }),
       });
       const patch = { lastCallAt: nowISO, callCount: Number(lead.callCount || 0) + 1 };
       await base44.entities.DebtLead.update(lead.id, patch);
       onLeadPatch?.(patch);
-      setLoggedNoAnswer('✓ No answer logged');
+      setLoggedNoAnswer(voicemail ? '✓ Voicemail logged' : '✓ No answer logged');
       setTimeout(() => setLoggedNoAnswer(''), 4000);
       loadActivities();
     } catch (e) { alert('Failed to log no answer: ' + (e?.message || String(e))); }
@@ -317,13 +317,14 @@ export default function LeadActivityTab({ lead, onLeadPatch, leadType = 'debt' }
         <label style={ls}>Quick Log</label>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={logNoAnswer}
+            onClick={() => logNoAnswer(false)}
             disabled={loggingNoAnswer || !lead.id}
             title="Log a call that wasn't answered"
             style={{ background: 'rgba(138,154,184,0.15)', color: '#8a9ab8', border: '1px solid rgba(138,154,184,0.35)', borderRadius: '4px', padding: '8px 16px', cursor: lead.id ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: loggingNoAnswer || !lead.id ? 0.5 : 1 }}
           >
             {loggingNoAnswer ? '⏳ Logging…' : '🚫 No Answer'}
           </button>
+          <button type="button" onClick={() => logNoAnswer(true)} disabled={loggingNoAnswer || !lead.id} style={{background:'rgba(216,179,110,.12)',color:'#e4c588',border:'1px solid rgba(216,179,110,.4)',borderRadius:4,padding:'8px 16px',fontSize:11,fontWeight:'bold',cursor:'pointer'}}>☎ Left Voicemail</button>
           {loggedNoAnswer && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>{loggedNoAnswer}</span>}
         </div>
       </div>
