@@ -29,6 +29,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
   const timerRef     = useRef(null);
   const startTimeRef = useRef(null);
   const leadIdRef    = useRef(leadId);
+  const officeMonitorRef = useRef(false);
 
   const fmt = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -108,12 +109,14 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
     call.on('ringing',    () => updateCallStatus('ringing'));
     call.on('accept',     (c) => {
       updateCallStatus('connected');
+      if (officeMonitorRef.current) { try { c.mute(true); } catch {} }
       startTimer();
       setTimeout(() => {
         try {
           onCallStream?.({
             remoteStream: c.getRemoteStream?.() || null,
             localStream:  c.getLocalStream?.()  || null,
+            mixOnly: officeMonitorRef.current,
             call: c,
           });
         } catch {}
@@ -156,6 +159,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
       return;
     }
 
+    officeMonitorRef.current = false;
     updateCallStatus('calling');
     setCallDirection('outbound');
     setDuration(0);
@@ -185,6 +189,34 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
       setCallStatus('idle');
     }
   }, [getDevice, callerId, micDeviceId, wireCallEvents]);
+
+  // Passive browser participant in the office-line conference. The browser
+  // mic remains muted; remote WebRTC audio is streamed into the Live Coach.
+  const monitorOffice = useCallback(async (monitorToken) => {
+    if (!monitorToken) throw new Error('Missing office monitor authorization');
+    officeMonitorRef.current = true;
+    setDialerError('');
+    updateCallStatus('calling');
+    try {
+      const device = await getDevice();
+      const call = await device.connect({ params: {
+        To: 'client:office-monitor', Mode: 'officeMonitor', OfficeToken: monitorToken
+      } });
+      callRef.current = call;
+      try { call.mute(true); } catch {}
+      wireCallEvents(call);
+      if (call.status?.() === 'open') {
+        updateCallStatus('connected');
+        onCallStream?.({ remoteStream: call.getRemoteStream?.() || null,
+          localStream: call.getLocalStream?.() || null, mixOnly: true, call });
+      }
+    } catch (e) {
+      officeMonitorRef.current = false;
+      updateCallStatus('idle');
+      setDialerError(e?.message || 'Office monitoring failed');
+      throw e;
+    }
+  }, [getDevice, wireCallEvents, updateCallStatus, onCallStream]);
 
   // ── Answer inbound call ──────────────────────────────────────────────
   const answer = useCallback(() => {
@@ -272,7 +304,7 @@ export function useInlineDialer({ onCallStream, onCallLogged, agentName = 'admin
 
   return {
     dialerError, callStatus, duration, muted, isActive,
-    dial, hangup, answer, reject,
+    dial, monitorOffice, hangup, answer, reject,
     toggleMute, sendDigit, reset,
     logLeadCall, logInvestorCall, fmt,
     callerId, setCallerId, lines,
