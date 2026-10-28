@@ -87,7 +87,7 @@ export default function CallsTab() {
       )}
 
       {profileLead && (
-        <ClientProfileModal lead={profileLead} onClose={() => setProfileLead(null)} onSave={(updated) => setProfileLead(updated)} />
+        <ClientProfileModal lead={profileLead} username={user?.username} onClose={() => setProfileLead(null)} onSave={(updated) => setProfileLead(updated)} />
       )}
     </div>
   );
