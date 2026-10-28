@@ -34,7 +34,7 @@ export default function AIAgentTelephonySection({ config, update, availableLines
 
       {/* Queue Timeout */}
       <div>
-        <label style={ls}>Queue Wait Timeout (seconds)</label>
+        <label style={ls}>Two-Number Advisor Ring Budget (seconds)</label>
         <input type="number" value={config.queueTimeoutSeconds ?? 90} onChange={e => update('queueTimeoutSeconds', Number(e.target.value))} style={inp} />
       </div>
 
@@ -42,7 +42,7 @@ export default function AIAgentTelephonySection({ config, update, availableLines
       <div style={{ display: 'flex', alignItems: 'flex-end' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '7px 0' }}>
           <input type="checkbox" checked={config.callbackBookingEnabled !== false} onChange={e => update('callbackBookingEnabled', e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-          <span style={{ color: '#e8e0d0', fontSize: '12px' }}>Auto-book callback in Chris's calendar on transfer failure</span>
+          <span style={{ color: '#e8e0d0', fontSize: '12px' }}>Offer spoken appointment booking if neither of Chris's numbers connects</span>
         </label>
       </div>
 
