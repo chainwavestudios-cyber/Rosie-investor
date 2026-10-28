@@ -288,8 +288,8 @@ export default async function(req) {
           await service.entities.FronterLead.update(leadId, {
             callStatus: 'queue_hold',
             assignedQueue: 'Incoming AI - validated through process',
-            transferredAt: new Date().toISOString(),
-            transferredTo: 'Incoming AI Agent → Fronter Queue',
+            // The caller is waiting, not transferred until a specialist joins.
+            transferredTo: 'Awaiting advisor in AI transfer queue',
           });
         } catch (e) { console.warn('[dialerVoiceHandler] Failed to create heads-up:', e?.message); }
 
@@ -435,8 +435,10 @@ export default async function(req) {
       const digits = (params.get('Digits') || '').trim();
       const APPROVE = /(patch|through|connect|go ahead|bring (him|her|them) in|send (him|her|them|it)|yes|yeah|yep|sure|sounds good|okay|ok\b|do it|i got (him|her|them))/;
       const DECLINE = /(not now|not yet|can'?t|cannot|no thanks|no thank|busy|hold on|hold up|\bwait\b|call back|later|\bno\b)/;
+      // No input or ambiguous speech must never silently merge the caller.
+      // A spoken decline takes precedence even if the sentence also contains 'yes'.
       const approved = digits ? digits === '1'
-        : (APPROVE.test(speech) ? true : (DECLINE.test(speech) ? false : true));
+        : (DECLINE.test(speech) ? false : APPROVE.test(speech));
 
       const okVoice = getPollyVoice(okConfig.ttsVoiceModel || 'aura-2-thalia-en');
       if (!approved) {
