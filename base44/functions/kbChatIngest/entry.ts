@@ -7,7 +7,7 @@
  * Output: { mode: 'answer'|'ingest', response: string, entries: [...], savedCount?: number }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-import { formatAnswers, findRelevantKB, findSimilarQuestion, getAnswers } from '../../shared/kbSearch.ts';
+import { formatAnswers, findRelevantKB } from '../../shared/kbSearch.ts';
 
 const KB_CATEGORIES = [
   { id: 'debt_agent', label: 'Agent Script', desc: 'Openers, rebuttals, qualifying questions, closing language' },
@@ -94,16 +94,19 @@ export default async function(req: Request): Promise<Response> {
     // ── QUESTION MODE: search KB + database and answer ──────────────────
     if (asking) {
       const svc = base44.asServiceRole;
-      const kbEntries = await svc.entities.KnowledgeBase.list('-created_date', 500);
-      const relevant = findRelevantKB(message, kbEntries, 10);
-      const dbContext = await gatherDatabaseContext(message, base44);
+      const kbEntries = await svc.entities.KnowledgeBase.list('-created_date', 1000);
+      const debtOnly = kbEntries.filter((e: any) => !e.kbName || e.kbName === 'Debt Settlement');
+      const relevant = findRelevantKB(message, debtOnly, 10);
+      // KB Chat answers only from the published KB. Avoid exposing user/lead records
+      // through a KB ingestion endpoint that also serves custom Debt Coach sessions.
+      const dbContext = '';
       const kbContext = relevant.map((e: any) => `Q: ${e.question}\nA: ${formatAnswers(e)}`).join('\n\n');
 
       const result = await base44.integrations.Core.InvokeLLM({
         prompt: `You are an AI assistant for a debt settlement sales platform called Settlement IQ. The user is asking you a question. Answer based on the knowledge base and database data below.
 
 If the knowledge base has relevant entries, use them as your primary source.
-If the database context has relevant data (leads, calls, users, etc.), incorporate that.
+Do not claim to have access to personal prospect, staff, or live database records in this chat.
 If neither has the answer, say you don't have that information and suggest what the user could do.
 
 Knowledge Base entries (most relevant):
@@ -203,49 +206,36 @@ ${llmPrompt}`,
     const responseText = result?.response || 'I analyzed the content but could not structure it.';
     const entries = result?.entries || [];
 
-    // Save entries using service role (avoids auth issues for debt-coach users)
-    // For each entry, check if a similar question already exists. If so, append
-    // the new answer to the existing entry's answersJson (with timestamp) instead
-    // of creating a duplicate.
+    // AI extraction is unverified. Never create or overwrite a live answer here.
+    // Send proposed entries to a shared review queue instead; the KB Manager is
+    // the only promotion surface and never replaces existing answers implicitly.
     const svc = base44.asServiceRole;
-    const allKb = await svc.entities.KnowledgeBase.list('-created_date', 500);
     const saved: any[] = [];
-    for (const e of entries) {
-      if (!e.question || !e.answer) continue;
+    const errors: string[] = [];
+    const proposed = Array.isArray(entries) ? entries.slice(0, 40) : [];
+    for (const e of proposed) {
+      const question = String(e?.question || '').trim();
+      const answer = String(e?.answer || '').trim();
+      if (!question || !answer) continue;
       const validCats = KB_CATEGORIES.map(c => c.id);
       const category = validCats.includes(e.category) ? e.category : 'debt_kb';
       try {
-        // Check for similar existing question
-        const existing = findSimilarQuestion(e.question, allKb);
-        if (existing) {
-          // Append to existing entry's answersJson
-          const existingAnswers = getAnswers(existing);
-          const newAnswer = `[${new Date().toISOString().slice(0, 16).replace('T', ' ')}] ${e.answer}`;
-          existingAnswers.push(newAnswer);
-          const updated = await svc.entities.KnowledgeBase.update(existing.id, {
-            answersJson: JSON.stringify(existingAnswers),
-            answer: newAnswer, // Update primary answer to the newest
-          });
-          saved.push(updated);
-        } else {
-          const created = await svc.entities.KnowledgeBase.create({
-            question: e.question,
-            answer: e.answer,
-            category,
-            tags: e.tags || '',
-            kbName: 'Debt Settlement',
-            source: fileName ? `AI Chat — ${fileName}` : 'AI Chat',
-          });
-          saved.push(created);
-        }
-      } catch {}
+        const created = await svc.entities.DebtKBProposal.create({
+          question, answer, category, tags: String(e.tags || ''),
+          source: fileName ? `AI Chat — ${fileName}` : 'AI Chat',
+          status: 'pending_review', createdBy: user?.email || 'Debt Coach KB Chat'
+        });
+        saved.push(created);
+      } catch (err: any) { errors.push(err?.message || String(err)); }
     }
-
     return Response.json({
       mode: 'ingest',
-      response: responseText,
-      entries: saved.map(s => ({ id: s.id, question: s.question, answer: s.answer, category: s.category, tags: s.tags })),
-      savedCount: saved.length,
+      response: saved.length
+        ? `${saved.length} proposed KB entr${saved.length === 1 ? 'y is' : 'ies are'} awaiting human review. They are NOT live and cannot replace existing answers. Review them in Knowledge Base → Review Queue.`
+        : (errors.length ? 'No entries were queued because saving failed.' : responseText),
+      entries: saved.map(s => ({ id: s.id, question: s.question, answer: s.answer, category: s.category, tags: s.tags, status: 'pending_review' })),
+      pendingCount: saved.length, savedCount: 0, reviewRequired: true,
+      ...(errors.length ? { warning: `${errors.length} entries could not be queued.` } : {})
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
