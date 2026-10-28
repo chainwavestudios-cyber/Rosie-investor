@@ -147,6 +147,28 @@
       ],
       "default": "new"
     },
+    "cardType": {
+      "type": "string",
+      "title": "Card Type (campaign = created by a mail-import; the card only becomes a prospect when an agent tags it)",
+      "enum": [
+        "campaign",
+        "prospect"
+      ]
+    },
+    "isProspect": {
+      "type": "boolean",
+      "title": "Tagged Prospect (agent spoke with them and moved the card to the prospect pipeline)",
+      "default": false
+    },
+    "prospectTaggedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Prospect Tagged At"
+    },
+    "prospectTaggedBy": {
+      "type": "string",
+      "title": "Prospect Tagged By (username)"
+    },
     "isHotLead": {
       "type": "boolean",
       "title": "Hot Lead (tagged by coach for priority follow-up)",

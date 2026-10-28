@@ -208,6 +208,7 @@ export function cardForRow(row: any, listName: string) {
     zip: clean(row?.zip),
     ...(amount ? { debtAmount: amount } : {}),
     status: 'new',
+    cardType: 'campaign',
     notes: `Added by the Email Campaign Manager${listName ? ` (list: ${listName})` : ''}.`,
   };
 }

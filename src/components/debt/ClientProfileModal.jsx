@@ -23,6 +23,7 @@ import { HOT_LEADS_KEY } from '@/lib/hotLeads';
 import AiInviteLinksButton from '@/components/debt/AiInviteLinksButton';
 import RosieAiTab from '@/components/debt/RosieAiTab';
 import EmailActivityTimeline from '@/components/email/EmailActivityTimeline';
+import { isCampaignCard } from '@/lib/cardTypes';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '3px' };
@@ -69,6 +70,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [togglingHot, setTogglingHot] = useState(false);
+  const [togglingProspect, setTogglingProspect] = useState(false);
   const [timerInput, setTimerInput] = useState({ hours: 0, minutes: 30 });
   const [activeTimer, setActiveTimer] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -275,6 +277,27 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
     setTogglingHot(false);
   };
 
+  // Toggle the Prospect tag — a campaign card only joins the prospect pipeline
+  // once an agent has actually spoken with them and clicks this.
+  const toggleProspect = async () => {
+    if (!local.id || togglingProspect) return;
+    setTogglingProspect(true);
+    try {
+      const newVal = !local.isProspect;
+      const patch = {
+        isProspect: newVal,
+        prospectTaggedAt: newVal ? new Date().toISOString() : null,
+        prospectTaggedBy: newVal ? (username || '') : null,
+      };
+      await base44.entities.DebtLead.update(local.id, patch);
+      setLocal(prev => ({ ...prev, ...patch }));
+      onSave?.({ ...local, ...patch });
+    } catch (e) {
+      alert('Failed to toggle prospect: ' + (e?.message || String(e)));
+    }
+    setTogglingProspect(false);
+  };
+
   // Accepts optional overrides from VoiceFieldUpdater — merges with current
   // local state so voice updates persist even before React re-renders.
   const save = async (overrides = {}) => {
@@ -300,6 +323,9 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
         isHotLead: persisted.isHotLead,
         hotLeadTaggedAt: persisted.hotLeadTaggedAt,
         hotLeadTaggedBy: persisted.hotLeadTaggedBy,
+        isProspect: persisted.isProspect,
+        prospectTaggedAt: persisted.prospectTaggedAt,
+        prospectTaggedBy: persisted.prospectTaggedBy,
         deletedAt: persisted.deletedAt,
         deletedBy: persisted.deletedBy,
       };
@@ -328,6 +354,11 @@ export default function ClientProfileModal({ lead, username, onClose, onSave }) 
               <button onClick={toggleHotLead} disabled={togglingHot || !local.id} title={local.isHotLead ? 'Remove Hot Lead tag' : 'Tag as Hot Lead'} style={{ marginLeft: '4px', padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: (togglingHot || !local.id) ? 'not-allowed' : 'pointer', border: `1px solid ${local.isHotLead ? '#ef444466' : 'rgba(255,255,255,0.12)'}`, background: local.isHotLead ? 'rgba(239,68,68,0.15)' : 'transparent', color: local.isHotLead ? '#ef4444' : '#6b7280', opacity: (togglingHot || !local.id) ? 0.5 : 1 }}>
                 {togglingHot ? '⏳' : '🔥'} Hot Lead
               </button>
+              {(isCampaignCard(local) || local.isProspect) && (
+                <button onClick={toggleProspect} disabled={togglingProspect || !local.id} title={local.isProspect ? 'Move back to Campaign (not a prospect)' : 'Move this card to the prospect pipeline'} style={{ padding: '1px 8px', borderRadius: '10px', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: (togglingProspect || !local.id) ? 'not-allowed' : 'pointer', border: `1px solid ${local.isProspect ? '#10b98166' : 'rgba(255,255,255,0.12)'}`, background: local.isProspect ? 'rgba(16,185,129,0.15)' : 'transparent', color: local.isProspect ? GOLD : '#6b7280', opacity: (togglingProspect || !local.id) ? 0.5 : 1 }}>
+                  {togglingProspect ? '⏳' : '👤'} Prospect
+                </button>
+              )}
             </div>
           </div>
         </div>

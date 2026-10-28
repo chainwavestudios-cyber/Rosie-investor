@@ -8,6 +8,8 @@ import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import IntentReportModal from '@/components/debt/IntentReportModal';
 import MigratedLeadsPanel from '@/components/debt/MigratedLeadsPanel';
+import CardTypeChip from '@/components/debt/CardTypeChip';
+import { isCampaignCard } from '@/lib/cardTypes';
 
 const GOLD = '#10b981';
 const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
@@ -15,38 +17,13 @@ const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing
 const ANIMAL_COLORS = { duck: '#ef4444', cow: '#4ade80', unknown: '#6b7280' };
 const ANIMAL_EMOJI = { duck: '🦆', cow: '🐄', unknown: '❓' };
 
-// A campaign import creates a contact card for every row it mails — those are
-// for emailing, not prospects. A card only becomes a prospect once it engages.
-const CAMPAIGN_NOTE = 'Added by the Email Campaign Manager';
-
-const isCampaignContact = (l) => String(l?.notes || '').startsWith(CAMPAIGN_NOTE);
-
-const hasOwnEngagement = (l) =>
-  (l.callCount || 0) > 0 || !!l.lastCallAt || !!l.profileJson || l.intentScore != null ||
-  !!l.animalType || !!l.appointmentDate || !!l.rosieAiAnalysis || (l.dealScore || 0) > 0;
-
-async function onlyProspects(cards) {
-  const manual = cards.filter(l => !isCampaignContact(l));
-  const imported = cards.filter(l => isCampaignContact(l));
-  if (!imported.length) return manual;
-
-  const engaged = new Set(imported.filter(hasOwnEngagement).map(l => l.id));
-  const emails = [...new Set(imported.map(l => String(l.email || '').toLowerCase()).filter(Boolean))];
-  if (emails.length) {
-    try {
-      const page = await base44.entities.EmailCampaignRecipient.filter(
-        { email: { $in: emails.slice(0, 500) } }, { limit: 500 }
-      );
-      const opened = new Set((page?.items || page || [])
-        .filter(r => r.openedAt || r.clickedAt || r.qualifyVisitAt)
-        .map(r => String(r.email || '').toLowerCase()));
-      for (const l of imported) {
-        if (opened.has(String(l.email || '').toLowerCase())) engaged.add(l.id);
-      }
-    } catch {}
-  }
-  return [...manual, ...imported.filter(l => engaged.has(l.id))];
-}
+// Campaign cards stay out of the prospect pipeline until an agent tags them
+// from the contact card — the view filters below separate the two.
+const CARD_VIEWS = [
+  { id: 'prospect', label: '👤 Prospects' },
+  { id: 'campaign', label: '📧 Campaign' },
+  { id: 'all', label: 'All' },
+];
 
 export default function DebtUserProfile({ debtCoachUser }) {
   const [leads, setLeads] = useState([]);
@@ -56,6 +33,7 @@ export default function DebtUserProfile({ debtCoachUser }) {
   const [creating, setCreating] = useState(false);
   const [subView, setSubView] = useState('all'); // 'all' | 'migrated'
   const [showIntentReport, setShowIntentReport] = useState(false);
+  const [cardView, setCardView] = useState('prospect'); // 'prospect' | 'campaign' | 'all'
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,9 +45,8 @@ export default function DebtUserProfile({ debtCoachUser }) {
         all = await base44.entities.DebtLead.list('-updated_date', 200);
       }
       const active = (all || []).filter(l => !l.deletedAt);
-      const prospects = await onlyProspects(active);
-      setLeads(prospects);
-      if (prospects.length > 0 && !selected) setSelected(prospects[0]);
+      setLeads(active);
+      if (active.length > 0 && !selected) setSelected(active[0]);
     } catch {}
     setLoading(false);
   }, [selected, debtCoachUser]);
@@ -102,6 +79,10 @@ export default function DebtUserProfile({ debtCoachUser }) {
 
   const profile = selected?.profileJson ? (() => { try { return JSON.parse(selected.profileJson); } catch { return null; } })() : null;
 
+  const visible = leads.filter(l =>
+    cardView === 'all' ? true : cardView === 'campaign' ? isCampaignCard(l) : !isCampaignCard(l)
+  );
+
   if (subView === 'migrated') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -129,19 +110,29 @@ export default function DebtUserProfile({ debtCoachUser }) {
             <button onClick={load} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>↻</button>
           </div>
         </div>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px' }}>
+          {CARD_VIEWS.map(v => (
+            <button key={v.id} onClick={() => setCardView(v.id)} style={{ background: cardView === v.id ? 'rgba(16,185,129,0.12)' : 'transparent', color: cardView === v.id ? GOLD : '#6b7280', border: `1px solid ${cardView === v.id ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{v.label}</button>
+          ))}
+        </div>
         <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
           {loading ? (
             <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-          ) : leads.length === 0 ? (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No debt leads yet. Start a live call to create one.</div>
-          ) : leads.map(lead => {
+          ) : visible.length === 0 ? (
+            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px', lineHeight: 1.6 }}>
+              {cardView === 'campaign' ? 'No campaign cards yet. A mailer import creates one per recipient.' : cardView === 'prospect' ? 'No prospects yet. Tag a campaign card as Prospect from the contact card, or start a live call.' : 'No debt leads yet. Start a live call to create one.'}
+            </div>
+          ) : visible.map(lead => {
             const p = lead.profileJson ? (() => { try { return JSON.parse(lead.profileJson); } catch { return null; } })() : null;
             const animal = p?.animalType || lead.animalType || 'unknown';
             return (
               <button key={lead.id} onClick={() => setSelected(lead)} style={{ width: '100%', background: selected?.id === lead.id ? 'rgba(16,185,129,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <div style={{ fontSize: '20px' }}>{ANIMAL_EMOJI[animal]}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead.firstName} {lead.lastName}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead.firstName} {lead.lastName}</span>
+                    <CardTypeChip lead={lead} />
+                  </div>
                   <div style={{ color: '#6b7280', fontSize: '10px' }}>{lead.callCount || 0} calls · {lead.status}</div>
                 </div>
                 {lead.intentScore != null && (
@@ -164,7 +155,10 @@ export default function DebtUserProfile({ debtCoachUser }) {
           <div>
             <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
-                <h2 style={{ margin: 0, color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal' }}>{selected.firstName} {selected.lastName}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2 style={{ margin: 0, color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal' }}>{selected.firstName} {selected.lastName}</h2>
+                  <CardTypeChip lead={selected} size={10} />
+                </div>
                 <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>{selected.phone} · {selected.email}</div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
