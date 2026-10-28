@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { AudioLines, Ear, Headphones, Lock, Mic, MicOff, RefreshCw, ShieldAlert, Users, Volume2 } from 'lucide-react';
-import { decryptCustomerContent } from '@/lib/bobKnowledgeCrypto';
 import { openRecording } from '@/lib/bobAudioCrypto';
 import useBobLiveMonitor from '@/hooks/useBobLiveMonitor';
 import './BobSite.css';

@@ -268,14 +268,22 @@ export function useDebtBobVoice({ onTranscript, onLog, onRecordingBlob, recordin
     ring.stop();
   }, [ring]);
 
-  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel, mode, closerName, scenario, thinkModel, transferVoice }) => {
+  const startCall = useCallback(async ({ apiKey, systemPrompt, voiceModel, greeting, sessionLabel, mode, closerName, scenario, thinkModel, transferVoice, introScript, introVoice }) => {
     setError(''); setPhase('ringing'); setRingPhase(true);
     onLogRef.current?.('session_start', `📞 ${sessionLabel} started. Mode: ${mode || 'open'}`);
 
     ring.play(async () => {
       setRingPhase(false);
 
-      // Transfer agent phase — female TTS introduces the call before BOB connects
+      // Commercial custom AI receptionist/transfer handoff (independent TTS voice).
+      // No company-specific text is hard-coded; each tenant defines its own intro.
+      if(introScript && String(introScript).trim()){
+        setTransferPhase(true);setPhase('transfer');
+        await new Promise(resolve=>speakTransfer(String(introScript).slice(0,850),
+          introVoice||'aura-asteria-en','female',apiKey,resolve));
+        setTransferPhase(false);
+      }
+      // Legacy internal Debt Call Coach handoff is retained separately.
       if (mode) {
         setTransferPhase(true); setPhase('transfer');
         onLogRef.current?.('transcript', `📋 Transfer agent connecting call (${mode} mode)...`);
