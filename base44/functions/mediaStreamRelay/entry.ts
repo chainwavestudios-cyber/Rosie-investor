@@ -221,12 +221,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
   // Inbound calls render the full contact-card tag set; outbound keeps its original substitutions.
   const filledPrompt = isInboundAdam
     ? renderLeadTemplate(systemPrompt, lead, { agentName: String(config.inboundAgentName || '').trim() || 'Sarah', region: lead?.inboundRegion })
-    : systemPrompt
-      .replace(/\{\{first_name\}\}/g, lead?.firstName || '')
-      .replace(/\{\{last_name\}\}/g, lead?.lastName || '')
-      .replace(/\{\{email\}\}/g, lead?.email || '')
-      .replace(/\{\{city\}\}/g, lead?.city || '')
-      .replace(/\{\{state\}\}/g, lead?.state || '');
+    : renderLeadTemplate(systemPrompt, lead, { agentName: String(config.outboundAgentName || '').trim() || 'Alex' });
 
   // Each direction runs its own flow: incoming calls use the inbound script flow,
   // outgoing dials use the outbound flow with its rebuttals and Q&A notes.
@@ -236,7 +231,7 @@ async function handleTurn(base44: any, body: any): Promise<Response> {
       promptSections.push(`INBOUND CALL EXECUTION FLOW:\n${renderLeadTemplate(config.inboundScriptFlow, lead, { agentName: String(config.inboundAgentName || '').trim() || 'Sarah', region: lead?.inboundRegion })}`);
     }
   } else {
-    if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${config.scriptFlow}`);
+    if (config.scriptFlow) promptSections.push(`CALL EXECUTION FLOW:\n${renderLeadTemplate(config.scriptFlow, lead, { agentName: String(config.outboundAgentName || '').trim() || 'Alex' })}`);
     if (config.dynamicRebuttals) promptSections.push(`OBJECTION HANDLING:\n${config.dynamicRebuttals}`);
     if (config.qaTuning) promptSections.push(`TONE & Q&A GUIDANCE:\n${config.qaTuning}`);
   }
