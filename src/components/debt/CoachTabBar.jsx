@@ -16,11 +16,12 @@ export default function CoachTabBar({ rows, tabMap, active, onSelect, onMove, on
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ marginBottom: '20px' }}>
+      <div className="dcc-coach-tabs" style={{ margin:'11px 0 17px',padding:'8px 10px 4px',background:'linear-gradient(125deg,#101d2a,#101f2a)',border:'1px solid rgba(139,184,173,.19)',borderRadius:12 }}>
+        <style>{` .dcc-coach-tabs button{transition:background .15s,color .15s,border-color .15s}.dcc-coach-tabs button:focus-visible{outline:2px solid #d7ba7a;outline-offset:2px}@media(prefers-reduced-motion:reduce){.dcc-coach-tabs button{transition:none!important}} `}</style>
         {[0, 1].map((rowIndex) => (
           <div
             key={rowIndex}
-            style={{ display: 'flex', alignItems: 'flex-end', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ display:'flex', alignItems:'flex-end',borderBottom:rowIndex===0?'1px solid rgba(138,186,165,.15)':'none',gap:9 }}
           >
             <Droppable droppableId={String(rowIndex)} direction="horizontal">
               {(provided, snapshot) => (
@@ -28,8 +29,8 @@ export default function CoachTabBar({ rows, tabMap, active, onSelect, onMove, on
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   style={{
-                    display: 'flex', gap: '2px', flex: 1, minHeight: rowIndex === 0 ? '34px' : '4px',
-                    overflowX: 'auto', background: snapshot.isDraggingOver ? 'rgba(16,185,129,0.05)' : 'transparent',
+                    display:'flex',gap:3,flex:1,minHeight:rowIndex===0?'34px':'3px',padding:'3px 0',
+                    overflowX:'auto',background:snapshot.isDraggingOver?'rgba(16,185,129,.07)':'transparent',
                   }}
                 >
                   {rows[rowIndex].map((id, index) => {
@@ -43,16 +44,18 @@ export default function CoachTabBar({ rows, tabMap, active, onSelect, onMove, on
                             {...drag.draggableProps}
                             {...drag.dragHandleProps}
                             onClick={() => onSelect(id)}
-                            title="Click to open — drag to reorder"
+                            title="Click to open · drag to reorder"
+                            aria-current={active===id?'page':undefined}
                             style={{
-                              padding: '10px 18px',
-                              background: active === id ? `${GOLD}12` : snap.isDragging ? 'rgba(255,255,255,0.07)' : 'transparent',
-                              border: 'none',
-                              borderBottom: `2px solid ${active === id ? GOLD : 'transparent'}`,
-                              color: active === id ? GOLD : MUTED,
-                              cursor: 'pointer',
-                              fontSize: '13px',
-                              fontWeight: active === id ? 'bold' : 'normal',
+                              padding:'8px 12px',
+                              background:active===id?'linear-gradient(125deg,rgba(34,124,93,.28),rgba(19,76,68,.12))':snap.isDragging?'rgba(255,255,255,.07)':'transparent',
+                              border:'1px solid '+(active===id?'rgba(67,184,144,.4)':'transparent'),
+                              borderBottom:'2px solid '+(active===id?'#49d6a7':'transparent'),
+                              borderRadius:'7px 7px 4px 4px',
+                              color:active===id?'#b9f2d9':'#99aebb',
+                              cursor:'pointer',
+                              fontSize:12,
+                              fontWeight:active===id?800:550,
                               whiteSpace: 'nowrap',
                               opacity: snap.isDragging ? 0.75 : 1,
                             }}
@@ -69,10 +72,10 @@ export default function CoachTabBar({ rows, tabMap, active, onSelect, onMove, on
             </Droppable>
             {rowIndex === 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 0 8px 12px', flexShrink: 0 }}>
-                <span style={{ color: '#4a5568', fontSize: '10px', letterSpacing: '1px', textTransform: 'uppercase' }}>Drag tabs to reorder</span>
+                <span style={{ color:'#738e96',fontSize:9,letterSpacing:'.4px',whiteSpace:'nowrap' }}>Drag to arrange</span>
                 <button
                   onClick={onReset}
-                  style={{ background: 'rgba(255,255,255,0.05)', color: MUTED, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px' }}
+                  style={{background:'rgba(255,255,255,.035)',color:'#9db5ba',border:'1px solid rgba(161,187,191,.18)',borderRadius:6,padding:'5px 8px',cursor:'pointer',fontSize:10}}
                 >
                   ↺ Reset order
                 </button>
