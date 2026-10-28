@@ -410,7 +410,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
       </div>
 
       {/* Script display with active-line highlighting */}
-      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '40px 16px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
+      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', background: 'rgba(8,15,27,0.68)', border: '1px solid rgba(154,198,188,0.2)', borderRadius: '10px' }}>
         {elements.map((el) => {
           if (el.type === 'cue_block') {
             return <CueBlockView key={el.id} element={el} />;
@@ -438,15 +438,15 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
               style={{
                 padding: '10px 14px',
                 marginBottom: '4px',
-                borderRadius: '4px',
+                borderRadius: '8px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
-                background: isActive ? 'rgba(250,204,21,0.55)' : 'transparent',
-                borderLeft: isActive ? '4px solid #facc15' : '4px solid transparent',
-                color: isActive ? '#1a1a2e' : isPast ? `${color}99` : color,
+                transition: 'background 0.15s ease, color 0.15s ease',
+                background: isActive ? 'rgba(217,187,122,0.15)' : 'transparent',
+                borderLeft: isActive ? '3px solid #d9bb7a' : '3px solid transparent',
+                color: isActive ? '#fff7e6' : isPast ? `${color}cc` : color,
                 fontSize: isActive ? `${fontSize + 2}px` : `${fontSize}px`,
                 fontWeight: isActive ? 'bold' : 'normal',
-                opacity: isPast ? 0.5 : 1,
+                opacity: isPast ? 0.75 : 1,
                 lineHeight: 1.7,
                 fontFamily: 'Georgia, serif',
                 whiteSpace: 'pre-wrap',
