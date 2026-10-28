@@ -2,11 +2,27 @@
  * LiveQAWindow.jsx — the floating "Live Q&A Only" window used during a live call.
  * Shows every question the live Q&A engine has answered, newest first, in the
  * operator's own saved position and size.
+ *
+ * It is also the live call's Q&A intake: a question from a transcript 💡 line or
+ * from 🎤 Agent Question arrives here as `pendingQuestion` and is handed to the
+ * call's own Q&A engine (`onAsk`), so it is answered and listed even though the
+ * docked assistant panel is not on screen.
  */
+import { useEffect, useRef } from 'react';
+
 const GOLD = '#10b981';
 
-export default function LiveQAWindow({ panel, qaItems }) {
+export default function LiveQAWindow({ panel, qaItems, pendingQuestion, onAsk }) {
   const items = qaItems || [];
+  const askedRef = useRef(null);
+
+  useEffect(() => {
+    if (!pendingQuestion?.question || !onAsk) return;
+    if (askedRef.current === pendingQuestion.ts) return;
+    askedRef.current = pendingQuestion.ts;
+    onAsk(pendingQuestion.question);
+  }, [pendingQuestion?.ts]);
+
   return (
     <div style={{ ...panel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
       <div onMouseDown={panel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>

@@ -85,6 +85,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   const [timerError, setTimerError] = useState('');
   const [soundError, setSoundError] = useState('');
   const [soundUploading, setSoundUploading] = useState(false);
+  const soundFileInputRef = useRef(null);
   const [timerSoundChoice, setTimerSoundChoice] = useDebtCoachValue(username, 'profile_timer_sound', { id:'bell' });
   const [uploadedTimerSound, setUploadedTimerSound] = useDebtCoachValue(username, 'profile_timer_uploaded_sound', null);
   const chosenTimerSound = normalizeProfileTimerSound(timerSoundChoice?.id==='custom' ? { id:'custom', url:uploadedTimerSound?.url, name:uploadedTimerSound?.name } : timerSoundChoice);
