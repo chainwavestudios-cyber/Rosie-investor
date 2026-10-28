@@ -13,6 +13,7 @@ import HotLeadRecord from '@/components/engagement/HotLeadRecord';
 import EngagedLeadList from '@/components/engagement/EngagedLeadList';
 import EngagementContactCard from '@/components/engagement/EngagementContactCard';
 import EngagementMetricList from '@/components/engagement/EngagementMetricList';
+import DebtGmailVisualJourney from './DebtGmailVisualJourney';
 
 const tones = { gold: '#e4bd78', teal: '#34d399', blue: '#60a5fa', purple: '#c4b5fd', red: '#fb7185', text: '#e6efe9', muted: '#9cafb4', border: 'rgba(163,212,201,.16)' };
 const prettyDate = (d) => d ? new Date(d).toLocaleString() : '—';
@@ -148,6 +149,7 @@ export default function DebtCoachGmailCommandCenter() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong style={{color:tones.teal}}>New engagement detected</strong><button onClick={()=>setNewActions([])} style={{background:'none',border:0,color:tones.muted,cursor:'pointer'}}>Dismiss</button></div>
         {newActions.map(a=><p key={a.key} style={{margin:'6px 0 0',fontSize:12}}>{a.title} · <strong>{a.subject}</strong> · {a.detail}</p>)}
       </div>}
+      <DebtGmailVisualJourney people={view.leads} onOpen={showLead}/>
       <HotLeadBanner hot={view.hot} leads={view.leads} system="coach" recorded={view.hotHistory.length} onOpenLead={showLead} onViewRecord={()=>hotRef.current?.scrollIntoView({behavior:'smooth'})}/>
       <div ref={hotRef}><HotLeadRecord history={view.hotHistory} system="coach" onOpenLead={showLead} onHandle={markHandled} handlingId={handlingId} soundOn={soundOn} onToggleSound={()=>setSoundOn(v=>!v)}/></div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(450px,100%),1fr))',gap:14,marginTop:15}}>
