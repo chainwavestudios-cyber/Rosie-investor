@@ -12,7 +12,7 @@ import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer } from '@/components/debt/ProfileTimerWatcher';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import { PROFILE_TIMER_SOUNDS, isValidProfileTimerSoundFile, normalizeProfileTimerSound, primeProfileTimerAudio, playProfileTimerSound } from '@/components/debt/profileTimerSounds';
-import { Bell, Volume2, UploadCloud, Play, Clock3 } from 'lucide-react';
+import { Bell, Volume2, UploadCloud, Clock3 } from 'lucide-react';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import { fullStateName } from '@/lib/usStates';
 import DebtCallBar from '@/components/debt/DebtCallBar';
@@ -242,23 +242,28 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
     }
     // Called during a genuine user click so the browser can unlock sound.
     primeProfileTimerAudio(chosenTimerSound);
+    if ('Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission().catch(() => {});
+    }
     setTimerError('');
     try {
       const ok = await setProfileTimer(username, local, 0, minutes, chosenTimerSound);
       if (!ok) throw new Error('Could not save this reminder.');
       setActiveTimer(getActiveTimer(username, local.id));
+      setNow(Date.now());
       setTimerInput('');
-      if ('Notification' in window && Notification.permission === 'default') {
-        void Notification.requestPermission().catch(() => {});
-      }
     } catch(e) { setTimerError(e?.message || 'Could not set reminder.'); }
   };
 
   const handleCancelTimer = async () => {
     if (!local.id || !username) return;
-    await cancelProfileTimer(username, local.id);
-    setActiveTimer(null);
-    setTimerInput('');
+    try {
+      const ok = await cancelProfileTimer(username, local.id);
+      if (!ok) throw new Error('Unable to save timer cancellation.');
+      setActiveTimer(null);
+      setTimerInput('');
+      setTimerError('');
+    } catch(e) { setTimerError(e?.message || 'Could not cancel timer.'); }
   };
 
   const handleTimerSoundChange = (id) => {
