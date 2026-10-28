@@ -15,6 +15,39 @@ const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing
 const ANIMAL_COLORS = { duck: '#ef4444', cow: '#4ade80', unknown: '#6b7280' };
 const ANIMAL_EMOJI = { duck: '🦆', cow: '🐄', unknown: '❓' };
 
+// A campaign import creates a contact card for every row it mails — those are
+// for emailing, not prospects. A card only becomes a prospect once it engages.
+const CAMPAIGN_NOTE = 'Added by the Email Campaign Manager';
+
+const isCampaignContact = (l) => String(l?.notes || '').startsWith(CAMPAIGN_NOTE);
+
+const hasOwnEngagement = (l) =>
+  (l.callCount || 0) > 0 || !!l.lastCallAt || !!l.profileJson || l.intentScore != null ||
+  !!l.animalType || !!l.appointmentDate || !!l.rosieAiAnalysis || (l.dealScore || 0) > 0;
+
+async function onlyProspects(cards) {
+  const manual = cards.filter(l => !isCampaignContact(l));
+  const imported = cards.filter(l => isCampaignContact(l));
+  if (!imported.length) return manual;
+
+  const engaged = new Set(imported.filter(hasOwnEngagement).map(l => l.id));
+  const emails = [...new Set(imported.map(l => String(l.email || '').toLowerCase()).filter(Boolean))];
+  if (emails.length) {
+    try {
+      const page = await base44.entities.EmailCampaignRecipient.filter(
+        { email: { $in: emails.slice(0, 500) } }, { limit: 500 }
+      );
+      const opened = new Set((page?.items || page || [])
+        .filter(r => r.openedAt || r.clickedAt || r.qualifyVisitAt)
+        .map(r => String(r.email || '').toLowerCase()));
+      for (const l of imported) {
+        if (opened.has(String(l.email || '').toLowerCase())) engaged.add(l.id);
+      }
+    } catch {}
+  }
+  return [...manual, ...imported.filter(l => engaged.has(l.id))];
+}
+
 export default function DebtUserProfile({ debtCoachUser }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,8 +67,9 @@ export default function DebtUserProfile({ debtCoachUser }) {
         all = await base44.entities.DebtLead.list('-updated_date', 200);
       }
       const active = (all || []).filter(l => !l.deletedAt);
-      setLeads(active);
-      if (active.length > 0 && !selected) setSelected(active[0]);
+      const prospects = await onlyProspects(active);
+      setLeads(prospects);
+      if (prospects.length > 0 && !selected) setSelected(prospects[0]);
     } catch {}
     setLoading(false);
   }, [selected, debtCoachUser]);
