@@ -471,6 +471,10 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
               )}
             </div>
           </div>
+          {activeTimer && <div className={'dcc-profile-countdown'+((activeTimer.fireAt-now)<=60000?' is-urgent':'')} title="Follow-up reminder countdown" onMouseDown={e=>e.stopPropagation()}>
+            <span><Clock3 size={13}/> FOLLOW-UP IN</span>
+            <strong>{timerClock(activeTimer.fireAt-now)}</strong>
+          </div>}
         </div>
         <div className="dcc-profile-header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <AiInviteLinksButton leadId={local.id} clientName={`${local.firstName || ''} ${local.lastName || ''}`.trim()} />

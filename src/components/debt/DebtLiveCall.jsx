@@ -44,9 +44,6 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints', 'debt_common_qa', 'debt_objections', 'debt_disqualify', 'debt_open_scenario', 'debt_close_scenario'];
 
 // Deepgram keyterms live in src/lib/debtLiveFeed.js, next to the audio transport.
-
-// Wrapper for liveAssistantAI calls — detects credit exhaustion in responses/errors
-// and triggers the CreditAlertPopup automatically.
 // Context for the next liveAssistantAI call — stamped by logAI so the backend
 // records exact token usage and cost against the same AI call (matched by callId).
 let nextAICallContext = null;
