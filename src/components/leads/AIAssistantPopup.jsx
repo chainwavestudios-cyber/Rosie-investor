@@ -469,6 +469,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         answer: q.answer || '', answers: [], answering: !!q.loading,
         answered: !q.loading && !!q.answer, auto: true, manual: false,
         source: q.source, responseMs: q.responseMs,
+        reallyAsking: q.reallyAsking || '', opener: q.opener || '', detail: q.detail || '',
         fromLiveCall: true,
       })),
     ]);
@@ -746,6 +747,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                     <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '2px 8px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI ANSWER — Not in KB</span>
                   </div>
                 )}
+                {q.reallyAsking && <div style={{ fontSize: '10px', color: '#8a9ab8', marginBottom: '6px', fontStyle: 'italic' }}>Really asking: {q.reallyAsking}</div>}
                 <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} /></div>
                 <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                   addInfoId={addInfoId} setAddInfoId={setAddInfoId}
@@ -814,6 +816,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                             <span style={{ fontSize: '8px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>🤖 AI — Not in KB</span>
                           </div>
                         )}
+                        {q.reallyAsking && <div style={{ fontSize: '10px', color: '#8a9ab8', marginBottom: '4px', fontStyle: 'italic' }}>Really asking: {q.reallyAsking}</div>}
                         <AnswerDisplay answer={q.answer} answers={q.answers} />
                       </div>
                   }
