@@ -34,7 +34,7 @@ const TYPE_LABELS = {
 const quillFormats = ['font', 'size', 'bold', 'italic', 'underline', 'strike', 'color', 'background', 'align', 'list', 'link', 'image', 'width'];
 
 export default function DebtEmailsTab({ username }) {
-  const { isAdmin } = useDebtCoachAuth();
+  const { isAdmin, sessionUserId, sessionToken } = useDebtCoachAuth();
   const [emailView, setEmailView] = useState('templates');
   const quillRef = useRef(null);
   const quillModules = useQuillImageModules(quillRef);
@@ -43,6 +43,11 @@ export default function DebtEmailsTab({ username }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [testTemplate, setTestTemplate] = useState(null);
+  const [testRecipient, setTestRecipient] = useState('');
+  const [testFirstName, setTestFirstName] = useState('Test');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState(null);
   const [showHtmlSource, setShowHtmlSource] = useState(false);
   const [selectedImg, setSelectedImg] = useState(null);
   const [imgRect, setImgRect] = useState(null);
@@ -141,15 +146,17 @@ export default function DebtEmailsTab({ username }) {
       triggerOffsetHours: -18, triggerTimeOfDay: '', enabled: true,
       attachToContactCard: false, buttonLabel: '', buttonColor: '#10b981',
       trackingEnabled: true, includeSignature: true, sortOrder: templates.length + 1,
-      personalMessageUrl: '',
+      personalMessageUrl: 'https://debtsolutions.cc/welcome',
     });
   };
 
   const save = async () => {
     if (!editing?.name?.trim()) { alert('Template name is required'); return; }
+    const contents=[editing.name,editing.subject,editing.bodyHtml].join(' ');
+    if(!/debt advisors of america|debtadvisorsofamerica\.com|\bDAA\b/i.test(contents)||/golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test(contents)){alert('Only Debt Advisors of America templates may be saved for Gmail.');return;}
     setSaving(true);
     try {
-      const payload = { ...editing, updatedBy: username };
+      const payload = { ...editing, personalMessageUrl:'https://debtsolutions.cc/welcome',trackingEnabled:true,updatedBy:username };
       if (editing.id) {
         await base44.entities.DebtEmailTemplate.update(editing.id, payload);
       } else {
@@ -328,7 +335,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '16px', marginBottom: '16px' }}>
           <div style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>🎙️ Personal Message Audio Link</div>
           <label style={ls}>Personal Message URL <span style={{ color: '#4a5568', textTransform: 'none', letterSpacing: '0' }}>(supports {'{{leadId}}'}, {'{{firstName}}'} — use {'{{personalMessageUrl}}'} in the email body)</span></label>
-          <input value={editing.personalMessageUrl || ''} onChange={e => update('personalMessageUrl', e.target.value)} placeholder="https://your-audio-site.com/message/{{leadId}}" style={inp} />
+          <input value="https://debtsolutions.cc/welcome" readOnly title="All DAA Gmail emails use the tracked welcome player" style={{...inp,color:'#a7e6be'}} />
           <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px' }}>When a prospect clicks this link in the email, the 🎙️ Personal Message badge on the contact card pulses neon green.</div>
         </div>
 
@@ -336,7 +343,7 @@ export default function DebtEmailsTab({ username }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '14px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: editing.trackingEnabled ? PURPLE : '#6b7280', fontSize: '12px', fontWeight: 'bold' }}>
-              <input type="checkbox" checked={editing.trackingEnabled} onChange={e => update('trackingEnabled', e.target.checked)} style={{ cursor: 'pointer' }} />
+              <input type="checkbox" checked readOnly disabled title="DAA Gmail tracking is required for all templates" />
               📊 Track Opens & Clicks
             </label>
             <div style={{ color: '#4a5568', fontSize: '10px', marginTop: '6px', marginLeft: '24px' }}>Injects tracking pixels and wraps links. The contact card button lights up when opened.</div>
