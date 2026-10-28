@@ -54,6 +54,8 @@ export default function DebtCoachAdminPanel(){
   const [editPerms,setEditPerms]=useState({});
   const [pendingId,setPendingId]=useState('');
   const [showAll,setShowAll]=useState(false);
+  const [setupDelivery,setSetupDelivery]=useState(null);
+  const [linkCopied,setLinkCopied]=useState(false);
 
   const callApi=useCallback(async(payload)=>{
     const response=await base44.functions.invoke('debtCoachAuth',{...payload,sessionUserId,sessionToken});
@@ -123,9 +125,15 @@ export default function DebtCoachAdminPanel(){
     await perform(u.id,()=>callApi({action:'updateUser',targetUserId:u.id,updates:{role:next}}),`${u.username}'s role was updated.`);
   };
   const resetPassword=async(u)=>{
-    if(!window.confirm(`Reset the password for ${u.username}? Their current password will stop working and they must change the temporary password on their next login.`))return;
-    const result=await perform(u.id,()=>callApi({action:'resetPassword',targetUserId:u.id}),`Password reset requested for ${u.username}. Use your organization's secure credential-sharing procedure.`);
-    if(result)setExpandedId(null);
+    if(!window.confirm(`Reset the password for ${u.username}? Their current password and sessions will be revoked. ${u.email?'A one-time setup link will be emailed to their recorded address.':'A private one-time setup link will be shown to you.'}`))return;
+    setSetupDelivery(null);
+    const result=await perform(u.id,()=>callApi({action:'resetPassword',targetUserId:u.id,sendInvite:!!u.email}),`Password reset created for ${u.username}.`);
+    if(result){
+      setExpandedId(null);
+      setLinkCopied(false);
+      if(result.setupLink){setSetupDelivery({username:u.username,link:result.setupLink});setNotice({type:'success',text:'Password reset created. The private one-time setup link is shown below; share it securely.'});}
+      else if(result.inviteSent)setNotice({type:'success',text:`Reset email sent to ${u.email}. The link is valid for 24 hours.`});
+    }
   };
   const deleteUser=async(u)=>{
     if(!isSuperAdmin||u.id===sessionUserId)return;
@@ -134,6 +142,11 @@ export default function DebtCoachAdminPanel(){
   };
   const mayManage=(u)=>u.id!==sessionUserId && (isSuperAdmin||!['admin','super_admin'].includes(u.role));
 
+  const onAccountCreated=(response)=>{
+    setShowCreate(false);loadUsers();setLinkCopied(false);
+    if(response?.setupLink){setSetupDelivery({username:response.user?.username||'New user',link:response.setupLink});setNotice({type:'success',text:'Account created. Copy the private one-time setup link below to give the new user.'});}
+    else {setSetupDelivery(null);setNotice({type:'success',text:'Account created and setup invitation emailed. The private link is valid for 24 hours.'});}
+  };
   return <section className="dcc-admin" aria-label="Debt Call Coach Administration">
     <div className="dcc-admin-heading">
       <div>
@@ -170,7 +183,7 @@ export default function DebtCoachAdminPanel(){
         </div>
       </div>
       {showCreate&&<CreateUserForm isSuperAdmin={isSuperAdmin} sessionUserId={sessionUserId} sessionToken={sessionToken}
-        onCreated={()=>{setShowCreate(false);loadUsers();setNotice({type:'success',text:'New team member created.'});}}/>}
+        onCreated={onAccountCreated}/>}
       <div className="dcc-admin-filters">
         <label className="dcc-admin-search"><Search size={15}/>
           <input aria-label="Find users" placeholder="Search name, email, role…" value={search} onChange={e=>{setSearch(e.target.value);setShowAll(false);}}/>
@@ -183,6 +196,11 @@ export default function DebtCoachAdminPanel(){
         </select></label>
       </div>
       {notice&&<div role="status" className={'dcc-admin-notice is-'+notice.type}>{notice.type==='error'?<AlertTriangle size={15}/>:<CheckCircle2 size={15}/>}<span>{notice.text}</span><button aria-label="Dismiss notice" onClick={()=>setNotice(null)}><X size={14}/></button></div>}
+      {setupDelivery&&<div className="dcc-admin-setup-delivery" role="group" aria-label="One-time account setup link">
+        <div style={{display:'flex',gap:8,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}}><strong style={{color:'#ebd39a',fontSize:12}}>Private setup link for {setupDelivery.username}</strong><button type="button" className="dcc-admin-btn is-quiet" onClick={()=>{setSetupDelivery(null);setLinkCopied(false);}}>Dismiss link</button></div>
+        <p style={{fontSize:11,color:'#b9cfc5',lineHeight:1.5,margin:'8px 0'}}>Valid for 24 hours and one use only. Share directly with the intended person. Anyone holding this link can set that account's password until it expires.</p>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><input readOnly aria-label="One-time account setup link" value={setupDelivery.link} onFocus={e=>e.target.select()} style={{flex:'1 1 250px',minWidth:0,padding:10,background:'#0c1b27',border:'1px solid #395f56',borderRadius:7,color:'#bce4ca',fontSize:11}}/><button className="dcc-admin-btn is-primary" type="button" onClick={async()=>{try{await navigator.clipboard.writeText(setupDelivery.link);setLinkCopied(true);}catch{setLinkCopied(false);}}}>{linkCopied?'Copied':'Copy link'}</button></div>
+      </div>}
       {loadError&&<div role="alert" className="dcc-admin-notice is-error"><AlertTriangle size={15}/><span>Could not load the user directory: {loadError}</span><button onClick={loadUsers} className="dcc-admin-btn is-quiet">Retry</button></div>}
       {loading?<div className="dcc-admin-empty"><LoaderCircle size={17}/> Loading the team…</div>:
         filtered.length===0?<div className="dcc-admin-empty">No accounts match your filters.</div>:
@@ -247,7 +265,7 @@ export default function DebtCoachAdminPanel(){
           })}
           {filtered.length>visible.length&&<button className="dcc-admin-showmore" type="button" onClick={()=>setShowAll(true)}>Show all {filtered.length} accounts <ChevronDown size={14}/></button>}
         </div>}
-      <div className="dcc-admin-security-note"><AlertTriangle size={15}/><span>The existing sign-in backend currently uses a shared temporary credential when creating or resetting accounts. Treat invitations and resets as sensitive until that authentication flow is updated.</span></div>
+      <div className="dcc-admin-security-note"><LockKeyhole size={15}/><span>New accounts and resets use unique, expiring, one-time setup links instead of a shared default password. Existing account passwords are not changed unless an administrator explicitly resets them.</span></div>
     </>}
     {tab==='flags'&&<div className="dcc-admin-module"><AdminFlagsTab/></div>}
     {tab==='qareview'&&<div className="dcc-admin-module"><QAReviewTab/></div>}
@@ -275,7 +293,7 @@ function CreateUserForm({onCreated,sessionUserId,sessionToken,isSuperAdmin}){
       });
       const data=response?.data||response;
       if(data?.error)throw new Error(data.error);
-      onCreated();
+      onCreated(data);
     }catch(e){setError(e?.message||'The account could not be created.');}
     finally{setSaving(false);}
   };
@@ -295,7 +313,7 @@ function CreateUserForm({onCreated,sessionUserId,sessionToken,isSuperAdmin}){
         {group} · {PERMISSION_LABELS[key]}</label>))}</div>
     </div>}
     <label className="dcc-admin-invite-label"><input type="checkbox" checked={sendInvite} onChange={e=>setSendInvite(e.target.checked)}/>
-      <Mail size={15}/> Send invitation email with the current sign-in instructions
+      <Mail size={15}/> Email a private, 24-hour password setup link
     </label>
     {error&&<div role="alert" className="dcc-admin-notice is-error"><AlertTriangle size={15}/>{error}</div>}
     <div className="dcc-admin-expanded-actions"><button disabled={saving} className="dcc-admin-btn is-primary" type="submit"><UserPlus size={14}/>{saving?'Creating…':'Create account'}</button>

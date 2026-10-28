@@ -118,7 +118,7 @@ export default function AdminFlagsTab() {
       const res = await base44.functions.invoke('debtCoachAuth', {
         action: 'updateUser', sessionUserId, sessionToken,
         targetUserId: selectedUser.id,
-        updates: { aiSettingsJson: JSON.stringify(flags) },
+        updates: { aiSettingsJson: JSON.stringify(Object.fromEntries(ALL_FLAG_KEYS.map(key=>[key,!!flags[key]]))) },
       });
       const data=res?.data||res;
       if(data?.error)throw new Error(data.error);
@@ -146,7 +146,7 @@ export default function AdminFlagsTab() {
       <div><strong style={{color:'#e5c780',fontSize:12}}>Feature access</strong><p style={{fontSize:11,color:'#9cafb6',margin:'4px 0'}}>Select an account, review its settings, then verify any changes.</p></div>
       <label style={{display:'flex',alignItems:'center',gap:7,border:'1px solid #375862',borderRadius:7,padding:'6px 9px',color:'#9ebaba',background:'#10202d'}}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Find users by name" placeholder="Find an account…" style={{background:'transparent',border:0,color:'#e1eae2',outline:0,fontSize:11,padding:4}}/></label>
     </div>
-    <div role="note" style={{display:'flex',gap:8,padding:'9px 11px',color:'#e2c391',background:'rgba(121,86,39,.12)',border:'1px solid rgba(204,159,91,.31)',borderRadius:7,fontSize:11,lineHeight:1.5,marginBottom:11}}><AlertTriangle size={15} style={{flexShrink:0,marginTop:1}}/>This server currently may acknowledge feature-flag updates without storing them. Each Save is checked against the server, and unconfirmed changes are reported as errors.</div>
+    <div role="note" style={{display:'flex',gap:8,padding:'9px 11px',color:'#a4d5be',background:'rgba(37,105,79,.12)',border:'1px solid rgba(95,166,127,.29)',borderRadius:7,fontSize:11,lineHeight:1.5,marginBottom:11}}><CheckCircle2 size={15} style={{flexShrink:0,marginTop:1}}/>Feature settings are saved through the authenticated Admin API and verified against the stored record. Changes take effect after the agent refreshes or signs in again.</div>
     {error&&<div role="alert" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(134,39,42,.14)',border:'1px solid #91514d',color:'#ffd0bc',fontSize:11,borderRadius:8,marginBottom:9}}><AlertTriangle size={14}/>{error}</div>}
     {success&&<div role="status" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(34,137,94,.13)',border:'1px solid #487d61',color:'#a9ebca',fontSize:11,borderRadius:8,marginBottom:9}}><CheckCircle2 size={14}/>{success}</div>}
     <div className="dcc-admin-flags-grid" style={{ display: 'grid',gridTemplateColumns: 'minmax(220px,260px) minmax(0,1fr)',gap:12,alignItems:'start' }}>

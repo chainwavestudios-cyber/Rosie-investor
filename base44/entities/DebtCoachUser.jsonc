@@ -73,6 +73,14 @@
       "type": "string",
       "title": "Session Token"
     },
+    "setupTokenHash": {
+      "type": "string",
+      "title": "One-time account setup token digest"
+    },
+    "setupTokenExpiresAt": {
+      "type": "string",
+      "title": "Account setup token expiration"
+    },
     "voiceprintUri": {
       "type": "string",
       "title": "Voiceprint File URI (private storage \u2014 for voice login)"
