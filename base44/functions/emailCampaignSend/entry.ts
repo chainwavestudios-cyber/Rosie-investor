@@ -101,7 +101,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
   // A missing template is a normal half-finished state, not an API failure — it
   // comes back as a readable message the wizard can show in place.
   if (!template) return { error: 'This campaign has no email template yet — choose one in step 3.' };
-  const policyError=daaTemplateIssue(template);
+  const policyError=daaTemplateIssue({...template,subject:clean(campaign.subject)||template.subject});
   if (policyError) return { error: `DAA Gmail protection: ${policyError}` };
 
   const assistants = options.assistants || await campaignAssistants(base44);
@@ -257,7 +257,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
         templateId: template.id,
         templateName,
         senderEmail: clean(campaign.senderEmail),
-        senderName: clean(campaign.senderName),
+        senderName: 'Debt Advisors of America',
         sentBy: clean(campaign.createdBy) || 'campaign',
         source: 'campaign',
         sendId,
@@ -417,7 +417,7 @@ export default async function (req: Request): Promise<Response> {
       ? await base44.asServiceRole.entities.EmailCampaignTemplate.get(campaign.templateId).catch(() => null)
       : null;
     if (!template) return Response.json({ error: 'This campaign has no email template yet — choose one in step 3.' });
-    const policyError=daaTemplateIssue(template);
+    const policyError=daaTemplateIssue({...template,subject:clean(campaign.subject)||template.subject});
     if (policyError) return Response.json({ error: `DAA Gmail protection: ${policyError}` }, {status:403});
 
     const assistants = await campaignAssistants(base44);
