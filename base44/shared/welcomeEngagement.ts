@@ -4,9 +4,8 @@
  * used for Gmail open/click tracking. Never accepts a browser-supplied lead ID.
  */
 import { resolveMessageToken } from './emailMessageEngine.ts';
-import { formatProtofaceId } from './protofaceId.ts';
 
-const events = new Set(['page_view','play','pause','progress','ended','replay','calendar_open','calendar_external','ai_open']);
+const events = new Set(['page_view','play','pause','progress','ended','replay','calendar_open','calendar_external']);
 const items = (p: any) => Array.isArray(p) ? p : (p?.items || []);
 const num = (v: any, max = 10000) => Number.isFinite(Number(v)) ? Math.min(max, Math.max(0, Number(v))) : 0;
 const reply = (data: any, status = 200) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -17,17 +16,9 @@ export async function welcomeEngagement(base44: any, body: any): Promise<Respons
   const message = await resolveMessageToken(base44, token);
   if (!message || message.status !== 'sent' || message.contactKind !== 'debt_lead' || !message.sendId || message.source === 'campaign') return reply({ error: 'Link not found' }, 404);
   const svc = base44.asServiceRole.entities;
-  if (body.event === 'config') {
-    // A personalized AI-agent handoff uses the contact's existing Protoface ID.
-    // Create one if missing; this isn't a transcript or marketing opt-in.
-    const lead = message.contactId ? await svc.DebtLead.get(message.contactId).catch(() => null) : null;
-    let agentToken = String(lead?.protofaceId || '');
-    if (lead && !/^pf_[A-Z0-9]{10}$/.test(agentToken)) {
-      agentToken = formatProtofaceId();
-      await svc.DebtLead.update(lead.id, { protofaceId: agentToken }).catch(() => { agentToken = ''; });
-    }
-    return reply({ ok: true, agentToken, hasBookingCalendar: true });
-  }
+  // The welcome page is audio + calendar only. Never mint a Protoface token,
+  // invoke an AI assistant, or modify the lead simply because they visit.
+  if (body.event === 'config') return reply({ ok: true, hasBookingCalendar: true });
   const event = String(body.event || '');
   const sessionId = String(body.sessionId || '');
   if (!events.has(event) || !/^[A-Za-z0-9_-]{12,80}$/.test(sessionId)) return reply({ error: 'Invalid event' }, 400);
@@ -48,8 +39,6 @@ export async function welcomeEngagement(base44: any, body: any): Promise<Respons
     calendarOpenedAt: existing?.calendarOpenedAt || (event === 'calendar_open' ? now : null),
     calendarExternalAt: existing?.calendarExternalAt || (event === 'calendar_external' ? now : null),
     calendarExternalClicks: Number(existing?.calendarExternalClicks || 0) + (event === 'calendar_external' ? 1 : 0),
-    aiOpenedAt: existing?.aiOpenedAt || (event === 'ai_open' ? now : null),
-    aiLaunchCount: Number(existing?.aiLaunchCount || 0) + (event === 'ai_open' ? 1 : 0),
     firstAt: existing?.firstAt || now, lastAt: now, lastEvent: event,
   };
   try {
