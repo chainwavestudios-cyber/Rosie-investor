@@ -128,7 +128,7 @@ const CHECKLIST_SECTIONS = [
 // Flatten for quick count
 const ALL_ITEMS = CHECKLIST_SECTIONS.flatMap(s => s.items.map((text, i) => ({ id: `${s.id}-${i}`, text, section: s.id })));
 
-export default function WCRChecklist({ username }) {
+export default function WCRChecklist({ username, showLauncher = true }) {
   const [visible, setVisible] = useState(false);
   const [checked, setChecked] = useDebtCoachValue(username, 'wcr_checklist_state', {});
   const [collapsed, setCollapsed] = useState({});
@@ -231,14 +231,21 @@ export default function WCRChecklist({ username }) {
   const remainingMin = Math.floor(remainingMs / 60000);
   const remainingSec = Math.floor((remainingMs % 60000) / 1000);
 
+  // Open from the Coach workspace toolbar without a floating startup button.
+  useEffect(() => {
+    const openChecklist = () => setVisible(true);
+    window.addEventListener('coach_open_wcr', openChecklist);
+    return () => window.removeEventListener('coach_open_wcr', openChecklist);
+  }, []);
+
   // FAB
   if (!visible) {
     return (
       <>
-        <button onClick={() => setVisible(true)} title="Open WCR Checklist"
+        {showLauncher && <button onClick={() => setVisible(true)} title="Open WCR Checklist"
           style={{ position: 'fixed', bottom: '84px', right: '24px', zIndex: 99998, background: 'linear-gradient(135deg,#60a5fa,#3b82f6)', color: '#fff', border: 'none', borderRadius: '50%', width: '52px', height: '52px', fontSize: '22px', cursor: 'pointer', boxShadow: '0 4px 16px rgba(59,130,246,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           ✅
-        </button>
+        </button>}
         {reminderFired && <ReminderFiredPopup onClose={() => setReminderFired(false)} onOpen={() => { setVisible(true); setReminderFired(false); }} pct={pct} />}
       </>
     );
