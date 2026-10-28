@@ -25,7 +25,9 @@
   box-shadow:0 12px 32px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.035);
 }
 .dcc-header-brand{display:flex;align-items:center;gap:14px;min-width:0}
-.dcc-header-logo{width:clamp(126px,12vw,172px);height:auto;max-height:49px;object-fit:contain;flex-shrink:0}
+/* Premium black logo plaque: larger brand mark with strong contrast, without expanding navigation. */
+.dcc-logo-plaque{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:8px 12px;background:#000;border:1px solid rgba(218,188,121,.29);border-radius:9px;box-shadow:0 5px 18px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.055)}
+.dcc-header-logo{display:block;width:clamp(166px,15vw,205px);height:auto;max-height:60px;object-fit:contain;flex-shrink:0}
 .dcc-header-copy{padding-left:14px;border-left:1px solid rgba(224,190,122,.32);min-width:0}
 .dcc-header-eyebrow{font-size:9px;letter-spacing:2px;font-weight:820;color:#d6b97b;text-transform:uppercase}
 .dcc-header-name{font:normal clamp(18px,1.8vw,21px) Georgia,serif;line-height:1.12;color:#f6f0e1;margin:4px 0 3px}
@@ -97,8 +99,10 @@
   .dcc-header-status{order:-1}
 }
 @media(max-width:720px){
-  .dcc-shell .dcc-header{padding:11px 12px;gap:9px}
-  .dcc-header-logo{width:119px;max-height:42px}
+  .dcc-shell .dcc-header{padding:10px 12px;gap:9px;flex-wrap:wrap}
+  .dcc-header-brand{flex:1 1 100%;gap:10px}
+  .dcc-logo-plaque{padding:6px 8px;border-radius:8px}
+  .dcc-header-logo{width:clamp(125px,33vw,154px);max-height:48px}
   .dcc-header-copy{padding-left:10px}
   .dcc-header-eyebrow{font-size:8px;letter-spacing:1px}
   .dcc-header-name{font-size:17px}
