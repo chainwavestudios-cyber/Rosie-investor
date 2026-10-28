@@ -127,7 +127,7 @@ export default function DebtKBManager({ readOnly = false }) {
   return (
     <div>
       {/* Shared review gate: AI Chat and BOB proposals are never auto-published. */}
-      <DebtKBReviewQueue readOnly={readOnly} onPublished={loadEntries}/>
+      {!readOnly && <DebtKBReviewQueue onPublished={loadEntries}/>}
 
       {/* BOB shared learning banner */}
       <div style={{ marginBottom: '16px', padding: '10px 16px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
