@@ -314,6 +314,11 @@ export default function DebtAIPanel({
               <div style={{ padding: '10px 14px', background: 'rgba(245,158,11,0.06)', borderBottom: '1px solid rgba(245,158,11,0.17)' }}>
                 <div style={{ fontSize: 10, color: '#f59e0b', letterSpacing: 1, fontWeight: 700, marginBottom: 5 }}>LIVE Q&A · LATEST</div>
                 <div style={{ color: '#dfe6ee', fontSize: 12, fontWeight: 600, marginBottom: 5 }}>{liveQAItems[liveQAItems.length - 1].question}</div>
+                {liveQAItems[liveQAItems.length - 1].reallyAsking && (
+                  <div style={{ color: '#b9c8d6', fontSize: 11, fontStyle: 'italic', marginBottom: 6 }}>
+                    Interpreted question: {liveQAItems[liveQAItems.length - 1].reallyAsking}
+                  </div>
+                )}
                 <div style={{ color: '#d5dce7', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
                   {liveQAItems[liveQAItems.length - 1].loading ? 'Listening complete · finding the best answer…' : liveQAItems[liveQAItems.length - 1].answer || 'No answer available'}
                 </div>
