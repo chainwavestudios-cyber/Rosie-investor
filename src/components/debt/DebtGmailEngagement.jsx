@@ -27,8 +27,8 @@ const metric = (label, count, note) => <div key={label} style={{ flex: '1 1 150p
   <div style={{ color: colors.ink, fontSize: 26, fontWeight: 700 }}>{count ?? 0}</div>
   {note && <div style={{ color: colors.muted, fontSize: 10 }}>{note}</div>}
 </div>;
-const cell = { padding: '9px 10px', borderBottom: '1px solid ' + colors.border, fontSize: 12, color: colors.ink, verticalAlign: 'top' };
-const header = { ...cell, color: colors.muted, fontSize: 10, textAlign: 'left', whiteSpace: 'nowrap' };
+const cell = { padding: '5px 8px', borderBottom: '1px solid ' + colors.border, fontSize: 11, color: colors.ink, verticalAlign: 'middle', whiteSpace: 'nowrap' };
+const header = { ...cell, padding: '8px 8px', color: colors.muted, fontSize: 10, textAlign: 'left', whiteSpace: 'nowrap' };
 
 export default function DebtGmailEngagement({ view = 'report' }) {
   const { sessionUserId, sessionToken, isAdmin, user } = useDebtCoachAuth();
@@ -133,7 +133,7 @@ export default function DebtGmailEngagement({ view = 'report' }) {
         <thead><tr>{(view==='old' ? ['Sent','Contact','Template','Status','Opens','Clicks','Audio','Calendar','Website','Email intent','Details'] : ['Sent','Contact','Template','Status','Opens','Clicks','Audio progress','BBB','Trustpilot','Company site','Calendar','Milestone','Email intent','Details']).map((x) => <th key={x} style={header}>{x}</th>)}</tr></thead>
         <tbody>{(view === 'old' ? history : messages).map((x) => <tr key={x.id}>
           <td style={cell}>{date(x.sentAt)}</td>
-          <td style={cell}><strong>{x.contactName || 'Unknown'}</strong><div style={{ fontSize: 10, color: colors.muted }}>{x.contactEmail}</div></td>
+          <td style={{...cell,maxWidth:255}} title={[x.contactName,x.contactEmail].filter(Boolean).join(' · ')}><div style={{display:'flex',gap:6,alignItems:'center',minWidth:0}}><strong style={{maxWidth:125,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{x.contactName || 'Unknown'}</strong><span style={{fontSize:10,color:colors.muted,overflow:'hidden',textOverflow:'ellipsis',minWidth:0}}>{x.contactEmail}</span></div></td>
           <td style={cell}>{x.templateName}</td><td style={cell}>{x.status}</td>
           <td style={cell}>{view === 'old' ? x.legacyOpens : x.nonProxyOpens + ' non-proxy / ' + x.proxyOpens + ' proxy'}</td>
           <td style={cell}>{view === 'old' ? x.legacyClicks : x.distinctLinks}</td>
@@ -146,7 +146,7 @@ export default function DebtGmailEngagement({ view = 'report' }) {
             <td style={cell}><CompactMilestone person={x}/></td>
           </>}
           <td style={cell}>{view === 'old' ? x.provenance : <strong style={{color:x.intentScore>=60?'#e9bf77':'#75ddb9'}}>{x.intentScore}/100 · {x.tier}</strong>}</td>
-          <td style={cell}><button onClick={() => setSelected(selected?.id === x.id ? null : x)} style={{ cursor: 'pointer', color: colors.accent, background: 'transparent', border: 'none' }}>{selected?.id === x.id ? 'Close' : 'View'}</button></td>
+          <td style={cell}><button onClick={() => setSelected(selected?.id === x.id ? null : x)} style={{ cursor: 'pointer', color: colors.accent, background: 'transparent', border: '1px solid '+colors.border,borderRadius:5,padding:'3px 6px',fontSize:10 }}>{selected?.id === x.id ? 'Close' : 'View'}</button></td>
         </tr>)}</tbody>
       </table>
       {data && !(view === 'old' ? history.length : messages.length) && <div style={{ padding: 16, color: colors.muted }}>No matching Gmail template emails in this period.</div>}
