@@ -1,4 +1,4 @@
-import { BookOpen, CalendarClock, ClipboardCheck, CreditCard, GitBranch, PhoneForwarded, ShieldCheck, UserRound, Zap } from 'lucide-react';
+import { BookOpen, CalendarClock, ClipboardCheck, CreditCard, GitBranch, PhoneForwarded, ShieldCheck, Zap } from 'lucide-react';
 import { BOB_ACTIONS, actionFromCue, applyTokens, clearCues } from '@/lib/bobSimulation';
 import './BobSite.css';
 export default function BobCallFlowControls({
