@@ -122,8 +122,9 @@ export default function HotLeadsCalendar({events, loading, error, onRefresh, lea
       const found=await resolveLead(event);
       if(!found?.id||!found?.email){
         // Keep the original fallback: an unmatched event still has a way to rebook.
-        const opened=window.open(BOOKING_URL,'_blank','noopener,noreferrer');
-        setStatusError(opened ? 'No uniquely matched contact. Opened the booking calendar; no email was sent.' : 'No uniquely matched contact. Use the Booking link to choose a new time; no email was sent.');
+        const opened=window.open(BOOKING_URL,'_blank');
+        if(opened)opened.opener=null;
+        setStatusError(opened ? 'No uniquely matched contact. Opened the booking calendar; no email was sent.' : 'No uniquely matched contact. Your browser may have blocked the popup; select Booking link to choose a time. No email was sent.');
         return;
       }
       const res=await base44.functions.invoke('sendMissedApptReschedule',{leadId:found.id});
@@ -134,7 +135,15 @@ export default function HotLeadsCalendar({events, loading, error, onRefresh, lea
     finally{setRescheduling('');}
   };
 
-  const shown=recent.filter(ev=>!todayOnly || etDay(ev.startISO)===today);
+  // Keep the entire day (including past calls), but surface upcoming calls first.
+  const shown=recent.filter(ev=>!todayOnly || etDay(ev.startISO)===today).sort((a,b)=>{
+    if(todayOnly){
+      const aPast=Number(new Date(a.startISO).getTime()<Date.now());
+      const bPast=Number(new Date(b.startISO).getTime()<Date.now());
+      if(aPast!==bPast)return aPast-bPast;
+    }
+    return new Date(a.startISO).getTime()-new Date(b.startISO).getTime();
+  });
   const grouped=shown.reduce((acc,ev)=>{
     const k=etDay(ev.startISO);
     if(!acc[k])acc[k]={label:fmtGroup(ev.startISO),items:[]};
