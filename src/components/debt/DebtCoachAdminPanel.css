@@ -107,6 +107,7 @@
   .dcc-admin-create-fields{grid-template-columns:1fr 1fr}
   .dcc-admin-permissions{grid-template-columns:1fr}
 }
+@media(max-width:760px){.dcc-admin .dcc-admin-flags-grid{grid-template-columns:minmax(0,1fr)!important}}
 @media(max-width:560px){
   .dcc-admin-heading{padding:12px}
   .dcc-admin-heading-aside{display:none}
