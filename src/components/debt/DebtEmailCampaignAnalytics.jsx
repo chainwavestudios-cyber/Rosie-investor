@@ -108,7 +108,7 @@ export default function DebtEmailCampaignAnalytics(){
    const ids=[...new Set(rows.map(r=>r.leadId).filter(Boolean))];
    if(!ids.length)return;
    // Fetch the actual contact-card phone and call history; never infer a call from email engagement.
-   Promise.all(ids.map(async id=>{try{const lead=await base44.entities.DebtLead.get(id);return [id,{phone:lead.phone||'',lastCallAt:lead.lastCallAt||null,outcome:lead.appointmentDate && (!lead.lastCallAt||new Date(lead.appointmentDate)>new Date(lead.lastCallAt))?'Scheduled Appointment':''}]}catch{return [id,null]}})).then(values=>{
+   Promise.all(ids.map(async id=>{try{const [lead,events]=await Promise.all([base44.entities.DebtLead.get(id),base44.entities.DebtLeadActivity.filter({leadId:id},'-created_date',10).catch(()=>[])]);const recent=(events||[]).find(e=>e.activityType==='call'||e.activityType==='calendar_event');const outcome=recent?.activityType==='calendar_event'?'Scheduled Appointment':/voicemail/i.test(recent?.activityText||'')?'Left VM':/no answer/i.test(recent?.activityText||'')?'No Answer':'';return [id,{phone:lead.phone||'',lastCallAt:lead.lastCallAt||null,lastActionAt:recent?.created_date||lead.lastCallAt||null,outcome}]}catch{return [id,null]}})).then(values=>{
      if(!cancelled)setContactMeta(prev=>({...prev,...Object.fromEntries(values.filter(([,v])=>v))}));
    });
    return ()=>{cancelled=true};
