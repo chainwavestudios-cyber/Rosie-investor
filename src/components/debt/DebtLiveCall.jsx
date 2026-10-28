@@ -2005,20 +2005,19 @@ ${recentText}`,
         .dcc-live-workspace .dcc-live-control{transition:background .15s,border-color .15s}
         @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
       `}</style>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'13px 18px',margin:'0 0 13px',border:'1px solid rgba(161,202,186,.21)',borderRadius:12,background:'linear-gradient(110deg,#142a34,#122a2c 50%,#111d2e)'}}>
-        <div>
-          <div style={{fontSize:10,fontWeight:850,letterSpacing:2,color:'#d8b56d'}}>LIVE CALL WORKSPACE</div>
-          <div style={{font:'normal 23px Georgia,serif',color:'#f4f3ed',margin:'5px 0'}}>Your call. Your workspace.</div>
-          <div style={{fontSize:11,color:'#97b7b1'}}>{phase==='live'?'Live transcription and coaching are active. Panels stay docked until you move them.':'Choose your audio inputs and call type, then start when ready. No windows will open automatically.'}</div>
+      <div className="dcc-live-utility" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap',padding:'9px 12px',margin:'0 0 9px',border:'1px solid rgba(148,188,176,.20)',borderRadius:9,background:'linear-gradient(110deg,#12242e,#142b2d 55%,#101e2d)'}}>
+        <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{fontSize:10,fontWeight:820,letterSpacing:1.4,color:'#d8b56d'}}>LIVE CALL CONTROL</span>
+          <span style={{fontSize:10,color:'#91b0ac'}}>{phase==='live'?'Audio and coaching active · panels docked':'Devices and call tools ready when you are'}</span>
         </div>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-          <button type="button" className="dcc-live-control" onClick={()=>setShowCustomerStats(s=>!s)} aria-pressed={showCustomerStats} style={{cursor:'pointer',padding:'9px 12px',border:'1px solid '+(showCustomerStats?'#64d5ab':'#3b6b64'),background:showCustomerStats?'#184a3d':'#18302f',color:'#c6f2de',borderRadius:8,fontWeight:750,fontSize:11}}>◈ {showCustomerStats?'Hide':'Open'} Customer Insights</button>
-          <button type="button" className="dcc-live-control" onClick={()=>setShowProfile(true)} disabled={!lead.id} style={{cursor:lead.id?'pointer':'not-allowed',padding:'9px 12px',border:'1px solid rgba(116,191,160,.44)',background:'rgba(24,100,78,.13)',color:lead.id?'#c6f2de':'#657f84',borderRadius:8,fontWeight:750,fontSize:11}}>▣ Client Profile</button>
-          <span style={{fontSize:10,letterSpacing:'.3px',color:phase==='live'?'#ffaf9f':'#9bdabe',padding:'8px 10px',background:phase==='live'?'#352222':'#18392e',border:'1px solid '+(phase==='live'?'#97504e':'#376b58'),borderRadius:99,fontWeight:850}}>{phase==='live'?'● LIVE CALL':phase==='ended'?'CALL ENDED':'● READY'}</span>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
+          <button type="button" className="dcc-live-control" onClick={()=>setShowCustomerStats(s=>!s)} aria-pressed={showCustomerStats} style={{cursor:'pointer',padding:'7px 10px',border:'1px solid '+(showCustomerStats?'#64d5ab':'#3b6b64'),background:showCustomerStats?'#184a3d':'#18302f',color:'#c6f2de',borderRadius:8,fontWeight:750,fontSize:11}}>◈ {showCustomerStats?'Hide':'Open'} Customer Insights</button>
+          <button type="button" className="dcc-live-control" onClick={()=>setShowProfile(true)} disabled={!lead.id} style={{cursor:lead.id?'pointer':'not-allowed',padding:'7px 10px',border:'1px solid rgba(116,191,160,.44)',background:'rgba(24,100,78,.13)',color:lead.id?'#c6f2de':'#657f84',borderRadius:8,fontWeight:750,fontSize:11}}>▣ Client Profile</button>
+          <span style={{fontSize:10,letterSpacing:'.3px',color:phase==='live'?'#ffaf9f':'#9bdabe',padding:'6px 9px',background:phase==='live'?'#352222':'#18392e',border:'1px solid '+(phase==='live'?'#97504e':'#376b58'),borderRadius:99,fontWeight:850}}>{phase==='live'?'● LIVE CALL':phase==='ended'?'CALL ENDED':'● READY'}</span>
         </div>
       </div>
       {/* Call controls stay in the page, without floating panels. */}
-      <div style={{ marginBottom: '16px', padding: '13px 16px', background: 'linear-gradient(115deg,rgba(15,38,46,.88),rgba(15,26,41,.9))', border: '1px solid rgba(122,184,163,0.24)', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="dcc-live-setup-bar" style={{ marginBottom:11,padding:'10px 12px',background:'linear-gradient(115deg,rgba(15,38,46,.88),rgba(15,26,41,.9))',border:'1px solid rgba(122,184,163,.24)',borderRadius:10,display:'flex',gap:9,alignItems:'center',flexWrap:'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
