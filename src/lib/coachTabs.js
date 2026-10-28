@@ -12,7 +12,6 @@ export const COACH_TABS = [
   { id: 'hotleads', label: '🔥 Hot Leads', row: 1, show: () => true },
   { id: 'bob', label: '🤖 BOB Training', row: 1, show: () => true },
 
-  { id: 'marketing', label: '📣 Marketing', row: 0, show: (c) => c.isAdmin },
   { id: 'leadgen', label: '🎯 Lead Gen', row: 0, show: (c) => c.isAdmin },
   { id: 'smartleads', label: '🧠 Smart Leads', row: 0, show: (c) => c.isAdmin },
   { id: 'pipeline', label: '📊 Pipeline', row: 0, show: () => true },
