@@ -48,7 +48,7 @@ import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
 import AppointmentTimersBar from '@/components/debt/AppointmentTimersBar';
-import './DebtCoachPolish.css';
+import '@/components/debt/DebtCoachPolish.css';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
