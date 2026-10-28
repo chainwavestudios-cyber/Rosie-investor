@@ -143,7 +143,9 @@ export default function DebtCallCoach() {
       {/* One compact, consistent header across every tab. No startup pop-outs. */}
       <header className="dcc-header">
         <div className="dcc-header-brand">
-          <img className="dcc-header-logo" src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/cad8ccab3_UntitledOvalStickerLandscape.png" alt="Settlement IQ — Realtime Call Intelligence" />
+          <div className="dcc-logo-plaque">
+            <img className="dcc-header-logo" src="https://media.base44.com/images/public/69cd2741578c9b5ce655395b/cad8ccab3_UntitledOvalStickerLandscape.png" alt="Settlement IQ — Realtime Call Intelligence" />
+          </div>
           <div className="dcc-header-copy">
             <div className="dcc-header-eyebrow">Rosie AI · Agent workspace</div>
             <div className="dcc-header-name">Debt Call Coach</div>
