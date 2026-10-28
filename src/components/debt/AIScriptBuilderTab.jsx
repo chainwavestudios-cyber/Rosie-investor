@@ -178,7 +178,7 @@ export default function AIScriptBuilderTab() {
   };
 
   return (
-    <div>
+    <div className="dcc-admin-builder">
       <div style={head}>🧠 AI Script Builder — rebuild the whole script system from one script</div>
 
       {/* 1 · Source */}
