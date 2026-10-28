@@ -127,6 +127,7 @@ async function startAiAdvisorAttempt(service: any, config: any, leadId: string, 
     const rows = await service.entities.FronterHeadsUp.filter({ conferenceName: conf, status: 'active' });
     if (rows?.[0]) await service.entities.FronterHeadsUp.update(rows[0].id, {
       advisorAttempt: attempt,
+      advisorCallSid: result?.sid || '',
       routeState: attempt === 1 ? 'calling_chris_primary' : 'calling_chris_cell',
     });
     console.log('[AI Queue] Started advisor attempt', attempt, 'for conference', conf, 'sid', result?.sid);
@@ -354,7 +355,9 @@ export default async function(req) {
   ${sayTag}
   <Dial>
     <Conference startConferenceOnEnter="false" endConferenceOnExit="false" beep="false"
-      waitUrl="${xmlEscape(holdWaitUrl)}" waitMethod="GET">
+      waitUrl="${xmlEscape(holdWaitUrl)}" waitMethod="GET"
+      statusCallback="${xmlEscape(`${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueMerged&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}&CallerCallSid=${encodeURIComponent(customerCallSid)}`)}"
+      statusCallbackEvent="start join" statusCallbackMethod="POST">
       ${conferenceName}
     </Conference>
   </Dial>
@@ -407,7 +410,7 @@ export default async function(req) {
           const alert = alerts?.[0];
           // A completed advisor conversation or late Twilio retry must never
           // call Chris again after the prospect has already been merged.
-          if (alert && alert.routeType === 'ai_agent' && !['merging', 'merged', 'appointment_booked'].includes(alert.routeState)) {
+          if (alert && alert.routeType === 'ai_agent' && !['merged', 'appointment_booked'].includes(alert.routeState)) {
             const configRows = await service.entities.AIAgentConfig.filter({ configName: 'default' });
             const config = configRows?.[0] || {};
             const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
@@ -451,7 +454,7 @@ export default async function(req) {
       const attemptType = (params.get('Attempt') || '1').toLowerCase();
       // AMD distinguishes Chris from voicemail. An unknown result is not an
       // affirmative human answer and should fall through to his next number.
-      if (attemptType !== 'browser' && answeredBy && answeredBy !== 'human') {
+      if (attemptType !== 'browser' && (answeredBy.startsWith('machine') || answeredBy === 'fax')) {
         console.log('[AI Queue] Advisor leg went to machine/unknown:', answeredBy);
         return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
       }
@@ -533,7 +536,7 @@ export default async function(req) {
         const service = createClientFromRequest(req).asServiceRole;
         const matching = await service.entities.FronterHeadsUp.filter({ conferenceName: okConf, status: 'active' });
         const alert = matching?.[0];
-        if (!alert || ['merging', 'merged', 'appointment_booked'].includes(alert.routeState)) {
+        if (!alert || ['advisor_accepted', 'merged', 'appointment_booked'].includes(alert.routeState)) {
           return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>This caller is no longer waiting in the queue.</Say><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
         }
         const callerSid = alert.customerCallSid || params.get('CallerCallSid') || '';
@@ -556,7 +559,7 @@ export default async function(req) {
             method: 'POST', body: new URLSearchParams({ Twiml: callerTwiml }),
           });
         }
-        await service.entities.FronterHeadsUp.update(alert.id, { routeState: 'merging' });
+        await service.entities.FronterHeadsUp.update(alert.id, { routeState: 'advisor_accepted' });
       } catch (e) {
         console.warn('[AI Queue] Cannot reclaim customer for merge:', e?.message);
         return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>The caller is no longer available. The queue will stay open if they reconnect.</Say><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
