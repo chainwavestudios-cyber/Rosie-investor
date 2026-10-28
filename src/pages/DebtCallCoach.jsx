@@ -79,7 +79,7 @@ export default function DebtCallCoach() {
     const requested = new URLSearchParams(location.search).get('tab');
     // Old Marketing bookmarks now open the unified Email Campaigns workspace.
     const destination = requested === 'marketing' ? 'campaigns' : requested;
-    if (destination === 'bob') { navigate('/bob/portal', {replace: true}); return; }
+    if (destination === 'bob') { navigate('/bob/internal', {replace: true}); return; }
     if (destination && tabMap[destination]) setTab(destination);
   }, [location.search, tabMap, navigate]);
 
@@ -174,7 +174,7 @@ export default function DebtCallCoach() {
       <PortalNavButtons current="coach" isAdmin={isAdmin || isSuperAdmin} compact />
 
       {/* Tabs — two rows; drag any tab to reorder (saved per user) */}
-      <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={(nextTab)=>nextTab==='bob'?navigate('/bob/portal'):setTab(nextTab)} onMove={moveTab} onReset={resetTabOrder} />
+      <CoachTabBar rows={tabRows} tabMap={tabMap} active={tab} onSelect={(nextTab)=>nextTab==='bob'?navigate('/bob/internal'):setTab(nextTab)} onMove={moveTab} onReset={resetTabOrder} />
 
       <div className="dcc-current-section" aria-live="polite"><span className="dcc-path">Debt Call Coach /</span><strong>{friendlyTab(tabMap[tab]?.label||'Live Call')}</strong></div>
       <main className="dcc-workspace-body" aria-label={friendlyTab(tabMap[tab]?.label||'Live Call')}>

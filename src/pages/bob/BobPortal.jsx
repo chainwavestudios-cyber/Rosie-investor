@@ -61,7 +61,7 @@ export default function BobPortal(){
     messagesRef.current=[...messagesRef.current,entry];
     setMessages(messagesRef.current);
   },[]);
-  const voiceCall=useDebtBobVoice({onTranscript,recordingPolicy:'disabled'});
+  const voiceCall=useDebtBobVoice({onTranscript,recordingPolicy:'disabled',lazyMicDevices:true});
   const org=ctx?.organizations?.find(o=>o.id===orgId);
   const isPlatform=!!ctx?.isPlatformAdmin;
   const isAdmin=!!org && (isPlatform||['admin','owner'].includes(org.myRole));
@@ -117,12 +117,12 @@ export default function BobPortal(){
   const saveKey=async(e)=>{e.preventDefault();await act(async()=>{await api('setDeepgramKey',{organizationId:orgId,key:deepgramKey});setDeepgramKey('');},'Deepgram credential updated. The key is stored encrypted, not displayed.');};
 
   const start=async()=>{
-    if(!orgId||callBusy||voiceCall.phase!=='idle')return;
+    if(!orgId||callBusy||!['idle','error'].includes(voiceCall.phase))return;
     setCallBusy(true);setError('');setNotice('');
     try{
       const grant=await api('voiceGrant',{organizationId:orgId});
       const personality=BOB_CHARACTERS.find(p=>p.id===personaId)||BOB_CHARACTERS[0];
-      const topics=documents.slice(0,35).map((d,i)=>'['+(i+1)+'] '+d.title+'\n'+d.content.slice(0,1800)).join('\n\n');
+      const topics=documents.slice(0,35).map((d,i)=>'['+(i+1)+'] '+d.title+'\n'+d.content.slice(0,1800)).join('\n\n').slice(0,20000);
       const prompt=`You are an AI roleplay customer in a BOB sales training simulation. STAY IN CHARACTER. This is a simulation, not a real sales call.
 Persona: ${personality.name}. ${personality.personalityPrompt}
 Scenario: ${scenario}. Call direction: ${mode}. The human trainee is practicing the sales conversation.

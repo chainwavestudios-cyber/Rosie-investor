@@ -145,7 +145,7 @@ async function playTransferSequence(mode, closerName, scenario, transferVoice, a
   }
 }
 
-export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy-upload' } = {}) {
+export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy-upload', lazyMicDevices = false } = {}) {
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const [agentSpeaking, setAgentSpeaking] = useState(false);
@@ -176,8 +176,9 @@ export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy
   const ring = useRingTone();
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(() => navigator.mediaDevices.enumerateDevices())
+    if (!navigator.mediaDevices) return;
+    const setup = lazyMicDevices ? Promise.resolve() : navigator.mediaDevices.getUserMedia({ audio: true }).then(stream=>{stream.getTracks().forEach(t=>t.stop());});
+    setup.then(() => navigator.mediaDevices.enumerateDevices())
       .then(devices => {
         const mics = devices.filter(d => d.kind === 'audioinput');
         setMicDevices(mics);
@@ -187,7 +188,7 @@ export function useDebtBobVoice({ onTranscript, onLog, recordingPolicy = 'legacy
         if (outputs.length > 0 && !outputDeviceId) setOutputDeviceId(outputs[0].deviceId);
       })
       .catch(() => {});
-  }, []);
+  }, [lazyMicDevices]);
 
   const playChunk = useCallback((buf) => {
     const ctx = audioCtxRef.current;

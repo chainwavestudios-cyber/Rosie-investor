@@ -148,6 +148,8 @@ const secureGateway = async (req: Request) => {
   }
   if (action==='voiceGrant') {
     requireOrg();
+    if(org.status==='trial' && now().slice(0,10) > new Date(new Date(org.createdAt).getTime()+14*86400000).toISOString().slice(0,10))
+      return bad('Your 14-day BOB trial has ended. Contact sales to activate training seats.',403);
     const secret=Deno.env.get('BOB_KEY_ENCRYPTION_SECRET')||'';
     const raw=org.encryptedDeepgramKey
       ? (secret.length>=32 ? await decrypt(org.encryptedDeepgramKey,secret):'')
