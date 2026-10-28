@@ -84,6 +84,7 @@ export async function startLiveFeed({
   let liveWs = null;
   let processor = null;
   let watchdog = null;
+  let cancelPreviousBuffers = () => {};
   const feedCounts = { mic: 0, customer: 0 };
   const dgRoleMap = new Map(); // Deepgram speaker id → 0 agent / 1 customer
 
@@ -96,6 +97,9 @@ export async function startLiveFeed({
   };
 
   const open = (mode) => {
+    // On a dual→single fallback, old final-chunk timers must not emit stale
+    // fragments from the abandoned socket into the new live transcript.
+    cancelPreviousBuffers();
     // Close the previous socket silently — no error banner, no duplicate save.
     if (liveWs) {
       const old = liveWs; liveWs = null;
@@ -115,6 +119,7 @@ export async function startLiveFeed({
     // Collect is_final chunks until speech_final, then emit one complete line.
     // Deepgram sends is_final mid-sentence; speech_final marks a real pause.
     const segBuf = {}; // per speaker: { text, sentiment, timer }
+    cancelPreviousBuffers = () => Object.values(segBuf).forEach(b => clearTimeout(b.timer));
     // A final chunk is NOT necessarily the end of a sentence. Keep interim
     // previews instantaneous, but don't hand partial finals to Q&A until a
     // speech_final pause (or a safety timeout if Deepgram misses the endpoint).
