@@ -1,0 +1,118 @@
+/* Debt Call Coach only — cosmetic shell/navigation polish.
+   Does not change permissions, routing, underlying tabs, forms or dialer behavior. */
+.dcc-shell {
+  --dcc-ink:#edf2ee;
+  --dcc-muted:#a2b6b9;
+  --dcc-gold:#dabc79;
+  --dcc-green:#67d4ac;
+  --dcc-border:rgba(147,186,178,.20);
+  --dcc-base:#0c1622;
+  color:var(--dcc-ink);
+  min-width:0;
+}
+.dcc-shell * { box-sizing:border-box; }
+.dcc-shell :where(button, select, input, textarea):focus-visible,
+.dcc-shell :where(a):focus-visible {
+  outline:2px solid var(--dcc-gold) !important;
+  outline-offset:2px;
+}
+.dcc-shell :where(button):not(:disabled) { -webkit-tap-highlight-color:transparent; }
+.dcc-shell .dcc-header{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 16px;min-height:73px;
+  border:1px solid var(--dcc-border);border-radius:12px;
+  background:linear-gradient(104deg,rgba(20,40,50,.97),rgba(20,49,44,.93) 54%,rgba(15,27,42,.96));
+  box-shadow:0 12px 32px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.035);
+}
+.dcc-header-brand{display:flex;align-items:center;gap:14px;min-width:0}
+.dcc-header-logo{width:clamp(126px,12vw,172px);height:auto;max-height:49px;object-fit:contain;flex-shrink:0}
+.dcc-header-copy{padding-left:14px;border-left:1px solid rgba(224,190,122,.32);min-width:0}
+.dcc-header-eyebrow{font-size:9px;letter-spacing:2px;font-weight:820;color:#d6b97b;text-transform:uppercase}
+.dcc-header-name{font:normal clamp(18px,1.8vw,21px) Georgia,serif;line-height:1.12;color:#f6f0e1;margin:4px 0 3px}
+.dcc-header-description{font-size:10px;color:#9bb7b5}
+.dcc-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.dcc-header-status{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:7px 10px;border:1px solid rgba(104,190,157,.3);border-radius:99px;background:rgba(34,95,80,.13);color:#a9e3c7;font-weight:780;font-size:10px}
+.dcc-header-status.is-live{border-color:rgba(235,131,116,.55);background:rgba(139,52,48,.15);color:#ffb6a5}
+.dcc-header-action{display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;padding:8px 10px;min-height:32px;background:#182f31;border:1px solid #3e625b;border-radius:7px;color:#d2e7d9;font-size:11px;font-weight:680;cursor:pointer;transition:background .17s,border-color .17s}
+.dcc-header-action:hover:not(:disabled){background:#264b45;border-color:#74ba9e}
+.dcc-header-action.is-quiet{background:rgba(255,255,255,.035);border-color:rgba(171,194,197,.23);color:#a9c0c1}
+.dcc-header-action.is-sensitive{background:rgba(169,83,75,.09);border-color:rgba(214,122,113,.36);color:#e5b2ac}
+.dcc-header-user{display:flex;align-items:center;gap:8px;padding:0 6px}
+.dcc-header-username{font-size:11px;font-weight:740;color:#e0e9e4}
+.dcc-header-role{font-size:9px;letter-spacing:.45px;color:#a2dbc1;border-radius:99px;border:1px solid rgba(95,173,145,.26);background:rgba(45,110,86,.12);padding:5px 8px;font-weight:740;text-transform:uppercase}
+
+/* A slim, horizontal portal ribbon instead of giant repeated portal tiles. */
+.dcc-portal-nav{display:flex;align-items:center;gap:9px;margin:10px 0 12px;padding:7px 9px;border-radius:10px;border:1px solid rgba(143,177,176,.17);background:linear-gradient(100deg,#101e2b,#111e2a);min-width:0}
+.dcc-portal-nav-label{display:inline-flex;gap:5px;align-items:center;flex:0 0 auto;color:#809ca7;font-size:9px;font-weight:800;letter-spacing:1.1px;padding-left:3px}
+.dcc-portal-nav-scroll{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#36565c transparent;padding:1px 0 3px}
+.dcc-portal-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;min-height:31px;flex:0 0 auto;white-space:nowrap;border-radius:7px;border:1px solid transparent;background:transparent;color:#9fb5bd;font-family:system-ui,sans-serif;font-size:11px;font-weight:590;cursor:pointer;transition:background .16s,border-color .16s,color .16s}
+.dcc-portal-link:hover:not(:disabled){background:rgba(84,139,128,.11);color:#e8f4e9;border-color:rgba(112,182,164,.22)}
+.dcc-portal-link.is-active{background:linear-gradient(110deg,#253e37,#1d3435);color:#f1d699;border-color:rgba(224,184,99,.45);font-weight:820;cursor:default;box-shadow:inset 0 1px rgba(255,239,199,.04)}
+
+/* Dense tab navigation; original row placement and drag-and-drop are preserved. */
+.dcc-tab-wrap{margin:0 0 12px;border:1px solid rgba(146,183,179,.23);border-radius:11px;background:linear-gradient(110deg,#111f2c,#111e29);min-width:0;overflow:hidden}
+.dcc-tab-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;padding:6px 10px;border-bottom:1px solid rgba(155,194,188,.12)}
+.dcc-tab-toolbar-title{display:inline-flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1.2px;font-weight:820;color:#d2c3a2;white-space:nowrap}
+.dcc-tab-toolbar-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:#5fcaa0;box-shadow:0 0 9px rgba(75,213,161,.28)}
+.dcc-tab-count{padding:1px 5px;font-size:9px;font-weight:730;color:#93acb6;border-radius:5px;background:rgba(129,174,180,.10);letter-spacing:0}
+.dcc-tab-toolbar-actions{display:flex;align-items:center;gap:7px;min-width:0}
+.dcc-tab-jump{display:flex;align-items:center;gap:5px;border:1px solid rgba(116,165,163,.24);padding:4px 7px;border-radius:6px;background:#152a34;color:#9fb8bd;max-width:min(260px,50vw)}
+.dcc-tab-jump select{appearance:none;background:transparent;border:0;outline:0;color:#d8ece1;font-size:10px;font-weight:670;max-width:190px;min-width:110px;padding:1px 0;cursor:pointer}
+.dcc-tab-jump option{background:#122631;color:#e7f3ed}
+.dcc-tab-jump:focus-within{border-color:#ddba79}
+.dcc-tab-reset{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;background:transparent;color:#94b0b4;border:1px solid rgba(136,179,177,.19);border-radius:6px;font-size:10px;cursor:pointer;white-space:nowrap}
+.dcc-tab-reset:hover{color:#f1d59e;border-color:rgba(219,184,117,.43)}
+.dcc-tab-row{display:flex;align-items:center;gap:5px;padding:2px 9px;min-height:35px;min-width:0}
+.dcc-tab-row.is-core{border-top:1px solid rgba(166,194,182,.10);background:rgba(16,45,40,.15)}
+.dcc-tab-row-label{flex:0 0 45px;color:#67848d;font-weight:860;font-size:9px;letter-spacing:.8px}
+.dcc-tab-scroll{display:flex;align-items:center;gap:4px;flex:1;min-width:0;min-height:33px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#43635f transparent;padding:3px 0}
+.dcc-tab-scroll.is-dropping{background:rgba(69,146,114,.06)}
+.dcc-tab-item{display:inline-flex;align-items:center;justify-content:center;position:relative;gap:6px;flex:0 0 auto;min-height:29px;white-space:nowrap;padding:5px 9px;border-radius:6px;border:1px solid transparent;background:transparent;font-family:system-ui,sans-serif;font-size:11px;font-weight:590;color:#9db3bb;cursor:grab;transition:color .16s,background .16s,border-color .16s}
+.dcc-tab-item:hover:not(.is-active){color:#ebf6ee;background:rgba(82,143,123,.12)}
+.dcc-tab-item.is-active{color:#f1d9a4;border-color:rgba(217,181,111,.5);background:linear-gradient(105deg,rgba(92,68,29,.28),rgba(30,78,61,.22));font-weight:830}
+.dcc-tab-item.is-active svg{color:#e0c07b}
+.dcc-tab-item.is-dragging{cursor:grabbing;border-color:#a8d1bd;background:#224a42;z-index:3}
+.dcc-tab-active-dot{position:absolute;left:8px;right:8px;bottom:-2px;height:2px;border-radius:6px;background:#d6ad65}
+.dcc-tab-grip-hint{color:#466468;flex:0 0 auto}
+.dcc-current-section{display:flex;align-items:center;gap:9px;margin:4px 0 10px;color:#9eb4b7;font-size:11px}
+.dcc-current-section:before{content:"";width:3px;height:16px;border-radius:3px;background:#ddbb76}
+.dcc-current-section strong{font-size:13px;color:#ede8db;font-weight:790}
+.dcc-current-section .dcc-path{color:#728d98;font-size:10px}
+
+/* Unify top-level tool surfaces without altering content-specific components. */
+.dcc-workspace-body{min-width:0}
+.dcc-workspace-body > *{min-width:0}
+.dcc-workspace-body :where(input,select,textarea):not([type="checkbox"]):not([type="radio"]):focus{border-color:rgba(222,184,113,.7)}
+.dcc-workspace-body :where(button):not(:disabled){transition:filter .16s,border-color .16s,background-color .16s}
+.dcc-workspace-body :where(button):not(:disabled):active{filter:brightness(.94)}
+.dcc-shell .dcc-content-popout-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 8px}
+.dcc-shell .dcc-inline-popout-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:6px;background:rgba(20,66,58,.22);border:1px solid rgba(83,169,131,.33);color:#a6e7ca;font-weight:730;font-size:10px;cursor:pointer}
+.dcc-shell .dcc-inline-popout-btn:hover{background:rgba(37,107,81,.35)}
+/* Thin scrollbars where lists have many columns; user data is not truncated. */
+.dcc-shell .dcc-tab-scroll::-webkit-scrollbar,.dcc-shell .dcc-portal-nav-scroll::-webkit-scrollbar{height:3px}
+.dcc-shell .dcc-tab-scroll::-webkit-scrollbar-thumb,.dcc-shell .dcc-portal-nav-scroll::-webkit-scrollbar-thumb{background:#3a625e;border-radius:8px}
+@media(max-width:1000px){
+  .dcc-header-description{display:none}
+  .dcc-header-actions{justify-content:flex-start}
+  .dcc-header-status{order:-1}
+}
+@media(max-width:720px){
+  .dcc-shell .dcc-header{padding:11px 12px;gap:9px}
+  .dcc-header-logo{width:119px;max-height:42px}
+  .dcc-header-copy{padding-left:10px}
+  .dcc-header-eyebrow{font-size:8px;letter-spacing:1px}
+  .dcc-header-name{font-size:17px}
+  .dcc-header-actions{width:100%;gap:5px}
+  .dcc-header-user{order:2;margin-left:auto}
+  .dcc-header-action{font-size:10px;padding:7px 8px}
+  .dcc-portal-nav{padding:6px;margin:8px 0}
+  .dcc-portal-nav-label{display:none}
+  .dcc-tab-toolbar{padding:6px 8px}
+  .dcc-tab-row{padding:2px 7px}
+  .dcc-tab-row-label{flex-basis:34px;font-size:8px}
+  .dcc-tab-item{padding:5px 8px}
+  .dcc-tab-grip-hint{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .dcc-shell *, .dcc-shell *:before, .dcc-shell *:after{transition:none!important;scroll-behavior:auto!important}
+}
