@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookLock, FileUp, Lock, Trash2, Save } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { BOBAddonSelection, BOB_ADDON_OPTIONS } from './BobAddonSelection';
+import { BobAddonSelection, BOB_ADDON_OPTIONS } from './BobAddonSelection';
 import { textFromFile } from './BobVault';
 import { encryptCustomerContent, decryptCustomerContent } from '@/lib/bobKnowledgeCrypto';
 import './BobSite.css';
