@@ -21,6 +21,7 @@ import TrainingPage from './pages/TrainingPage';
 import AssistantPortal from './pages/AssistantPortal';
 import SuperAdminPortal from './pages/SuperAdminPortal';
 import EmailEngagementPage from './pages/EmailEngagementPage';
+import DebtWelcomeExperience from './pages/DebtWelcomeExperience';
 import AutomationCenter from './pages/AutomationCenter';
 import AdminFrontPage from './pages/AdminFrontPage';
 import AboutDebt from './pages/AboutDebt';
@@ -99,6 +100,7 @@ function App() {
               <Route path="/optin" element={<OptIn />} />
               <Route path="/optin/screenshot" element={<OptInScreenshot />} />
               <Route path="/email-optin" element={<EmailOptInPage />} />
+              <Route path="/welcome" element={<DebtWelcomeExperience />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/portal-login" element={<PortalLogin />} />
