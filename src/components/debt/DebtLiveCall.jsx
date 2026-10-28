@@ -663,10 +663,6 @@ Agent line: "${firstAgentLines}"`,
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
     const startTime = Date.now();
-    // Pin persistence to the call that made this request. An older response
-    // must never be written to a new contact if the user starts another call.
-    const requestLead = { ...leadRef.current };
-    const requestTranscriptId = transcriptRecordIdRef.current;
     const prior = recentQaRequestRef.current;
     const normalized = question.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     if (prior.question === normalized && startTime - prior.ts < 11000) return;
@@ -694,19 +690,12 @@ Agent line: "${firstAgentLines}"`,
         const detail = res?.detail || res?.data?.detail || '';
         console.log(`[QA] ${responseMs}ms${reallyAsking ? ` — ${reallyAsking}` : ''}`);
         setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, source: res?.source || res?.data?.source || '', loading: false, responseMs } : x));
-        // Persist the canonical answer even if the floating panel is closed.
-        if (requestLead?.id && answer && answer !== 'Check knowledge base.') {
-          base44.entities.DebtQAHistory.create({
-            leadId: requestLead.id,
-            leadName: `${requestLead.firstName || ''} ${requestLead.lastName || ''}`.trim(),
-            agentId: coachUser?.username || '',
-            transcriptId: requestTranscriptId || '',
-            question, answer, askedAt: new Date().toISOString(), source: 'auto',
-          }).catch(() => {});
-        }
+        // Q&A results remain available during the call. The existing
+        // saveCallOutcome flow persists them once at call end, avoiding
+        // duplicate DebtQAHistory rows and extra network traffic mid-call.
       })
       .catch(() => { if (!supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
-  }, [kbEntries, coachUser?.username]);
+  }, [kbEntries]);
 
   // Auto-flush the agent question buffer — combines captured lines and sends
   // as a single Q&A question. Called by the silence timeout, customer-speech
