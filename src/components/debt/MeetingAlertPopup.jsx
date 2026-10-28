@@ -77,17 +77,17 @@ export default function MeetingAlertPopup() {
 
   return (
     <div style={{
-      position: 'fixed', bottom: '20px', right: '20px', zIndex: 99999,
-      background: `linear-gradient(135deg,rgba(239,68,68,0.95),rgba(245,158,11,0.95))`,
-      border: `2px solid ${GOLD}`, borderRadius: '8px', padding: '18px 22px',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 40px rgba(239,68,68,0.4)',
-      maxWidth: '380px', animation: 'pulse 1s ease-in-out infinite',
+      position:'fixed',bottom:20,right:20,zIndex:99999,
+      background:'linear-gradient(125deg,#1b2c35,#312b20)',
+      border:'1px solid #e6b967',borderRadius:11,padding:'15px 18px',
+      boxShadow:'0 12px 35px rgba(0,0,0,.52)',
+      maxWidth:360,
     }}>
-      <style>{`@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}`}</style>
+      {/* Remains visible when a meeting is imminent, but no flashing animation. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-        <span style={{ fontSize: '28px' }}>🔔</span>
+        <span style={{fontSize:22}}>◷</span>
         <div>
-          <div style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>Meeting Starting Soon!</div>
+          <div style={{color:'#f5dfac',fontSize:13,fontWeight:800}}>Meeting coming up</div>
           <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '11px' }}>
             {alert.minutesAway > 0 ? `In ${alert.minutesAway} minute${alert.minutesAway !== 1 ? 's' : ''}` : 'Starting now!'}
           </div>

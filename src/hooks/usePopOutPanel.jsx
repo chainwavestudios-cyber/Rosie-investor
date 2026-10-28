@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 
-export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null, zIndex = 9998) {
+export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null, zIndex = 9998, restoreOpenOnMount = true) {
   const [poppedOut, setPoppedOut] = useState(false);
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size, setSize] = useState(defaultSize);
@@ -23,13 +23,15 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     let cancelled = false;
     getDebtCoachValue(username, `popout_${storageKey}`).then(saved => {
       if (cancelled || !saved) { setLoaded(true); return; }
-      if (saved.poppedOut) setPoppedOut(true);
+      // Debt Call Coach defaults to a docked, interruption-free startup.
+      // Other portals can opt into their existing remembered pop-out behavior.
+      if (saved.poppedOut && restoreOpenOnMount) setPoppedOut(true);
       if (saved.position) setPosition(saved.position);
       if (saved.size) setSize(saved.size);
       setLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [storageKey, username]);
+  }, [storageKey, username, restoreOpenOnMount]);
 
   // Persist layout to database whenever it changes (debounced via setDebtCoachValue)
   useEffect(() => {

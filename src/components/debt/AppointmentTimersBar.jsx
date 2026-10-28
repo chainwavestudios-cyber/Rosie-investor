@@ -24,6 +24,7 @@ function tone(ms) {
 
 export default function AppointmentTimersBar({ onOpenLead }) {
   const [leads, setLeads] = useState([]);
+  const [expanded, setExpanded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
@@ -46,18 +47,19 @@ export default function AppointmentTimersBar({ onOpenLead }) {
 
   return (
     <div style={{
-      margin: '14px 0 4px', padding: '8px 10px',
-      background: 'rgba(16,185,129,0.05)',
-      border: '1px solid rgba(16,185,129,0.2)',
-      borderRadius: '6px',
+      margin:'10px 0 8px',padding:'9px 13px',
+      background:'linear-gradient(110deg,rgba(21,51,46,.58),rgba(13,30,43,.75))',
+      border:'1px solid rgba(104,175,149,.24)',borderRadius:10,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-        <span style={{ color: GOLD, fontSize: '9px', fontWeight: 'bold', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
-          ⏳ Appointment Timers
-        </span>
-        <span style={{ color: '#6b7280', fontSize: '9px' }}>{leads.length} upcoming</span>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{color:'#9fe5c6',fontSize:10,fontWeight:850,letterSpacing:1.2,textTransform:'uppercase'}}>◷ Upcoming appointments</span>
+          <span style={{color:'#b9ccd2',fontSize:11}}>{leads.length} scheduled</span>
+          <span style={{color:'#dab879',fontSize:11}} title={timeLabel(leads[0].appointmentDate)}>Next: {leads[0].firstName||'Lead'} {leads[0].lastName||''} · {formatCountdown(new Date(leads[0].appointmentDate).getTime()-now).label}</span>
+        </div>
+        <button type="button" onClick={()=>setExpanded(v=>!v)} aria-expanded={expanded} style={{color:'#9de8cd',border:'1px solid #356d5b',background:'#163b32',borderRadius:7,padding:'6px 11px',fontSize:10,fontWeight:750,cursor:'pointer'}}>{expanded?'Hide appointments':'View appointments'} {expanded?'▴':'▾'}</button>
       </div>
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' }}>
+      {expanded && <div style={{display:'flex',gap:8,overflowX:'auto',padding:'11px 0 3px'}}>
         {leads.map(lead => {
           const ms = new Date(lead.appointmentDate).getTime() - now;
           const { label, past } = formatCountdown(ms);
@@ -89,7 +91,7 @@ export default function AppointmentTimersBar({ onOpenLead }) {
             </button>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }

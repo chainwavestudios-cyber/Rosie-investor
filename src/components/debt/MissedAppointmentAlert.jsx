@@ -153,13 +153,14 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
           z-index: 1;
         }
       `}</style>
-      {missedEvents.map(ev => (
+      {/* Show one urgent appointment at a time; never stack overlapping alerts. */}
+      {missedEvents.slice(0, 1).map(ev => (
         <div key={ev.id} style={{
           position: 'fixed', bottom: '20px', right: '20px', zIndex: 99999,
           maxWidth: '400px',
         }}>
-          <div className="missed-led-container" style={{ animation: 'missed-led-pulse 1.5s ease-in-out infinite' }}>
-            <div className="missed-led-ring" />
+          <div className="missed-led-container" style={{ boxShadow:'0 10px 35px rgba(0,0,0,.6)' }}>
+            {/* No strobing/rotating decoration; urgent status remains visible. */}
             <div className="missed-led-inner" style={{ padding: '20px 24px' }}>
               <button
                 onClick={() => dismiss(ev)}
@@ -170,7 +171,7 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
                 <span style={{ fontSize: '32px' }}>🚨</span>
                 <div>
                   <div style={{ color: RED, fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px' }}>MISSED APPOINTMENT</div>
-                  <div style={{ color: '#8a9ab8', fontSize: '11px' }}>Time has passed — no completion checkmark</div>
+                  <div style={{ color: '#8a9ab8', fontSize: '11px' }}>Time has passed · {missedEvents.length} unresolved appointment{missedEvents.length===1?'':'s'}</div>
                 </div>
               </div>
               <div style={{ color: '#e8e0d0', fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>{ev.title}</div>

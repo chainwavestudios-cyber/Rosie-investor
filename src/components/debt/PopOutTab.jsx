@@ -17,10 +17,12 @@ const sizeBtn = {
 
 export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut, zIndex }) {
   const { user } = useDebtCoachAuth();
-  const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username, zIndex);
+  const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username, zIndex, false);
 
   // Auto pop out when the trigger flips true (e.g. a live call starts) — and bring it on-screen
   useEffect(() => {
+    // Only an explicit opt-in can auto-arrange panels. The Coach start-call
+    // flow no longer passes this option, avoiding a flood of windows.
     if (!autoPopOut) return;
     if (!panel.poppedOut) panel.popOut();
     else panel.center();

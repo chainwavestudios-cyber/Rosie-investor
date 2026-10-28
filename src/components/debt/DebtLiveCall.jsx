@@ -209,17 +209,17 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const transcriptRecordIdRef = useRef(null);
-  const profileAutoOpenedRef = useRef(false); // tracks if client profile was auto-opened (name or 45s)
-  const autoSaveTimerRef = useRef(null); // 45-second auto-save timer
+  // The client profile is always opened explicitly by the agent, never by timer/name detection.
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [showEmergencyScripts, setShowEmergencyScripts] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
-  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username);
-  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username);
-  const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username);
-  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username);
-  const [allPoppedOut, setAllPoppedOut] = useState(false);
+  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username, 9998, false);
+  const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username, 9998, false);
+  const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username, 9998, false);
+  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username, 9998, false);
+  const [showCustomerStats, setShowCustomerStats] = useState(false);
+  const allPoppedOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
@@ -415,19 +415,7 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => { leadRef.current = lead; }, [lead]);
   useEffect(() => { inboundRef.current = isInbound; }, [isInbound]);
 
-  // Auto-pop up Client Profile when a real name is detected (transition from placeholder)
-  useEffect(() => {
-    if (profileAutoOpenedRef.current) return;
-    if (phase !== 'live') return;
-    const fn = (lead.firstName || '').trim();
-    const ln = (lead.lastName || '').trim();
-    // Placeholder names: 'New', 'Lead', empty
-    const isPlaceholder = (!fn || fn.toLowerCase() === 'new') && (!ln || ln.toLowerCase() === 'lead');
-    if (!isPlaceholder && fn && ln) {
-      profileAutoOpenedRef.current = true;
-      setShowProfile(true);
-    }
-  }, [lead.firstName, lead.lastName, phase]);
+  // Identifying a contact must never interrupt a live call with a profile modal.
 
   // Load key memories for the selected lead — surfaced in AI Coach on follow-up calls
   const loadMemories = useCallback(async (leadId) => {
@@ -454,9 +442,10 @@ Agent line: "${firstAgentLines}"`,
       .catch(() => {}).finally(() => setKbLoading(false));
   }, []);
 
-  // Load mic devices — auto-detect Rodecaster for customer audio (wait for saved defaults)
-  // Re-scannable device list — Windows "Stereo Mix" (or a Rodecaster) fills the customer feed.
-  const loadDevices = useCallback(async () => {
+  // Passive device enumeration on mount; microphone permission is requested
+  // only after an explicit Re-scan / Test / Start Call action.
+  // Windows Stereo Mix / Rodecaster sources still auto-select when enumerated.
+  const loadDevices = useCallback(async (requestPermission = false) => {
     // List what Windows reports FIRST — before any permission grab — so a denied
     // or busy mic can never leave the dropdowns completely empty.
     const scan = async () => {
@@ -470,7 +459,7 @@ Agent line: "${firstAgentLines}"`,
     let { mics, outputs } = await scan();
     // Labels (and some loopback/virtual inputs) only appear after a permission
     // grant — grab the mic once, release it, then list again for the full set.
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+    const stream = requestPermission ? await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null) : null;
     if (stream) {
       // Release the mic immediately — we only grabbed it to populate device labels.
       // Keeping it open leaves Chrome showing "using mic" and can cause the later
@@ -496,7 +485,7 @@ Agent line: "${firstAgentLines}"`,
 
   useEffect(() => {
     if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
-    loadDevices();
+    loadDevices(false);
   }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
 
   // Windows devices that are enabled/plugged in after the page loaded (Stereo
@@ -505,7 +494,7 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => {
     const md = navigator.mediaDevices;
     if (!md?.addEventListener) return;
-    const onDeviceChange = () => loadDevices();
+    const onDeviceChange = () => loadDevices(false);
     md.addEventListener('devicechange', onDeviceChange);
     return () => md.removeEventListener('devicechange', onDeviceChange);
   }, [loadDevices]);
@@ -545,7 +534,7 @@ Agent line: "${firstAgentLines}"`,
     setLead(selectedLead);
     leadRef.current = selectedLead;
     setProfileData(selectedLead.profileJson ? (() => { try { return JSON.parse(selectedLead.profileJson); } catch { return null; } })() : null);
-    setShowProfile(true);
+    // Keep the contact card docked; the agent may open the profile manually.
     // Start the call with this lead
     setTimeout(() => startCall(false), 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -560,7 +549,7 @@ Agent line: "${firstAgentLines}"`,
       return next;
     });
     loadLeads();
-    setShowProfile(true);
+    // Leave focus in the call workspace after saving; profile opens on demand.
   }, [loadLeads]);
 
   useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
@@ -1361,7 +1350,6 @@ ${recentText}`,
     setAgentQuestionActive(false);
     leadPersistedRef.current = false;
     transcriptRecordIdRef.current = null;
-    profileAutoOpenedRef.current = false;
     ledgerDoneRef.current = false;
     hardshipDoneRef.current = false;
     billsDoneRef.current = false;
@@ -1403,23 +1391,9 @@ ${recentText}`,
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
-    // 45-second auto-save: pop up Client Profile to remind agent to save lead info
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
-    autoSaveTimerRef.current = setTimeout(() => {
-      if (!profileAutoOpenedRef.current) {
-        profileAutoOpenedRef.current = true;
-        setShowProfile(true);
-      }
-    }, 45000);
-
-    // Auto-pop-out all panels to saved layout positions
-    setTimeout(() => {
-      leadPanel.popOut();
-      transcriptPanel.popOut();
-      scriptsPanel.popOut();
-      aiPanel.popOut();
-      setAllPoppedOut(true);
-    }, 300);
+    // Quiet start: keep the lead card, transcript, scripts, and AI tools docked.
+    // No timed profile modal or automatic floating panel. User-initiated
+    // pop-out buttons remain available in the headers of each panel.
 
     // Auto-activate Q&A, Coach, and Intent engines (only if permitted + enabled in layout).
     // Set the refs directly too so processNewEntry (captured by the WebSocket handler)
@@ -1526,7 +1500,6 @@ ${recentText}`,
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
-    if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
     // Update DialerSession back to logged_in
     if (coachUser?.username) {
       try {
@@ -1932,9 +1905,25 @@ ${recentText}`,
   const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
 
   return (
-    <div>
-      {/* Controls bar */}
-      <div style={{ marginBottom: '16px', padding: '14px 18px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+    <div className="dcc-live-workspace" style={{minWidth:0}}>
+      <style>{` .dcc-live-workspace button:focus-visible,.dcc-live-workspace input:focus-visible,.dcc-live-workspace select:focus-visible{outline:2px solid #dab879;outline-offset:2px}
+        .dcc-live-workspace .dcc-live-control{transition:background .15s,border-color .15s}
+        @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
+      `}</style>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'13px 18px',margin:'0 0 13px',border:'1px solid rgba(161,202,186,.21)',borderRadius:12,background:'linear-gradient(110deg,#142a34,#122a2c 50%,#111d2e)'}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:850,letterSpacing:2,color:'#d8b56d'}}>LIVE CALL WORKSPACE</div>
+          <div style={{font:'normal 23px Georgia,serif',color:'#f4f3ed',margin:'5px 0'}}>Your call. Your workspace.</div>
+          <div style={{fontSize:11,color:'#97b7b1'}}>{phase==='live'?'Live transcription and coaching are active. Panels stay docked until you move them.':'Choose your audio inputs and call type, then start when ready. No windows will open automatically.'}</div>
+        </div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <button type="button" className="dcc-live-control" onClick={()=>setShowCustomerStats(s=>!s)} aria-pressed={showCustomerStats} style={{cursor:'pointer',padding:'9px 12px',border:'1px solid '+(showCustomerStats?'#64d5ab':'#3b6b64'),background:showCustomerStats?'#184a3d':'#18302f',color:'#c6f2de',borderRadius:8,fontWeight:750,fontSize:11}}>◈ {showCustomerStats?'Hide':'Open'} Customer Insights</button>
+          <button type="button" className="dcc-live-control" onClick={()=>setShowProfile(true)} disabled={!lead.id} style={{cursor:lead.id?'pointer':'not-allowed',padding:'9px 12px',border:'1px solid rgba(116,191,160,.44)',background:'rgba(24,100,78,.13)',color:lead.id?'#c6f2de':'#657f84',borderRadius:8,fontWeight:750,fontSize:11}}>▣ Client Profile</button>
+          <span style={{fontSize:10,letterSpacing:'.3px',color:phase==='live'?'#ffaf9f':'#9bdabe',padding:'8px 10px',background:phase==='live'?'#352222':'#18392e',border:'1px solid '+(phase==='live'?'#97504e':'#376b58'),borderRadius:99,fontWeight:850}}>{phase==='live'?'● LIVE CALL':phase==='ended'?'CALL ENDED':'● READY'}</span>
+        </div>
+      </div>
+      {/* Call controls stay in the page, without floating panels. */}
+      <div style={{ marginBottom: '16px', padding: '13px 16px', background: 'linear-gradient(115deg,rgba(15,38,46,.88),rgba(15,26,41,.9))', border: '1px solid rgba(122,184,163,0.24)', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
           <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
@@ -1954,7 +1943,7 @@ ${recentText}`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
-            <button onClick={loadDevices} disabled={phase === 'live'} title="Re-scan the inputs — click after enabling Stereo Mix in Windows" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
+            <button onClick={() => loadDevices(true)} disabled={phase === 'live'} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
             {micDevices.length > 0 && <span style={{ color: '#4a5568', fontSize: '9px', whiteSpace: 'nowrap' }}>{micDevices.length} input{micDevices.length === 1 ? '' : 's'}</span>}
           </div>
           <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
@@ -2222,12 +2211,8 @@ ${recentText}`,
 
       {/* Main layout: lead card + transcript + AI tools — all pop-out enabled */}
       {(() => {
-        const cols = [];
-        if (!leadPanel.poppedOut) cols.push('380px');
-        if (!transcriptPanel.poppedOut) cols.push('1fr');
-        if (!scriptsPanel.poppedOut) cols.push('420px');
-        if (!aiPanel.poppedOut) cols.push('400px');
-        const gridCols = cols.length > 0 ? cols.join(' ') : '1fr';
+        // Responsive docked layout adapts to laptop and ultrawide workstations.
+        const gridCols = 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))';
         const allOut = leadPanel.poppedOut && transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
 
         return (
@@ -2290,7 +2275,7 @@ ${recentText}`,
                       username={coachUser?.username}
                       activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
                       onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                      autoOpenPopup={phase === 'live'}
+                      autoOpenPopup={false}
                     />
                   </div>
                   {aiPanel.resizeHandles}
@@ -2309,7 +2294,7 @@ ${recentText}`,
                     username={coachUser?.username}
                     activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
                     onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                    autoOpenPopup={phase === 'live'}
+                    autoOpenPopup={false}
                   />
                 </div>
               )}
@@ -2333,23 +2318,7 @@ ${recentText}`,
         </div>
       )}
 
-      {/* Floating Client Profile pop-out button */}
-      <button
-        onClick={() => setShowProfile(true)}
-        disabled={!lead.id}
-        style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
-          background: lead.id ? 'linear-gradient(135deg,#10b981,#22c55e)' : 'rgba(255,255,255,0.05)',
-          color: lead.id ? '#0a0f1e' : '#4a5568',
-          border: `1px solid ${lead.id ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.1)'}`,
-          borderRadius: '28px', padding: '12px 20px', cursor: lead.id ? 'pointer' : 'not-allowed',
-          fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase',
-          boxShadow: lead.id ? '0 4px 16px rgba(16,185,129,0.3)' : 'none',
-          display: 'flex', alignItems: 'center', gap: '6px',
-        }}
-      >
-        👤 Client Profile
-      </button>
+      {/* Client Profile is opened from the Live Call toolbar, never a fixed launcher. */}
 
       {showProfile && lead.id && (
         <ClientProfileModal lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => {
@@ -2387,6 +2356,8 @@ ${recentText}`,
         micMuted={micMuted}
         onToggleMicMute={toggleMicMute}
         paused={statsPaused}
+        visible={showCustomerStats}
+        onClose={() => setShowCustomerStats(false)}
       />
 
 
