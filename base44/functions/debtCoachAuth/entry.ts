@@ -1,6 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 
-const LEGACY_BOOTSTRAP_PASSWORD = 'Debt@2026!!';
 
 const ADMIN_FLAG_KEYS = new Set([
   'liveAIEnabled','liveQA','liveCoach','liveIntent','bobAIEnabled','bobQA','bobCoach','bobIntent',
