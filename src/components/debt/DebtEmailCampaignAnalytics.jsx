@@ -148,7 +148,7 @@ export default function DebtEmailCampaignAnalytics(){
      await base44.entities.DebtLeadActivity.create({leadId:row.leadId,leadName:row.name,activityType:'call',activityText:result==='left_voicemail'?'☎ Outgoing call — Left voicemail':'📞 Outgoing call — No answer',createdBy:user?.username||'',metadataJson:JSON.stringify({result,source:'email_campaign',campaignId:activeId})});
      const calledAt=new Date().toISOString();
      await base44.entities.DebtLead.update(row.leadId,{lastCallAt:calledAt,callCount:n(lead.callCount)+1});
-     setContactMeta(prev=>({...prev,[row.leadId]:{...prev[row.leadId],lastCallAt:calledAt,outcome:result==='left_voicemail'?'Left VM':'No Answer'}}));
+     setContactMeta(prev=>({...prev,[row.leadId]:{...prev[row.leadId],lastCallAt:calledAt,lastActionAt:calledAt,outcome:result==='left_voicemail'?'Left VM':'No Answer'}}));
      setActionNote(`${row.name}: ${result==='left_voicemail'?'voicemail':'no answer'} saved.`);
    }catch(e){setActionNote('Could not save call outcome: '+(e?.message||String(e)))}finally{setQuickBusy('')}
  };
@@ -159,7 +159,7 @@ export default function DebtEmailCampaignAnalytics(){
      const description=`${meeting.notes||''}\n\nContact: ${meeting.row.name}\nPhone: ${meeting.row.phone||''}\nEmail: ${meeting.row.email}`;
      const result=await base44.functions.invoke('googleCalendarSync',{action:'saveLeadAppointment',sessionUserId,sessionToken,leadId:meeting.row.leadId,title:meeting.label.trim(),startISO:start.toISOString(),duration:Number(meeting.duration||30),description,sendReminderEmails:meeting.reminders,reminders:meeting.reminders?[{method:'email',minutes:1440},{method:'email',minutes:60}]:[]});
      const data=result?.data||result;if(data.status!=='success')throw Error(data.error||'Calendar unavailable');
-     setContactMeta(prev=>({...prev,[meeting.row.leadId]:{...prev[meeting.row.leadId],outcome:'Scheduled Appointment',lastCallAt:new Date().toISOString()}}));
+     setContactMeta(prev=>({...prev,[meeting.row.leadId]:{...prev[meeting.row.leadId],outcome:'Scheduled Appointment',lastActionAt:new Date().toISOString()}}));
      setActionNote('Meeting scheduled for '+meeting.row.name);setMeeting(null);
    }catch(e){setActionNote('Schedule failed: '+(e?.response?.data?.error||e?.message||String(e)))}finally{setQuickBusy('')}
  };
@@ -287,7 +287,7 @@ export default function DebtEmailCampaignAnalytics(){
                <td style={cell}><strong>{info.score||0}</strong>/100</td>
                <td style={cell}>{shortDate(info.lastEngagementAt||row.clickedAt||row.openedAt||row.sentAt)}</td>
                <td style={cell}><strong style={{fontSize:17,color:'#eac784'}}>{contactMeta[row.leadId]?.phone||row.phone||'—'}</strong></td>
-               <td style={cell}>{callStamp(contactMeta[row.leadId]?.lastCallAt)}{contactMeta[row.leadId]?.outcome?' · '+contactMeta[row.leadId].outcome:''}</td>
+               <td style={cell}>{callStamp(contactMeta[row.leadId]?.lastActionAt||contactMeta[row.leadId]?.lastCallAt)}{contactMeta[row.leadId]?.outcome?' · '+contactMeta[row.leadId].outcome:''}</td>
                <td style={cell}><div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'nowrap'}}>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>No Answer</button>
