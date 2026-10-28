@@ -86,7 +86,9 @@ export default function DebtAIPanel({
   }, [externalKbEntries]);
 
   // Determine which transcript to use (Twilio stream takes priority over external)
-  const activeTranscript = streamStatus === 'connected' ? twilioTranscript : externalTranscript;
+  // During an actual Live Call, its existing Deepgram feed is authoritative.
+  // Never substitute a second independently transcribed stream into Q&A.
+  const activeTranscript = isActive ? externalTranscript : (streamStatus === 'connected' ? twilioTranscript : externalTranscript);
 
   // Normalize transcript for AIAssistantPopup (expects speaker: 0=prospect, 1=agent)
   // Live call format: speaker 0=agent, 1=customer → swap to 1=agent, 0=prospect
@@ -112,6 +114,7 @@ export default function DebtAIPanel({
 
   // ── Direct Audio Stream Connect (like BOB — uses computer audio, not Twilio) ──
   const connectStream = async () => {
+    if (isActive) return; // Live Call already owns the audio stream.
     if (streamStatus === 'connected') { disconnectStream(); return; }
 
     setError(''); setStreamStatus('connecting');
@@ -215,6 +218,11 @@ export default function DebtAIPanel({
   };
 
   useEffect(() => () => disconnectStream(), []);
+  useEffect(() => {
+    // If the independent preview stream was opened before a real call started,
+    // close it to avoid duplicate WebSockets and competing transcripts.
+    if (isActive && wsRef.current) disconnectStream();
+  }, [isActive]);
 
   // Toggle handlers — controlled mode delegates to parent; local mode updates internal state.
   // Either way, open the popup when a tool is turned on.
@@ -277,9 +285,9 @@ export default function DebtAIPanel({
               </div>
 
               {/* Twilio Stream Connect */}
-              <button onClick={connectStream} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: streamStatus === 'connected' ? 'rgba(74,222,128,0.1)' : streamStatus === 'error' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${streamStatus === 'connected' ? 'rgba(74,222,128,0.4)' : streamStatus === 'error' ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.12)'}`, color: streamStatus === 'connected' ? '#4ade80' : streamStatus === 'error' ? '#ef4444' : '#8a9ab8', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+              <button onClick={connectStream} disabled={isActive} title={isActive ? 'Live Call is already transcribing audio' : 'Connect audio for standalone testing'} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: streamStatus === 'connected' ? 'rgba(74,222,128,0.1)' : streamStatus === 'error' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${streamStatus === 'connected' ? 'rgba(74,222,128,0.4)' : streamStatus === 'error' ? 'rgba(239,68,68,0.35)' : 'rgba(255,255,255,0.12)'}`, color: streamStatus === 'connected' ? '#4ade80' : streamStatus === 'error' ? '#ef4444' : '#8a9ab8', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: streamStatusLight, animation: streamStatus === 'connecting' ? 'pulse 0.8s infinite' : streamStatus === 'connected' ? 'pulse 2.5s infinite' : 'none' }} />
-                {streamStatus === 'connected' ? '⏹ Disconnect Audio' : '🔗 Connect Audio Stream'}
+                {isActive ? '● Audio managed by Live Call' : streamStatus === 'connected' ? '⏹ Disconnect Audio' : '🔗 Connect Audio Stream'}
               </button>
 
               {/* Feature toggles — open popup */}
