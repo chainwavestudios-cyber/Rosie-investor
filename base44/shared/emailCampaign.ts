@@ -109,6 +109,8 @@ export function recipientVars(recipient: any, assistants: Array<{ key: string; n
     // A malformed extra-columns blob simply contributes nothing.
   }
   Object.assign(vars, companyMergeVars(TRACKING_BASE, { leadId: vars.leadId, email }));
+  // The per-send opaque token is minted and attached by emailMessageEngine.
+  vars.personalMessageUrl = 'https://debtsolutions.cc/welcome';
   return vars;
 }
 
