@@ -375,7 +375,7 @@ async function executeTransfer(req: Request, base44: any, leadData: any, config:
   // Finalize transcript with transfer result
   if (callSid) {
     try {
-      await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation, 'transferred');
+      await saveAiAgentTranscript(base44, callSid, leadId, `${leadData.firstName || ''} ${leadData.lastName || ''}`.trim(), conversation, 'transfer_started');
     } catch (e) {
       console.warn('[aiAgentRespond] Failed to finalize transcript:', e?.message);
     }
@@ -407,9 +407,18 @@ async function handleTransferFallback(req: Request, leadId: string, form: URLSea
 
   console.log('[aiAgentRespond] → Transfer fallback: primary DialCallStatus:', dialStatus);
 
-  // Primary dial succeeded — transfer was completed, hang up gracefully
+  // A completed advisor leg confirms a connected Dial; only now mark transfer.
   if (dialStatus === 'completed' || dialStatus === 'answered') {
     console.log('[aiAgentRespond] → Primary transfer succeeded, hanging up');
+    if (leadId) {
+      try {
+        await base44.entities.FronterLead.update(leadId, {
+          status: 'transferred', lastCallResult: 'transferred',
+          callStatus: 'transferred', transferredAt: new Date().toISOString(),
+          transferredTo: 'AI Agent → Primary Senior Advisor',
+        });
+      } catch (e) { console.warn('[aiAgentRespond] Primary transfer status update failed:', e?.message); }
+    }
     return twimlResponse(`<Response><Hangup/></Response>`);
   }
 
@@ -446,7 +455,20 @@ async function handleTransferNoConnect(req: Request, leadId: string, form: URLSe
 
   // Parse CallSid from the Dial action callback form data
   const callSid = (form.get('CallSid') || '').toString();
+  const secondaryDialStatus = (form.get('DialCallStatus') || '').toString();
   let leadName = '';
+
+  // A successful secondary advisor leg must not be recorded as no-connect.
+  if (secondaryDialStatus === 'completed' || secondaryDialStatus === 'answered') {
+    try {
+      await base44.entities.FronterLead.update(leadId, {
+        status: 'transferred', lastCallResult: 'transferred',
+        callStatus: 'transferred', transferredAt: now,
+        transferredTo: 'AI Agent → Secondary Senior Advisor',
+      });
+    } catch (e) { console.warn('[aiAgentRespond] Secondary transfer status update failed:', e?.message); }
+    return twimlResponse(`<Response><Hangup/></Response>`);
+  }
 
   console.log('[aiAgentRespond] → Transfer NO CONNECT: both lines failed for lead', leadId);
 
