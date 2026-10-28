@@ -44,7 +44,7 @@ const respond=(data:any,status=200)=>Response.json(data,{status});
 export default async function(req:Request):Promise<Response>{
   if(req.method!=='POST')return respond({error:'Method not allowed'},405);
   try {
-    if(!ACCOUNT_SID||!AUTH_TOKEN||!FROM)return respond({error:'Twilio is not configured'},503);
+    if(!ACCOUNT_SID||!AUTH_TOKEN||!/^\+[1-9]\d{7,14}$/.test(FROM))return respond({error:'Twilio outbound caller ID is not configured'},503);
     const body=await req.json();
     const service=createClientFromRequest(req).asServiceRole;
     const user=await verifyUser(service,body);
@@ -55,6 +55,9 @@ export default async function(req:Request):Promise<Response>{
     if(user.role==='dialer'&&lead.debtCoachOwner!==user.username)return respond({error:'Not assigned to this contact'},403);
     if(!['start','status','contact','merge','end'].includes(action))return respond({error:'Unknown action'},400);
     if(action==='start'){
+      // This is a single dedicated office line, not a generic tenant dialer.
+      // Require elevated rights until individual per-user office lines exist.
+      if(!['super_admin','admin'].includes(user.role)) return respond({error:'Office main line is restricted to administrators'},403);
       if(body.bridgeToken)return respond({error:'Office session already supplied'},400);
       if(!/^\+1\d{10}$/.test(OFFICE))return respond({error:'Office line must be configured'},503);
       const bridgeId='office_'+crypto.randomUUID().replace(/-/g,'');
