@@ -384,7 +384,7 @@ export default async function(req) {
     <Conference startConferenceOnEnter="false" endConferenceOnExit="false" beep="false"
       waitUrl="${xmlEscape(holdWaitUrl)}" waitMethod="GET"
       statusCallback="${xmlEscape(`${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueMerged&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conferenceName)}&CallerCallSid=${encodeURIComponent(customerCallSid)}`)}"
-      statusCallbackEvent="start join" statusCallbackMethod="POST">
+      statusCallbackEvent="start join leave end" statusCallbackMethod="POST">
       ${conferenceName}
     </Conference>
   </Dial>
@@ -606,6 +606,19 @@ export default async function(req) {
             // The customer joining an empty conference is not a completed
             // transfer. Only advisor-side start/join confirms a live handoff.
             const isCustomerJoin = event.includes('join') && customerSid && joiningSid === customerSid;
+            const isCustomerLeave = event.includes('leave') && customerSid && joiningSid === customerSid;
+            if (isCustomerLeave && !['merged', 'appointment_booked'].includes(active.routeState)) {
+              // The prospect has hung up; don't show a stale active queue card,
+              // and cancel an orphan advisor call if one is still ringing.
+              await base44.entities.FronterHeadsUp.update(active.id, {
+                routeState:'queue_abandoned',status:'closed',
+              });
+              if (active.advisorCallSid) {
+                try { await twilioFetch(`/Calls/${active.advisorCallSid}.json`, {
+                  method:'POST',body:new URLSearchParams({Status:'completed'}),
+                }); } catch {}
+              }
+            }
             if (isCustomerJoin && active.routeState === 'caller_queued' && Number(active.advisorAttempt || 0) === 0) {
               // Queue audio is already playing. Only now ring the primary
               // physical advisor line, then automatically the secondary.
@@ -628,7 +641,7 @@ export default async function(req) {
             // never mark the lead transferred.
             const isApprovedAdvisorJoin = event.includes('join') && !isCustomerJoin &&
               joiningSid && customerSid && joiningSid !== customerSid &&
-              ['advisor_accepted','browser_ringing'].includes(active.routeState);
+              !isCustomerLeave && ['advisor_accepted','browser_ringing'].includes(active.routeState);
             if (isApprovedAdvisorJoin && !['merged', 'appointment_booked'].includes(active.routeState)) {
               await base44.entities.FronterHeadsUp.update(active.id, { routeState: 'merged', status: 'closed' });
               await base44.entities.FronterLead.update(mergedLeadId, {
