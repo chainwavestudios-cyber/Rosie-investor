@@ -63,9 +63,9 @@ const TABS = [
   { id: 'ai_populate', label: '🤖 AI Populate' },
 ];
 
-export default function ClientProfileModal({ lead, username, onClose, onSave }) {
+export default function ClientProfileModal({ lead, username, onClose, onSave, initialTab = 'overview' }) {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(initialTab);
   // The card reads the state in full — a stored "CA" opens as "California".
   const [local, setLocal] = useState(() => (lead ? { ...lead, state: fullStateName(lead.state) } : {}));
   // Live AI, transcript and autosave updates change the lead prop during a call.
