@@ -60,7 +60,7 @@ export default function DebtCallBar({lead, onLaunch}) {
           <PhoneOff size={13}/> End Bridge
         </button>
       </div>
-      <div style={{fontSize:10,color:'#9caeb3'}}>Office answers first. The client is held separately until you explicitly click Merge Calls.</div>
+      <div style={{fontSize:10,color:'#9caeb3'}}>Browser mic muted. Speak through the office line; the app monitors and transcribes. Client hears hold audio until you click Merge Calls.</div>
     </div>}
   </div>;
 }
