@@ -1015,11 +1015,17 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
 
     setTileOutputs(prev => [{ id, tile: tile.label, text: '', loading: true, time: new Date() }, ...prev].slice(0, 6));
 
-    const prompt = TILE_PROMPTS[tile.id]?.(leadName, callNum) || TILE_PROMPTS.open_strong(leadName, callNum);
+    // The debt-coach view shares this popup with the investor workbench.
+    // Never show an investor/Nasdaq script to a debt-relief closer.
+    const debtMode = Array.isArray(liveCoachTips);
+    const prompt = debtMode
+      ? `You are assisting a live debt relief advisor with ${leadName}. This call needs help with: ${tile.label}. Use only confirmed facts and approved debt knowledge-base guidance, not investor pitches or promises of guaranteed savings. Give one timely, specific, natural sentence the agent can say next, plus a short reason.`
+      : (TILE_PROMPTS[tile.id]?.(leadName, callNum) || TILE_PROMPTS.open_strong(leadName, callNum));
 
     try {
       const res = await base44.functions.invoke('liveAssistantAI', {
         mode: 'coach_stream',
+        industry: debtMode ? 'debt' : 'investor',
         transcript: transcriptRef.current.slice(-10),
         kbEntries,
         coachRules: {
