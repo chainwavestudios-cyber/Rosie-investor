@@ -5,6 +5,22 @@
  */
 export const DAA_WELCOME_URL = 'https://debtsolutions.cc/welcome';
 
+/** Ensure basic DAA commercial-mail identity and opt-out details on every send.
+ * Merge tags are resolved through companyMergeVars before delivery. This is
+ * not a substitute for legal review of advertising claims or consent rules. */
+export function withDAAMailingFooter(html: string): string {
+  let body=String(html||'');
+  const hasOptout=/unsubscribeEmail|\{\{\s*unsubscribe_?url\s*\}\}|unsubscribe|opt\s*out/i.test(body);
+  const hasAddress=/6863\s+Friars\s+Road|\{\{\s*company_?mailing_?address\s*\}\}/i.test(body);
+  if(hasOptout && hasAddress)return body;
+  const footer='<div style="font-family:Arial,sans-serif;text-align:center;font-size:10px;line-height:1.7;color:#7a7a7a;margin:20px auto;max-width:560px;">'
+    + (!hasAddress?'Debt Advisors of America · {{companyMailingAddress}}<br/>':'')
+    + (!hasOptout?'<a href="{{unsubscribeUrl}}" style="color:#636b72;text-decoration:underline;">Unsubscribe from future emails</a>':'')
+    + '</div>';
+  if(/<\/body\s*>/i.test(body))return body.replace(/<\/body\s*>/i,footer+'</body>');
+  return body+footer;
+}
+
 const forbidden = /\b(?:golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech)\b/i;
 const daaIdentity = /\b(?:debt\s+advisors\s+of\s+america|debtadvisorsofamerica\.com|DAA)\b/i;
 const unsupportedLink = /(?:rosieai-investorpage\.base44\.app|abitaboutme\.base44\.app)/i;
