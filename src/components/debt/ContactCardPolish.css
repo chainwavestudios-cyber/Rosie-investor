@@ -254,3 +254,172 @@
 @media(prefers-reduced-motion:reduce) {
   .dcc-contact-card *, .dcc-profile-shell * {scroll-behavior:auto !important;transition:none !important;}
 }
+
+/* Contact-card reminders: high-contrast blank minutes field and big header countdown. */
+.dcc-profile-shell .dcc-profile-heading{gap:12px!important;align-items:center;flex:1 1 auto;min-width:0}
+.dcc-profile-shell .dcc-profile-countdown{
+  min-width:132px;flex:0 0 auto;display:flex;flex-direction:column;
+  gap:2px;align-items:center;justify-content:center;margin-left:13px;
+  border:1px solid rgba(236,194,123,.78);border-radius:10px;
+  background:linear-gradient(140deg,#33291a,#162322 70%);
+  box-shadow:0 0 0 1px rgba(236,194,123,.12),0 7px 22px rgba(0,0,0,.28);
+  padding:7px 13px;
+}
+.dcc-profile-shell .dcc-profile-countdown>span{
+  display:flex;align-items:center;gap:6px;color:#e8d5ac;
+  font-size:10px;letter-spacing:1.15px;font-weight:800;white-space:nowrap;
+}
+.dcc-profile-shell .dcc-profile-countdown>strong{
+  font-family:Inter,system-ui,sans-serif;font-size:33px;line-height:1.12;
+  letter-spacing:.5px;font-weight:900;font-variant-numeric:tabular-nums;
+  color:#fff2d1;text-shadow:0 1px 12px #dfba753c;white-space:nowrap;
+}
+.dcc-profile-shell .dcc-profile-countdown.is-urgent{
+  border-color:#ffbb82;background:linear-gradient(130deg,#412a21,#251b23);
+}
+.dcc-profile-shell .dcc-profile-countdown.is-urgent>strong{
+  color:#ffd29f;
+}
+.dcc-profile-shell .dcc-profile-timer-bar{
+  display:flex!important;flex-wrap:wrap!important;align-items:center!important;
+  gap:12px!important;background:#111f29!important;
+  border-bottom:1px solid rgba(197,163,110,.35)!important;
+  padding:11px 15px!important;
+}
+.dcc-profile-shell .dcc-profile-timer-settings{
+  display:flex;flex-direction:column;gap:9px;
+  min-width:0;flex:1 1 490px;
+}
+.dcc-profile-shell .dcc-profile-timer-input-row,
+.dcc-profile-shell .dcc-profile-timer-sounds{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;
+}
+.dcc-profile-shell .dcc-profile-timer-input-row>label,
+.dcc-profile-shell .dcc-profile-timer-sounds>label{
+  display:flex;align-items:center;gap:7px;
+  font-size:10px!important;font-weight:850!important;
+  color:#f0d8a7!important;letter-spacing:.9px!important;
+  margin:0 6px 0 0;white-space:nowrap;
+}
+.dcc-profile-shell .dcc-timer-minutes{
+  width:100px!important;min-width:100px!important;height:42px!important;
+  padding:7px 13px!important;flex:0 0 100px;
+  border:1px solid #e4bf81!important;
+  border-radius:8px!important;
+  background:#182b31!important;
+  color:#fff8de!important;
+  font-weight:850!important;font-size:20px!important;
+  text-align:center;box-shadow:0 0 0 1px #a9814938;
+  font-variant-numeric:tabular-nums;
+}
+.dcc-profile-shell .dcc-timer-minutes::placeholder{
+  font-size:13px!important;font-weight:600!important;
+  color:#adbbb8!important;opacity:1;
+}
+.dcc-profile-shell .dcc-timer-minutes::-webkit-inner-spin-button,
+.dcc-profile-shell .dcc-timer-minutes::-webkit-outer-spin-button{
+  -webkit-appearance:none;margin:0;
+}
+.dcc-profile-shell .dcc-timer-minutes{-moz-appearance:textfield}
+.dcc-profile-shell .dcc-timer-unit{
+  font-size:12px;font-weight:650;color:#c7d3cf;margin-right:5px;
+}
+.dcc-profile-shell .dcc-timer-set-button{
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #e2bc7b;border-radius:8px;min-height:40px;
+  padding:10px 15px;white-space:nowrap;
+  background:linear-gradient(120deg,#edcf94,#c49a58);
+  color:#18232a;font-size:12px;font-weight:900;cursor:pointer;
+}
+.dcc-profile-shell .dcc-timer-set-button:hover:not(:disabled){filter:brightness(1.1)}
+.dcc-profile-shell .dcc-timer-cancel-button{
+  border:1px solid rgba(238,128,126,.6);border-radius:7px;
+  padding:8px 11px;min-height:37px;background:rgba(115,34,43,.23);
+  color:#ffb9ad;font-size:11px;font-weight:800;cursor:pointer;
+}
+.dcc-profile-shell .dcc-profile-timer-sounds{
+  border-top:1px solid rgba(145,173,165,.14);padding-top:8px;
+}
+.dcc-profile-shell .dcc-timer-sound-select{
+  min-width:130px!important;max-width:225px;flex:1 1 130px;
+  height:34px!important;border-radius:7px!important;
+  background:#1b3036!important;border:1px solid #789a8c88!important;
+  color:#f4e7cd!important;font-size:12px!important;font-weight:750;
+  padding:4px 9px!important;cursor:pointer;
+}
+.dcc-profile-shell .dcc-timer-preview-button,
+.dcc-profile-shell .dcc-timer-upload-button{
+  display:inline-flex;gap:7px;align-items:center;justify-content:center;
+  border:1px solid rgba(222,187,123,.5);border-radius:7px;
+  min-height:34px;padding:7px 10px;
+  color:#ead1a7;background:#243432;
+  font-weight:750;font-size:11px;white-space:nowrap;cursor:pointer;
+}
+.dcc-profile-shell .dcc-timer-preview-button:hover,
+.dcc-profile-shell .dcc-timer-upload-button:hover{background:#35463c}
+.dcc-profile-shell .dcc-timer-file-input{display:none!important}
+.dcc-profile-shell .dcc-profile-timer-error{
+  margin:1px 0;padding:7px 10px;
+  color:#ffd1c6;background:#442827;
+  border:1px solid #ae716d;border-radius:6px;
+  font-size:11px;line-height:1.5;
+}
+.dcc-profile-shell .dcc-timer-custom-name{
+  color:#afc7c0;max-width:380px;font-size:10px;overflow:hidden;
+  white-space:nowrap;text-overflow:ellipsis;padding-left:3px;
+}
+.dcc-profile-shell .dcc-profile-timer-call-controls{
+  flex:1 1 220px;min-width:195px;
+}
+.dcc-profile-shell .dcc-profile-timer-call-controls>*{max-width:100%}
+/* The alert is visible after the contact card closes. */
+.dcc-reminder-popup{
+  position:fixed;right:23px;z-index:99999;
+  width:min(340px,calc(100vw - 30px));
+  background:linear-gradient(140deg,#1b2f31,#0c1621);
+  border:2px solid #e4bd7b;border-radius:12px;
+  box-shadow:0 20px 74px #000b,0 0 30px #bd904448;
+  color:#f6ebd7;overflow:hidden;font-family:Inter,system-ui,sans-serif;
+}
+.dcc-reminder-popup-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px 17px;background:#d7ae6130;
+  border-bottom:1px solid #e0b76e77;
+}
+.dcc-reminder-popup-head span{
+  display:flex;align-items:center;gap:9px;color:#ffdb9a;
+  font-size:12px;font-weight:900;letter-spacing:.08em;
+}
+.dcc-reminder-popup-head button{
+  display:grid;place-items:center;color:#ead7b6;background:transparent;
+  border:none;padding:3px;cursor:pointer;border-radius:5px;
+}
+.dcc-reminder-popup-head button:hover{background:#ffffff20}
+.dcc-reminder-popup-body{padding:18px}
+.dcc-reminder-popup-body>strong{
+  display:block;font-size:19px;font-weight:850;line-height:1.3;
+}
+.dcc-reminder-popup-body>p{
+  margin:8px 0 16px;font-size:12px;line-height:1.7;color:#b5c9c4;
+}
+.dcc-reminder-popup-body>button{
+  width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+  border:1px solid #f1d099;border-radius:7px;
+  padding:11px 14px;background:linear-gradient(120deg,#e7ca94,#b88e50);
+  color:#142129;font-size:12px;font-weight:900;cursor:pointer;
+}
+@media(max-width:1100px){
+  .dcc-profile-shell .dcc-profile-countdown{min-width:114px;margin-left:3px}
+  .dcc-profile-shell .dcc-profile-countdown>strong{font-size:29px}
+}
+@media(max-width:650px){
+  .dcc-profile-shell .dcc-profile-heading{flex-wrap:wrap}
+  .dcc-profile-shell .dcc-profile-countdown{min-width:120px;margin:0}
+  .dcc-profile-shell .dcc-profile-countdown>strong{font-size:31px}
+  .dcc-profile-shell .dcc-profile-timer-bar{padding:11px!important}
+  .dcc-profile-shell .dcc-profile-timer-settings{flex:1 1 100%}
+  .dcc-profile-shell .dcc-profile-timer-call-controls{flex:1 1 100%}
+  .dcc-profile-shell .dcc-timer-minutes{width:95px!important;min-width:95px!important}
+  .dcc-profile-shell .dcc-timer-sound-select{min-width:140px}
+}
+
