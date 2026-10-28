@@ -69,7 +69,14 @@ const secureGateway = async (req: Request) => {
       const o=await db.BOBOrganization.get(m.organizationId).catch(()=>null);
       return o?{...fmtOrg(o),myRole:m.role}:null;
     }));
-    const orgs = isPlatformAdmin ? (await db.BOBOrganization.list('-created_date',250)).map((o:any)=>({...fmtOrg(o),myRole:'platform'})) : accessible.filter(Boolean);
+    const orgs = isPlatformAdmin
+      ? (await db.BOBOrganization.list('-created_date',250)).map((o:any)=>{
+          const own=memberships.find((m:any)=>m.organizationId===o.id);
+          if(own)return {...fmtOrg(o),myRole:own.role};
+          const {knowledgeSalt,keyVerifier,...operatorMetadata}=fmtOrg(o);
+          return {...operatorMetadata,myRole:'platform'};
+        })
+      : accessible.filter(Boolean);
     return Response.json({ success:true, user:{email,name:user.full_name||user.name||email},
       isPlatformAdmin, organizations:orgs });
   }
@@ -138,9 +145,17 @@ const secureGateway = async (req: Request) => {
     await db.BOBMember.delete(target.id);
     return Response.json({success:true});
   }
+  if(action==='ensureEncryptionSalt'){
+    requireAdmin();
+    if(org.knowledgeSalt)return Response.json({success:true,salt:org.knowledgeSalt});
+    const salt=btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+    await db.BOBOrganization.update(org.id,{knowledgeSalt:salt});
+    return Response.json({success:true,salt});
+  }
   if(action==='initializeEncryption'){
     requireAdmin();
     if(org.keyVerifier)return bad('Encryption already initialized. No platform reset is possible.',409);
+    if(!org.knowledgeSalt)return bad('Initialize a vault salt first.',409);
     await db.BOBOrganization.update(org.id,{keyVerifier:encrypted(data.verifier)});
     return Response.json({success:true});
   }
@@ -218,10 +233,9 @@ const secureGateway = async (req: Request) => {
     requireOrg();
     if(!org.keyVerifier)return bad('Initialize encrypted storage first.',409);
     const record=await db.BOBTrainingSession.create({
-      organizationId:org.id,traineeEmail:email,scenario:str(data.scenario,150),
-      mode:['inbound','outbound'].includes(data.mode)?data.mode:'outbound',
-      persona:str(data.persona,100),difficulty:Math.max(1,Math.min(10,Number(data.difficulty)||5)),
-      voiceModel:str(data.voiceModel,80),durationSeconds:Math.max(0,Math.min(43200,Number(data.durationSeconds)||0)),
+      organizationId:org.id,traineeEmail:email,scenario:'Encrypted private training',
+      mode:'private',persona:'encrypted',difficulty:0,voiceModel:'private',
+      durationSeconds:Math.max(0,Math.min(43200,Number(data.durationSeconds)||0)),
       encryptedPayload:encrypted(data.encryptedPayload),createdAt:now()
     });
     return Response.json({success:true,id:record.id});

@@ -34,7 +34,12 @@ export function BobVaultLock({ org, isAdmin, vaultKey, setVaultKey, api, onIniti
   const unlock=async(e)=>{
     e.preventDefault();setError('');setBusy(true);
     try {
-      if(!org?.knowledgeSalt)throw new Error('The organization vault requires a generated salt. Contact support.');
+      if(!org?.knowledgeSalt){
+        if(!isAdmin)throw new Error('Your organization administrator must initialize private storage first.');
+        await api('ensureEncryptionSalt',{organizationId:org.id});
+        await onInitialized?.();
+        throw new Error('Vault salt generated. Please submit the passphrase once more to initialize.');
+      }
       if(!initialized && !isAdmin)throw new Error('An organization administrator must initialize the knowledge vault.');
       if(!initialized && pass!==confirm)throw new Error('The passphrase confirmation does not match.');
       const key=await unlockOrganizationKey(pass,org.knowledgeSalt);
