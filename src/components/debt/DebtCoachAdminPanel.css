@@ -94,6 +94,14 @@
 .dcc-admin-create-hint{font-size:10px;color:#869fa7}
 .dcc-admin-module{background:linear-gradient(125deg,#101f2a,#0f1e2a);border:1px solid rgba(155,193,181,.18);border-radius:10px;padding:clamp(12px,2vw,18px)}
 .dcc-admin-module :where(button){border-radius:6px!important}
+.dcc-admin-qa>div:first-child,.dcc-admin-builder>div:first-child{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dcc-admin-qa>div:first-child>div:first-child,.dcc-admin-builder>div:first-child{color:#e3c486!important}
+.dcc-admin-qa>div:first-child button,.dcc-admin-builder button,.dcc-admin-flags button{transition:background .18s,color .18s,border-color .18s}
+.dcc-admin-qa>div:first-child button:hover,.dcc-admin-builder button:hover:not(:disabled),.dcc-admin-flags button:hover:not(:disabled){filter:brightness(1.13)}
+.dcc-admin-qa>div:first-child{border-bottom:1px solid rgba(170,195,180,.14);padding-bottom:11px;margin-bottom:12px!important}
+.dcc-admin-qa>div:first-child>div:last-child{overflow-x:auto;max-width:100%}
+.dcc-admin-builder>div:first-child{margin-bottom:12px}
+.dcc-admin-module :where(button):not(:disabled){cursor:pointer}
 .dcc-admin-module :where(input,select,textarea){border-radius:6px!important}
 .dcc-admin-module :where(button):focus-visible,.dcc-admin button:focus-visible{outline:2px solid #e2bc70;outline-offset:2px}
 @media(max-width:1150px){
