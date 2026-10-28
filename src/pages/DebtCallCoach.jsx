@@ -43,6 +43,7 @@ import ProfileTimerWatcher from '@/components/debt/ProfileTimerWatcher';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import CreditAlertPopup from '@/components/debt/CreditAlertPopup';
 import DealMonitorPopout from '@/components/debt/DealMonitorPopout';
+import EmergencyScripts from '@/components/debt/EmergencyScripts';
 import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
@@ -79,6 +80,7 @@ export default function DebtCallCoach() {
   const [twilioSessionActive, setTwilioSessionActive] = useState(false);
   const [scriptCallContext, setScriptCallContext] = useState({});
   const [dealMonitorVisible, setDealMonitorVisible] = useState(false);
+  const [emergencyScriptsVisible, setEmergencyScriptsVisible] = useState(false);
   const [heatMapVisible, setHeatMapVisible] = useState(false);
   const [pipelineLead, setPipelineLead] = useState(null);
 
@@ -103,6 +105,10 @@ export default function DebtCallCoach() {
       if (e.altKey && (e.key === 'd' || e.key === 'D')) {
         e.preventDefault();
         setDealMonitorVisible(prev => !prev);
+      }
+      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        setEmergencyScriptsVisible(prev => !prev);
       }
       if (e.altKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
@@ -170,6 +176,7 @@ export default function DebtCallCoach() {
           <span className={'dcc-header-status'+(liveCallActive?' is-live':'')} title={liveCallActive?'Call session active':'Workspace ready for use'}>
             <Radio size={13} aria-hidden="true"/>{liveCallActive?'LIVE CALL':'READY'}
           </span>
+          <button type="button" className="dcc-header-action" onClick={()=>setEmergencyScriptsVisible(prev=>!prev)} title="Emergency scripts — Alt+E, available without a live call">Emergency Scripts · Alt+E</button>
           <button type="button" className="dcc-header-action" onClick={()=>window.dispatchEvent(new Event('coach_open_wcr'))} title="Open Welcome Call Review checklist"><ClipboardCheck size={14}/> WCR</button>
           {isSuperManager && <button type="button" className="dcc-header-action is-sensitive" onClick={()=>setTab('compliance')}><ShieldCheck size={14}/> Compliance</button>}
           {(isAdmin||isManager||isSuperManager) && <button type="button" className="dcc-header-action" onClick={()=>navigate('/manager-portal')}><LayoutDashboard size={14}/> Manager</button>}
@@ -259,6 +266,7 @@ export default function DebtCallCoach() {
       <CreditAlertPopup />
 
       {/* Alt+D Deal Monitor — floating popout, not docked */}
+      <EmergencyScripts open={emergencyScriptsVisible} onClose={() => setEmergencyScriptsVisible(false)} />
       <DealMonitorPopout visible={dealMonitorVisible} username={user?.username} onOpenLead={(lead) => setPipelineLead(lead)} onClose={() => setDealMonitorVisible(false)} />
 
       {/* Alt+H Heat Map — floating popout showing deal distribution */}
