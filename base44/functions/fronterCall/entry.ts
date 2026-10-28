@@ -493,7 +493,7 @@ export default async function(req) {
       } catch (e) { console.warn('Customer leg lookup failed:', e.message); }
 
       const customerAlreadyWaiting = !!customerCallSid && confParticipants.some((p: any) => p.call_sid === customerCallSid);
-      if (customerCallSid && !customerAlreadyWaiting) {
+      if (customerCallSid && !customerAlreadyWaiting && !aiQueue) {
         try {
           await twilioFetch(`/Calls/${customerCallSid}.json`, {
             method: 'POST',
