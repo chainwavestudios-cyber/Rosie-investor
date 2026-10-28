@@ -47,7 +47,6 @@ import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 import StoryDetail from '@/pages/StoryDetail';
 import AgentConsole from '@/components/agent/AgentConsole';
 import Notifications from '@/pages/Notifications';
-import NotificationsBell from '@/components/shared/NotificationsBell';
 import EvidenceReview from './pages/EvidenceReview';
 import OAuthConsent from './pages/OAuthConsent';
 
@@ -141,7 +140,6 @@ function App() {
             </Routes>
           </ProtectedShell>
           <AgentConsole />
-          <NotificationsBell />
         </Router>
       </PortalAuthProvider>
       <Toaster />
