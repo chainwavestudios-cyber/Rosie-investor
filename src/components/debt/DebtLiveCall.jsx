@@ -1859,6 +1859,120 @@ ${recentText}`,
   const toggleAgentQuestionRef = useRef(null);
   const handleEndCallClickRef = useRef(null);
   useEffect(() => { startCallRef.current = startCall; }, [startCall]);
+
+  // Only an explicit contact-card click may start these flows. Re-use the
+  // existing Live Call workspace; do not create a second Q&A/Coach engine.
+  useEffect(() => {
+    if (!launchAction?.token || lastLaunchTokenRef.current === launchAction.token) return;
+    lastLaunchTokenRef.current = launchAction.token;
+    if (phaseRef.current === 'live' || officeBridgeRef.current?.bridgeToken || twilioDialerRef.current?.isActive) {
+      setError('End the active call before launching another contact.');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const chosen = await base44.entities.DebtLead.get(launchAction.leadId);
+        if (!chosen?.id || chosen.deletedAt || cancelled) throw new Error('Contact not available.');
+        manualEmailDraftRef.current = {leadId:null,value:null};
+        setLead(chosen);
+        leadRef.current = chosen;
+        setProfileData(chosen.profileJson ? (()=>{try{return JSON.parse(chosen.profileJson)}catch{return null}})() : null);
+        setError(''); setTwilioWarning('');
+        if (launchAction.mode === 'listen') {
+          if (audioModes(audioSetups)[activeSetupIndex]?.transport === 'twilio') {
+            throw new Error('Select Computer or Cell audio first. Live Call listening never dials the customer.');
+          }
+          startCallRef.current?.(false);
+        } else if (launchAction.mode === 'dial') {
+          if (!chosen.phone) throw new Error('Add a customer phone number before dialing.');
+          setActiveSetupIndex(2);
+          await twilioDialerRef.current?.dial(chosen.phone,chosen.id);
+        } else if (launchAction.mode === 'office') {
+          setActiveSetupIndex(2);
+          const res=await base44.functions.invoke('officeLineBridge',{
+            action:'start',leadId:chosen.id,sessionUserId,sessionToken
+          });
+          const payload=res?.data||res;
+          if(payload?.error||!payload?.bridgeToken)throw new Error(payload?.error||'Office bridge could not be created');
+          if(cancelled)return;
+          officeMonitorStartedRef.current=false;
+          setOffice({...payload,leadId:chosen.id,clientStatus:'not_called',busy:false});
+        }
+      } catch(err) {if(!cancelled)setError('Call launch failed: '+(err?.message||String(err)));}
+    })();
+    return () => {cancelled=true;};
+  }, [launchAction?.token, sessionUserId, sessionToken]);
+
+  // Server-owned conference state: office must answer before Contact becomes
+  // available; customer must connect before Merge is permitted.
+  useEffect(() => {
+    if (!officeBridge?.bridgeToken)return undefined;
+    let cancelled=false;
+    const token=officeBridge.bridgeToken;
+    const leadId=officeBridge.leadId;
+    const poll=async()=>{
+      try {
+        const res=await base44.functions.invoke('officeLineBridge',{
+          action:'status',bridgeToken:token,leadId,sessionUserId,sessionToken
+        });
+        const status=res?.data||res;
+        if(cancelled||officeBridgeRef.current?.bridgeToken!==token)return;
+        if(status.error)throw new Error(status.error);
+        setOffice(prev=>prev?.bridgeToken===token?{...prev,...status}:prev);
+        if(status.officeStatus==='in-progress'&&status.conferenceReady&&!officeMonitorStartedRef.current){
+          officeMonitorStartedRef.current=true;
+          twilioDialerRef.current?.monitorOffice(officeBridgeRef.current.monitorToken)
+            .catch(err=>{
+              officeMonitorStartedRef.current=false;
+              if(!cancelled)setTwilioWarning('Office connected, but listening monitor failed: '+(err?.message||String(err)));
+            });
+        }
+        if(['completed','failed','busy','no-answer','canceled'].includes(status.officeStatus)&&phaseRef.current==='live'){
+          stopCallRef.current?.();
+        }
+      }catch(err){if(!cancelled)setTwilioWarning('Office status check: '+(err?.message||String(err)));}
+    };
+    poll();
+    const interval=setInterval(poll,2500);
+    return ()=>{cancelled=true;clearInterval(interval);};
+  },[officeBridge?.bridgeToken,officeBridge?.leadId,sessionUserId,sessionToken]);
+
+  useEffect(()=>{
+    const value=officeBridge?{
+      leadId:officeBridge.leadId,officeStatus:officeBridge.officeStatus,
+      clientStatus:officeBridge.clientStatus,clientAnswered:officeBridge.clientAnswered,
+      merged:officeBridge.merged,officeNumber:officeBridge.officeNumber,
+      busy:officeBridge.busy
+    }:null;
+    window.__debtOfficeBridgeState=value;
+    window.dispatchEvent(new CustomEvent('debt_office_bridge_state',{detail:value}));
+  },[officeBridge]);
+
+  useEffect(()=>{
+    const perform=async(event)=>{
+      const action=event.detail?.action;
+      const bridge=officeBridgeRef.current;
+      if(!bridge?.bridgeToken||!['contact','merge','end'].includes(action)||officeActionBusyRef.current)return;
+      officeActionBusyRef.current=true;
+      setOffice(prev=>({...prev,busy:true}));
+      try{
+        const response=await base44.functions.invoke('officeLineBridge',{
+          action,leadId:bridge.leadId,bridgeToken:bridge.bridgeToken,sessionUserId,sessionToken
+        });
+        const result=response?.data||response;
+        if(result?.error)throw new Error(result.error);
+        if(action==='end'){
+          if(phaseRef.current==='live')stopCallRef.current?.();
+          else{twilioDialerRef.current?.hangup();setOffice(null);}
+        }else setOffice(prev=>prev?{...prev,...result,busy:false}:prev);
+      }catch(err){setError('Office bridge action failed: '+(err?.message||String(err)));setOffice(prev=>prev?{...prev,busy:false}:prev);}
+      finally{officeActionBusyRef.current=false;}
+    };
+    window.addEventListener('debt_office_bridge_action',perform);
+    return ()=>window.removeEventListener('debt_office_bridge_action',perform);
+  },[sessionUserId,sessionToken]);
+
   useEffect(() => { toggleAgentQuestionRef.current = toggleAgentQuestion; }, [toggleAgentQuestion]);
   useEffect(() => { handleEndCallClickRef.current = handleEndCallClick; }, [handleEndCallClick]);
   useEffect(() => {
