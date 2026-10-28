@@ -17,13 +17,13 @@ export default function FronterBobScriptPanel({
   scripts, customerName, fronterFirstName, onComplete, onDebtConfirm, debtConfirming,
   onAiInput, aiInputRunning, onSendEmail, message, onClose,
 }) {
-  const [activeScript, setActiveScript] = useState(null);
+  const [activeScript, setActiveScript] = useState(() => scripts?.[0] || null);
   const [pos, setPos] = useState({ x: 440, y: 60 });
   const [size, setSize] = useState({ w: 420, h: 520 });
   const dragRef = useRef(null);
 
   useEffect(() => {
-    if (scripts.length > 0 && !activeScript) setActiveScript(scripts[0]);
+    if (scripts.length > 0 && !scripts.some(s => s.id === activeScript?.id)) setActiveScript(scripts[0]);
   }, [scripts, activeScript]);
 
   const onDragStart = (e) => {

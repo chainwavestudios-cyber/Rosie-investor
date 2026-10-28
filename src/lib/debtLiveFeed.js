@@ -115,6 +115,14 @@ export async function startLiveFeed({
     // Collect is_final chunks until speech_final, then emit one complete line.
     // Deepgram sends is_final mid-sentence; speech_final marks a real pause.
     const segBuf = {}; // per speaker: { text, sentiment, timer }
+    // A final chunk is NOT necessarily the end of a sentence. Keep interim
+    // previews instantaneous, but don't hand partial finals to Q&A until a
+    // speech_final pause (or a safety timeout if Deepgram misses the endpoint).
+    const FINAL_CHUNK_SAFETY_MS = 2400;
+    const scheduleSafetyFlush = (speaker, b) => {
+      clearTimeout(b.timer);
+      b.timer = setTimeout(() => emitSegment(speaker), FINAL_CHUNK_SAFETY_MS);
+    };
     const emitSegment = (speaker) => {
       const b = segBuf[speaker];
       if (!b || !b.text.trim()) { delete segBuf[speaker]; return; }
@@ -233,13 +241,16 @@ export async function startLiveFeed({
           } else {
             // Show the accumulated text so far as a live preview
             onInterim(speaker, b.text.trim());
-            b.timer = setTimeout(() => emitSegment(speaker), 1500); // safety flush
+            scheduleSafetyFlush(speaker, b); // safety only; transcript preview is already live
           }
         } else {
           // Interim result — show live partial text (accumulated + current partial)
           const b = segBuf[speaker];
           const accumulated = b ? b.text.trim() : '';
           onInterim(speaker, (accumulated + ' ' + alt.transcript).trim());
+          // Ongoing interim speech means the caller is still expanding the
+          // thought. Refresh the fallback timer; do not emit stale partials.
+          if (b?.text && b?.timer) scheduleSafetyFlush(speaker, b);
         }
       } catch {}
     };
