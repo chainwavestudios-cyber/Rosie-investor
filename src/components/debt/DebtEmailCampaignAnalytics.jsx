@@ -36,6 +36,7 @@ export default function DebtEmailCampaignAnalytics(){
  const [recipientStatus,setRecipientStatus]=useState('all'),[search,setSearch]=useState(''),[searchValue,setSearchValue]=useState(''),[rowsBusy,setRowsBusy]=useState(false),[rowsError,setRowsError]=useState(''),[searchLimited,setSearchLimited]=useState(false);
  const [detailsOpen,setDetailsOpen]=useState(true),[selected,setSelected]=useState(null),[selectedDetails,setSelectedDetails]=useState(null),[detailBusy,setDetailBusy]=useState(false);
  const [quickBusy,setQuickBusy]=useState(''),[actionNote,setActionNote]=useState(''),[meeting,setMeeting]=useState(null),[aiTarget,setAiTarget]=useState(null),[aiInput,setAiInput]=useState(''),[aiHistory,setAiHistory]=useState([]),[aiProposal,setAiProposal]=useState(null);
+ const [contactMeta,setContactMeta]=useState({});
  const [leadCard,setLeadCard]=useState(null),[exporting,setExporting]=useState(false),[exportNote,setExportNote]=useState('');
  const selectedRef=useRef(activeId);
  const auth=useMemo(()=>({sessionUserId,sessionToken}),[sessionUserId,sessionToken]);
@@ -98,6 +99,16 @@ export default function DebtEmailCampaignAnalytics(){
    catch(e){setSelectedDetails({error:e?.response?.data?.error||e.message||'Unable to read send history.'})}
    finally{setDetailBusy(false)}
  };
+ useEffect(()=>{
+   let cancelled=false;
+   const ids=[...new Set(rows.map(r=>r.leadId).filter(Boolean))];
+   if(!ids.length)return;
+   // Fetch the actual contact-card phone and call history; never infer a call from email engagement.
+   Promise.all(ids.map(async id=>{try{const lead=await base44.entities.DebtLead.get(id);return [id,{phone:lead.phone||'',lastCallAt:lead.lastCallAt||null}]}catch{return [id,null]}})).then(values=>{
+     if(!cancelled)setContactMeta(prev=>({...prev,...Object.fromEntries(values.filter(([,v])=>v))}));
+   });
+   return ()=>{cancelled=true};
+ },[rows]);
  const orderedRows=useMemo(()=>[...rows].sort((a,b)=>{
    const score=x=>(x.qualifyVisitAt?1000:0)+(x.clickedAt?400:0)+Math.min(20,n(x.clickCount))*30+(x.openedAt?100:0)+Math.min(20,n(x.openCount))*5;
    return score(b)-score(a) || new Date(b.sentAt||0)-new Date(a.sentAt||0);
@@ -108,7 +119,9 @@ export default function DebtEmailCampaignAnalytics(){
    try{
      const lead=await base44.entities.DebtLead.get(row.leadId);
      await base44.entities.DebtLeadActivity.create({leadId:row.leadId,leadName:row.name,activityType:'call',activityText:result==='left_voicemail'?'☎ Outgoing call — Left voicemail':'📞 Outgoing call — No answer',createdBy:user?.username||'',metadataJson:JSON.stringify({result,source:'email_campaign',campaignId:activeId})});
-     await base44.entities.DebtLead.update(row.leadId,{lastCallAt:new Date().toISOString(),callCount:n(lead.callCount)+1});
+     const calledAt=new Date().toISOString();
+     await base44.entities.DebtLead.update(row.leadId,{lastCallAt:calledAt,callCount:n(lead.callCount)+1});
+     setContactMeta(prev=>({...prev,[row.leadId]:{...prev[row.leadId],lastCallAt:calledAt}}));
      setActionNote(`${row.name}: ${result==='left_voicemail'?'voicemail':'no answer'} saved.`);
    }catch(e){setActionNote('Could not save call outcome: '+(e?.message||String(e)))}finally{setQuickBusy('')}
  };
@@ -232,7 +245,7 @@ export default function DebtEmailCampaignAnalytics(){
          {searchLimited&&<div className="dca-error">Search reached the 15,000-row scan limit; narrow your search to see complete results.</div>}
          <div className="dca-table-scroll"><table className="dca-table">
            <thead><tr><th>Recipient / Phone</th><th>Status</th><th>Sent</th><th>Open*</th><th>Clicks</th><th>Tracking / Error</th><th></th></tr></thead>
-           <tbody>{orderedRows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><span>{row.email}</span><span>{row.phone||'No phone on campaign record'}</span></td><td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td><td className="dca-row-note">{row.error||row.reason||(row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':'—')}</td><td><div style={{display:'flex',gap:5,flexWrap:'wrap',minWidth:260}}><button className="dca-row-action" onClick={()=>openRow(row)}>Details</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>Called · No answer</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Left voicemail</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Schedule meeting</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button></div></td></tr>)}
+           <tbody>{orderedRows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><span>{row.email}</span><span style={{fontSize:19,fontWeight:800,color:'#e9d09a',letterSpacing:'.3px',marginTop:5}}>{contactMeta[row.leadId]?.phone||row.phone||'No phone available'}</span><span style={{fontSize:11,color:'#b7c7c7',marginTop:4}}>Last called: {contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never / not recorded'}</span></td><td><Flag status={row.status}/></td><td>{shortDate(row.sentAt)}</td><td>{fmt(row.openCount)}</td><td>{fmt(row.clickCount)}</td><td className="dca-row-note">{row.error||row.reason||(row.qualifyVisitAt?'Invitation visited':row.clickedAt?'Clicked':row.openedAt?'Open recorded':'—')}</td><td><div style={{display:'flex',gap:5,flexWrap:'wrap',minWidth:260}}><button className="dca-row-action" disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>Called · No answer</button><button className="dca-row-action" disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Left voicemail</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Schedule meeting</button><button className="dca-row-action" disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button></div></td></tr>)}
            {!rows.length&&!rowsBusy&&<tr><td colSpan={7} className="dca-muted">No recipients match this filter.</td></tr>}
            </tbody></table></div>
          {rowsBusy&&<p className="dca-muted">Loading recipients…</p>}
