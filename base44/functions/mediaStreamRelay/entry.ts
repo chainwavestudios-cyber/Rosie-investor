@@ -310,7 +310,7 @@ Return JSON with:
   // Debt-type confirmation -> full value question -> prospect answer -> transfer.
   // A model trying to skip Step 3 or claim a transfer on a casual 'yes' cannot.
   if (!isInboundAdam) {
-    const gated = enforceOutboundHandoff({conversation: turns, action, text, lead});
+    const gated = enforceOutboundHandoff({conversation: turns, action, text, lead, configuredPrompt: filledPrompt});
     action = gated.action;
     text = gated.text;
     if (gated.disposition) disposition = gated.disposition;
