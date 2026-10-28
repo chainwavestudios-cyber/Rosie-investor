@@ -343,7 +343,7 @@ const cap = (value: number, max: number) => Math.min(max, value);
  * One system's 0-100 score for a lead, plus why and what to do next.
  * Coach scores start on MIGRATION_START_SCORE — the fronter score never carries over.
  */
-export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: number): SystemScore {
+export function scoreSignals(signals: LeadSignals, system: SystemKey, nowMs: number, rules: ScoreRules = DEFAULT_SCORING): SystemScore {
   const reasons: string[] = [];
   let score = 0;
   let forcedHot = false;
