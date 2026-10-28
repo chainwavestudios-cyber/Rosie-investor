@@ -440,6 +440,7 @@ Agent line: "${firstAgentLines}"`,
   const lastAskedQuestionRef = useRef('');
   const lastAskedAtRef = useRef(0);
   const recentQaRequestRef = useRef({ question: '', ts: 0, id: null });
+  const supersededQaIdsRef = useRef(new Set());
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
 
@@ -667,6 +668,7 @@ Agent line: "${firstAgentLines}"`,
     // If an early endpoint split a question, replace its card with the longer,
     // corrected question. A late reply to the old request cannot reappear.
     if (prior.id && startTime - prior.ts < 7000 && normalized.startsWith(prior.question) && normalized.length > prior.question.length) {
+      supersededQaIdsRef.current.add(prior.id);
       setQaItems(prev => prev.filter(x => x.id !== prior.id));
     }
     recentQaRequestRef.current = { question: normalized, ts: startTime, id };
@@ -674,6 +676,7 @@ Agent line: "${firstAgentLines}"`,
     logAI('qa');
     invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => {
+        if (supersededQaIdsRef.current.has(id)) return;
         const responseMs = Date.now() - startTime;
         // AI decided no answer is needed (small talk, greeting, etc.)
         if (res?.needs_answer === false || res?.data?.needs_answer === false) {
@@ -691,12 +694,14 @@ Agent line: "${firstAgentLines}"`,
           base44.entities.DebtQAHistory.create({
             leadId: leadRef.current.id,
             leadName: `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim(),
-            question, answer, askedAt: new Date().toISOString(), source: 'live_auto',
+            agentId: coachUser?.username || '',
+            transcriptId: transcriptRecordIdRef.current || '',
+            question, answer, askedAt: new Date().toISOString(), source: 'auto',
           }).catch(() => {});
         }
       })
-      .catch(() => setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)));
-  }, [kbEntries]);
+      .catch(() => { if (!supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
+  }, [kbEntries, coachUser?.username]);
 
   // Auto-flush the agent question buffer — combines captured lines and sends
   // as a single Q&A question. Called by the silence timeout, customer-speech
@@ -1101,7 +1106,9 @@ ${recentText}`,
       // Exact duplicate within 3s
       if (last.text === entry.text && dt < 3000) return;
       // Partial duplicate: one text contained in the other within 5s (re-emitted / overlapping chunks)
-      if (dt < 5000 && entry.text.length > 10 && (last.text.includes(entry.text) || entry.text.includes(last.text))) return;
+      if (dt < 5000 && entry.text.length > 10 && last.text.includes(entry.text)) return;
+      // A LONGER cumulative final is a correction, not a duplicate; allow it
+      // through so the previous transcript line can be replaced in-place.
     }
     lastEntryRef.current = { speaker: entry.speaker, text: entry.text, ts: Date.now() };
 
@@ -1243,6 +1250,7 @@ ${recentText}`,
           merged[merged.length - 1] = {
             ...lastLine,
             text: entryText.length >= lastText.length ? entryText : lastText,
+            time: entry.time || lastLine.time,
           };
           return merged;
         }
@@ -1255,6 +1263,7 @@ ${recentText}`,
           merged[merged.length - 1] = {
             ...lastLine,
             text: mergeFragments(lastText, entryText),
+            time: entry.time || lastLine.time,
           };
           return merged;
         }
@@ -1447,6 +1456,7 @@ ${recentText}`,
     lastAskedQuestionRef.current = '';
     lastAskedAtRef.current = 0;
     recentQaRequestRef.current = { question: '', ts: 0, id: null };
+    supersededQaIdsRef.current.clear();
     setMicMuted(false);
     setTestMode(testModeArg);
     setPhase('live'); setDgStatus('connecting');
