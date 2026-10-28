@@ -27,6 +27,7 @@ import { campaignAssistants, normalizeAddress, recipientVars, renderEmail, sendi
 import { buildMime } from '../../shared/emailTracking.ts';
 import { sendViaGmail } from '../../shared/gmailSend.ts';
 import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
+import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 /** One queue of a campaign: how many emails it sends, and how long it then waits. */
 interface CampaignQueue {
@@ -175,6 +176,19 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
       .map((row: any) => clean(row.email).toLowerCase()),
   );
 
+  // ── BounceVerify gate ────────────────────────────────────────────────────
+  // Every address in this batch is checked against the real mailbox before a
+  // single email leaves: an undeliverable one is skipped and put on the
+  // do-not-mail list instead of bouncing and burning the sending account.
+  const verified = await verifyEmails(queueAddresses);
+  if (!verified) {
+    return {
+      ok: false,
+      waiting: true,
+      reason: 'BounceVerify could not check these addresses — the queue is holding rather than sending blind.',
+    };
+  }
+
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -188,6 +202,22 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
         status: 'skipped',
         reason: 'Invalid email address',
       }).catch(() => {});
+      skipped += 1;
+      continue;
+    }
+
+    // Only a mailbox the verifier confirmed as deliverable gets mailed.
+    const verdict = verified.get(address);
+    if (!verdict || !verdict.valid) {
+      await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
+        status: 'skipped',
+        reason: verdict
+          ? `Not deliverable — ${verdict.reason || 'BounceVerify rejected this mailbox'}`
+          : 'Could not be verified — held back rather than risked',
+      }).catch(() => {});
+      // One the verifier judged bad is suppressed everywhere; one it merely
+      // could not confirm is only held back from this campaign.
+      if (isBadAddress(verdict)) await suppressAddress(base44, address, verdict?.reason || '');
       skipped += 1;
       continue;
     }
