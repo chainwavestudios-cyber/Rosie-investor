@@ -25,6 +25,7 @@ import {
   normalizeLeadDate,
   clean,
 } from '../../shared/emailCampaign.ts';
+import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 const CHUNK_LIMIT = 500;
 
@@ -92,7 +93,37 @@ export default async function (req: Request): Promise<Response> {
       eligible.push(row);
     }
 
-    // 3. Which of these people already have a contact card? Matched by email only —
+    // 3. Mailbox scan — the entire list is checked against the real mail server
+    //    BEFORE anything is written. An address that cannot be confirmed never
+    //    becomes a recipient or a contact card, and one the verifier rejects is
+    //    also put on the do-not-mail list so no later campaign picks it up.
+    const mailboxesChecked = eligible.length;
+    const scan = await verifyEmails(eligible.map((row) => row.email));
+    if (!scan) {
+      return Response.json(
+        { error: 'The mailbox scan could not run, so nothing was imported. Try again in a moment.' },
+        { status: 502 },
+      );
+    }
+
+    const importable: any[] = [];
+    for (const row of eligible) {
+      const verdict = scan.get(row.email);
+      if (verdict && verdict.valid) { importable.push(row); continue; }
+      excluded.push({
+        email: row.email,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        reason: verdict
+          ? `Not deliverable — ${verdict.reason || 'the mail server rejected this mailbox'}`
+          : 'Could not be verified — held back',
+      });
+      if (isBadAddress(verdict)) await suppressAddress(base44, row.email, verdict?.reason || '');
+    }
+    const undeliverable = mailboxesChecked - importable.length;
+    eligible.splice(0, eligible.length, ...importable);
+
+    // 4. Which of these people already have a contact card? Matched by email only —
     //    a shared phone number or name is never treated as the same person.
     const cardRows = await base44.asServiceRole.entities.DebtLead.filter({ email: { $in: emails } }, { limit: CHUNK_LIMIT }).catch(() => null);
     const cardByEmail = new Map<string, any>();
@@ -105,6 +136,8 @@ export default async function (req: Request): Promise<Response> {
       mode,
       processed: rows.length,
       eligible: eligible.length,
+      mailboxesChecked,
+      undeliverable,
       excluded,
       createdCards: 0,
       updatedCards: 0,

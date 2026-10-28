@@ -16,6 +16,27 @@ export type EmailVerdict = {
 
 const ACTOR_URL = 'https://api.apify.com/v2/acts/bounceverify~bounceverify-email-verifier/run-sync-get-dataset-items';
 
+// The actor answers one run per request, so a whole uploaded list is split into
+// batches that are checked side by side — a 500-row list is scanned in full
+// without any single request running past its timeout.
+const BATCH_SIZE = 100;
+
+async function askVerifier(token: string, batch: string[]): Promise<any[] | null> {
+  try {
+    const res = await fetch(`${ACTOR_URL}?timeout=120`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ emails: batch }),
+      signal: AbortSignal.timeout(110000),
+    });
+    if (!res.ok) return null;
+    const items = await res.json().catch(() => null);
+    return Array.isArray(items) ? items : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyEmails(addresses: string[]): Promise<Map<string, EmailVerdict> | null> {
   const token = secrets.get('APIFY_API_TOKEN') || '';
   const unique = Array.from(
@@ -29,16 +50,16 @@ export async function verifyEmails(addresses: string[]): Promise<Map<string, Ema
   if (!unique.length) return out;
   if (!token) return null;
 
-  try {
-    const res = await fetch(`${ACTOR_URL}?token=${token}&timeout=120`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emails: unique }),
-      signal: AbortSignal.timeout(110000),
-    });
-    if (!res.ok) return null;
-    const items: any = await res.json().catch(() => []);
-    for (const item of Array.isArray(items) ? items : []) {
+  const batchCount = Math.ceil(unique.length / BATCH_SIZE);
+  const batches: string[][] = Array.from({ length: batchCount }, (_, k) => unique.slice(k * BATCH_SIZE, (k + 1) * BATCH_SIZE));
+
+  const results = await Promise.all(batches.map((batch) => askVerifier(token, batch)));
+  // One failed batch means the list was not scanned in full — the caller must
+  // treat the whole check as failed rather than mail the part it never saw.
+  if (results.some((items) => items === null)) return null;
+
+  for (const items of results) {
+    for (const item of items || []) {
       const address = String(item?.email || '').trim().toLowerCase();
       if (!address) continue;
       const status = String(item?.status || '').toLowerCase();
@@ -50,10 +71,8 @@ export async function verifyEmails(addresses: string[]): Promise<Map<string, Ema
         isCatchAll: item?.is_catch_all === true,
       });
     }
-    return out;
-  } catch {
-    return null;
   }
+  return out;
 }
 
 // A failed check must never be read as "bad address" — the two are different.

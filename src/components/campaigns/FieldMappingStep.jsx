@@ -54,7 +54,7 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
       const { chunks, duplicates, prepared } = chunksFor(csv.rows, mapping);
       const tally = { imported: 0, eligible: 0, excluded: [...duplicates], createdCards: 0, updatedCards: 0, matchedCards: 0, tokenReused: 0 };
       for (let i = 0; i < chunks.length; i += 1) {
-        setProgress(`Checking rows ${i * CHUNK + 1}–${Math.min(prepared, (i + 1) * CHUNK)} of ${prepared.toLocaleString()}…`);
+        setProgress(`Scanning every mailbox in rows ${i * CHUNK + 1}–${Math.min(prepared, (i + 1) * CHUNK)} of ${prepared.toLocaleString()}…`);
         const res = await base44.functions.invoke('emailCampaignImport', {
           campaignId: campaign.id,
           mode,
@@ -130,7 +130,7 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
           </div>
         )}
         <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <Btn tone="blue" onClick={() => run('dry_run')} disabled={!!busy}>{busy === 'dry_run' ? 'Checking…' : '🔍 Check the list (no changes)'}</Btn>
+          <Btn tone="blue" onClick={() => run('dry_run')} disabled={!!busy}>{busy === 'dry_run' ? 'Scanning…' : '🔍 Check the list + scan mailboxes'}</Btn>
           <Btn tone="gold" onClick={() => run('commit')} disabled={!!busy || !report}>{busy === 'commit' ? 'Importing…' : '✅ Commit import'}</Btn>
           {progress && <span style={{ color: MUTED, fontSize: '11px' }}>{progress}</span>}
           {busy === 'commit' && !report && <span style={{ color: DIM, fontSize: '11px' }}>Run the check first — committing writes contact cards and recipient rows.</span>}
@@ -142,7 +142,13 @@ export default function FieldMappingStep({ campaign, csv, mapping, setMapping, r
         <>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <Stat label="Rows in the file" value={report.imported.toLocaleString()} color={MUTED} />
-            <Stat label="Eligible" value={report.eligible.toLocaleString()} color={GOLD} hint="email present, valid, not opted out" />
+            <Stat label="Eligible" value={report.eligible.toLocaleString()} color={GOLD} hint="mailbox exists, not opted out" />
+            <Stat
+              label="Mailboxes scanned"
+              value={Number(report.mailboxesChecked || 0).toLocaleString()}
+              color={MUTED}
+              hint={report.undeliverable ? `${report.undeliverable} rejected by the mail server` : 'every address checked before import'}
+            />
             <Stat label="Excluded" value={report.excluded.length.toLocaleString()} color={report.excluded.length ? '#f59e0b' : MUTED} hint="see the reasons below" />
             <Stat label="Contact cards created" value={report.createdCards} color="#60a5fa" />
             <Stat label="Cards updated" value={report.updatedCards} color="#60a5fa" hint="empty fields filled only" />

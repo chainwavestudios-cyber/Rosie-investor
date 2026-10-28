@@ -11,7 +11,7 @@ import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
-import { isLoopbackSource } from '@/lib/audioDevices';
+import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
