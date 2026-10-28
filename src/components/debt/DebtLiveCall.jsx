@@ -663,6 +663,10 @@ Agent line: "${firstAgentLines}"`,
   const handleQa = useCallback((question) => {
     const id = Date.now() + Math.random();
     const startTime = Date.now();
+    // Pin persistence to the call that made this request. An older response
+    // must never be written to a new contact if the user starts another call.
+    const requestLead = { ...leadRef.current };
+    const requestTranscriptId = transcriptRecordIdRef.current;
     const prior = recentQaRequestRef.current;
     const normalized = question.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     if (prior.question === normalized && startTime - prior.ts < 11000) return;
@@ -691,12 +695,12 @@ Agent line: "${firstAgentLines}"`,
         console.log(`[QA] ${responseMs}ms${reallyAsking ? ` — ${reallyAsking}` : ''}`);
         setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, source: res?.source || res?.data?.source || '', loading: false, responseMs } : x));
         // Persist the canonical answer even if the floating panel is closed.
-        if (leadRef.current?.id && answer && answer !== 'Check knowledge base.') {
+        if (requestLead?.id && answer && answer !== 'Check knowledge base.') {
           base44.entities.DebtQAHistory.create({
-            leadId: leadRef.current.id,
-            leadName: `${leadRef.current.firstName || ''} ${leadRef.current.lastName || ''}`.trim(),
+            leadId: requestLead.id,
+            leadName: `${requestLead.firstName || ''} ${requestLead.lastName || ''}`.trim(),
             agentId: coachUser?.username || '',
-            transcriptId: transcriptRecordIdRef.current || '',
+            transcriptId: requestTranscriptId || '',
             question, answer, askedAt: new Date().toISOString(), source: 'auto',
           }).catch(() => {});
         }
@@ -1617,6 +1621,10 @@ ${recentText}`,
     if (recorder.isRecording) {
       try { recordingUri = await recorder.stop(); } catch {}
     }
+    // Nothing should submit a new Q&A question after the call has ended.
+    customerBufferRef.current = [];
+    if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+    if (agentQuestionTimeoutRef.current) { clearTimeout(agentQuestionTimeoutRef.current); agentQuestionTimeoutRef.current = null; }
     if (feedRef.current) { feedRef.current.close(); feedRef.current = null; }
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     if (customerStreamRef.current) { customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
