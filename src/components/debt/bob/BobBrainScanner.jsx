@@ -274,6 +274,7 @@ Return ONLY the merged answer text.`,
   };
 
   const deleteEntry = async (id) => {
+    if (!window.confirm('Delete this approved entry from the SHARED Debt Settlement KB? This affects live call answers as well as BOB.')) return;
     try {
       await base44.entities.KnowledgeBase.delete(id);
       setMessages(prev => prev.map(m => m.deletable ? { ...m, deletable: m.deletable.filter(x => x.id !== id) } : m));
