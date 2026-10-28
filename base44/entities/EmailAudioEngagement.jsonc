@@ -71,16 +71,6 @@
     },
     "lastEvent": {
       "type": "string"
-    },
-    "aiOpenedAt": {
-      "type": "string",
-      "format": "date-time",
-      "title": "First AI assistant launch"
-    },
-    "aiLaunchCount": {
-      "type": "number",
-      "default": 0,
-      "title": "Assistant launches"
     }
   },
   "required": [
