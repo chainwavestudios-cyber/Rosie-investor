@@ -21,7 +21,7 @@ const INSIGHT_TYPES = [
   { id: 'other', label: '📌 Other', color: '#8a9ab8' },
 ];
 
-export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound, micMuted, onToggleMicMute, paused }) {
+export default function CustomerStatsPopup({ lead, transcript, isActive, agentUsername, onInsightsChange, phase, onStartCall, onStopCall, isInbound, onToggleInbound, micMuted, onToggleMicMute, paused, visible = true, onClose }) {
   const [collapsed, setCollapsed] = useState(false);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -323,6 +323,10 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
   const importantCount = insights.filter(i => i.isImportant).length;
   const researchedCount = insights.filter(i => i.isResearched).length;
 
+  // Continue collecting opted-in insights without covering the workspace.
+  // The floating panel opens only from the explicit Insights control.
+  if (!visible) return null;
+
   return (
     <div style={{
       position: 'fixed', left: pos.x, top: pos.y, zIndex: 99999,
@@ -349,7 +353,10 @@ export default function CustomerStatsPopup({ lead, transcript, isActive, agentUs
           )}
           {loading && <span style={{ color: '#6b7280', fontSize: '9px' }}>scanning…</span>}
         </div>
-        <span style={{ color: '#6b7280', fontSize: '14px' }}>{collapsed ? '▸' : '▾'}</span>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{ color: '#6b7280', fontSize: '14px' }}>{collapsed ? '▸' : '▾'}</span>
+          {onClose && <button type="button" title="Close customer insights" aria-label="Close customer insights" onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onClose();}} style={{border:'1px solid #3b5260',borderRadius:5,background:'#1a2b36',color:'#b7d0ca',padding:'2px 7px',cursor:'pointer'}}>×</button>}
+        </div>
       </div>
 
       {/* Body */}
