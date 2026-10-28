@@ -70,10 +70,12 @@ TRAINER: ${msg}`,
   };
 
   const deleteEntry = async (id) => {
+    if (!window.confirm('This will delete an approved entry from the SHARED Debt Settlement KB, affecting live call answers and other tools—not only BOB. Continue?')) return;
     try {
       await base44.entities.KnowledgeBase.delete(id);
       setMessages(prev => prev.map(m => m.deletable ? { ...m, deletable: m.deletable.filter(x => x.id !== id) } : m));
       onKBChanged?.();
+      window.dispatchEvent(new CustomEvent('debt_kb_updated'));
     } catch (e) {
       setMessages(prev => [...prev, { role: 'bob', text: '⚠ Could not delete: ' + (e?.message || String(e)) }]);
     }
