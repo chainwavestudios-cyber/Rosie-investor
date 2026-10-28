@@ -30,6 +30,27 @@
       "type": "string",
       "title": "Customer Call SID (for redirect from hold queue)"
     },
+    "routeType": {
+      "type": "string",
+      "title": "Handoff source e.g. ai_agent"
+    },
+    "routeState": {
+      "type": "string",
+      "title": "Advisor routing state"
+    },
+    "queueStartedAt": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Queue start"
+    },
+    "debtAmount": {
+      "type": "number",
+      "title": "Confirmed debt for transfer popup"
+    },
+    "advisorAttempt": {
+      "type": "number",
+      "title": "Advisor attempt number"
+    },
     "lineKey": {
       "type": "string",
       "title": "Twilio Line Key (for listen)"
