@@ -4,7 +4,8 @@
  */
 import { useMemo, useState, useEffect } from 'react';
 import { BadgeCheck, CalendarDays, Check, ChevronDown, Crown, ExternalLink, Headphones, Medal, Search, ShieldCheck, Sparkles, Star, TrendingUp } from 'lucide-react';
-import { MILESTONE_FILTERS, matchesMilestoneFilter } from '@/lib/coachGmailMilestones';
+import { MILESTONE_FILTERS, matchesMilestoneFilter, compareEngagementPeople } from '@/lib/coachGmailMilestones';
+import DebtGmailCompactRows from './DebtGmailCompactRows';
 
 const colors = { gold:'#edc979', pale:'#f9e6b4', green:'#48d9a8', blue:'#83bfff', muted:'#97abb7', panel:'#111e2b', line:'rgba(157,192,199,.17)' };
 const formatDate = (s) => s ? new Date(s).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : 'No activity yet';
@@ -102,7 +103,8 @@ export function EngagementJourneyCard({ person, onOpen }) {
 export default function DebtGmailVisualJourney({ people = [], onOpen }) {
   const [filter,setFilter]=useState('all');
   const [search,setSearch]=useState('');
-  const [sort,setSort]=useState('milestone');
+  const [sort,setSort]=useState('priority');
+  const [layout,setLayout]=useState('list');
   const [limit,setLimit]=useState(12);
   const stats=useMemo(()=>({
     gold:people.filter(p=>p.goldListener).length,
@@ -114,12 +116,8 @@ export default function DebtGmailVisualJourney({ people = [], onOpen }) {
   useEffect(()=>setLimit(12),[filter,search,sort]);
   const matching=useMemo(()=>{
     const term=search.toLowerCase().trim();
-    const order={ elite:4, all_signals:3, gold:2, none:1 };
     return people.filter(p=>matchesMilestoneFilter(p,filter) && (!term || [p.name,p.email,p.lastTemplate].some(v=>String(v||'').toLowerCase().includes(term))))
-      .sort((a,b)=>sort==='recent' ? new Date(b.lastEngagementAt||b.lastAt||0)-new Date(a.lastEngagementAt||a.lastAt||0)
-        : sort==='audio' ? b.percent-a.percent || b.score-a.score
-        : sort==='score' ? b.score-a.score
-        : (order[b.milestone]||0)-(order[a.milestone]||0) || b.score-a.score);
+      .sort((a,b)=>compareEngagementPeople(a,b,sort));
   },[people,filter,search,sort]);
 
   return <section aria-label="Contact engagement journeys" className="cgj-journeys" style={{margin:'18px 0 20px',background:'radial-gradient(ellipse at 93% -25%,rgba(218,168,65,.10),transparent 48%),linear-gradient(140deg,#0e1c29,#0b1821)',padding:'clamp(14px,2vw,23px)',borderRadius:15,border:'1px solid rgba(218,189,119,.24)'}}>
@@ -158,18 +156,24 @@ export default function DebtGmailVisualJourney({ people = [], onOpen }) {
       </label>
       <label style={{fontSize:11,color:colors.muted,display:'flex',alignItems:'center',gap:6}}>Sort
         <select value={sort} onChange={e=>setSort(e.target.value)} style={{background:'#0a1a24',border:'1px solid #355265',borderRadius:7,color:'#e3f2ef',padding:'9px 10px',fontSize:11}}>
-          <option value="milestone">Milestone first</option><option value="recent">Latest activity</option><option value="audio">Audio progress</option><option value="score">Highest score</option>
+          <option value="priority">Hot leads first</option><option value="recent">Latest activity</option><option value="audio">Audio progress</option><option value="score">Highest score</option>
         </select>
       </label>
       <span style={{fontSize:11,color:colors.muted}}>{matching.length} contact{matching.length===1?'':'s'}</span>
+      <div role="group" aria-label="Engagement list display" style={{display:'flex',border:'1px solid #4a6a63',borderRadius:8,overflow:'hidden'}}>
+        {[['list','Full list'],['cards','Cards']].map(([value,label])=><button key={value} type="button" aria-pressed={layout===value} onClick={()=>setLayout(value)} style={{cursor:'pointer',padding:'9px 12px',background:layout===value?'#345341':'#132532',color:layout===value?'#f5d99c':'#a8c5bd',fontSize:11,border:0,fontWeight:layout===value?800:600}}>{label}</button>)}
+      </div>
     </div>
     <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:10,marginBottom:9}}>
       {MILESTONE_FILTERS.map(f=><button key={f.key} type="button" onClick={()=>setFilter(f.key)} aria-pressed={filter===f.key}
         style={{flexShrink:0,padding:'8px 11px',fontSize:11,fontWeight:filter===f.key?780:550,border:'1px solid '+(filter===f.key?'#d8b46d':'#294551'),borderRadius:99,background:filter===f.key?'#3b301e':'#12242c',color:filter===f.key?'#f6dba1':'#acc2c1',cursor:'pointer'}}>{f.label}</button>)}
     </div>
-    {matching.length===0 ? <div style={{border:'1px dashed #39545f',borderRadius:10,padding:30,textAlign:'center',color:colors.muted,fontSize:12}}>No contacts match these filters. Try a different milestone or date range.</div>
-      : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(475px,100%),1fr))',gap:12}}>{matching.slice(0,limit).map(p=><EngagementJourneyCard key={p.id} person={p} onOpen={onOpen}/>)}</div>}
-    {matching.length>limit && <div style={{textAlign:'center',marginTop:16}}><button onClick={()=>setLimit(l=>l+12)} style={{cursor:'pointer',border:'1px solid #53756d',borderRadius:8,padding:'10px 20px',color:colors.gold,background:'#132b30',fontSize:12,fontWeight:720}}>Show more ({matching.length-limit} remaining) <ChevronDown size={14} style={{display:'inline-block',verticalAlign:'middle'}}/></button></div>}
+    {layout==='list' ? <DebtGmailCompactRows people={matching} onOpen={onOpen} title="All emailed contacts and engagement milestones"/>
+      : <>
+        {matching.length===0 ? <div style={{border:'1px dashed #39545f',borderRadius:10,padding:30,textAlign:'center',color:colors.muted,fontSize:12}}>No contacts match these filters. Try a different milestone or date range.</div>
+          : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(475px,100%),1fr))',gap:12}}>{matching.slice(0,limit).map(p=><EngagementJourneyCard key={p.id} person={p} onOpen={onOpen}/>)}</div>}
+        {matching.length>limit && <div style={{textAlign:'center',marginTop:16}}><button onClick={()=>setLimit(l=>l+12)} style={{cursor:'pointer',border:'1px solid #53756d',borderRadius:8,padding:'10px 20px',color:colors.gold,background:'#132b30',fontSize:12,fontWeight:720}}>Show more ({matching.length-limit} remaining) <ChevronDown size={14} style={{display:'inline-block',verticalAlign:'middle'}}/></button></div>}
+      </>}
     <div style={{display:'flex',alignItems:'flex-start',gap:8,marginTop:16,color:'#879ea8',fontSize:10,lineHeight:1.6}}>
       <ShieldCheck size={14} style={{flexShrink:0,marginTop:1}}/>
       Full audio means an ended event or at least 98% estimated playback. Green website checkmarks represent tracked link redirects, not verified page reading. Calendar means opened, not booked. No AI agent is launched by this report.
