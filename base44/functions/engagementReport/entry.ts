@@ -251,7 +251,7 @@ async function buildReport(base44: any, body: any, rules: any) {
     const entries = result.hotLeadIds
       .map((leadId: string) => ({ leadId, ...(result.scoreOf[leadId] || {}) }))
       .filter((entry: any) => typeof entry.score === 'number');
-    await recordHotLeads(base44, system, entries, describe);
+    // Read paths must not mutate lead history or current hot-lead status.
     result.hotHistory = await readHotHistory(base44, system);
   }));
 
