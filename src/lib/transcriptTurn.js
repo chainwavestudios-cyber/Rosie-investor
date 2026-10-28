@@ -40,8 +40,12 @@ export function isSameSentence(prevText, nextText, gapMs) {
   const a = squeeze(prevText);
   const b = squeeze(nextText);
   if (!a || !b) return false;
+  // Do not merge unrelated turns separated by many seconds just because an
+  // earlier Deepgram chunk lacked punctuation. Keep a generously short window
+  // for within-thought continuation; the interim UI remains immediate.
+  if (gapMs != null && gapMs > 6500) return false;
   if (!isTerminalSentence(a)) return true;
-  if (gapMs != null && gapMs < 3000) return true;
+  if (gapMs != null && gapMs >= 0 && gapMs < 1800) return true;
   if (/[,;:—–-]$/.test(a)) return true;
   if (/^[a-z]/.test(b)) return true;
   return CONTINUATIONS.has(norm(b.split(/\s+/)[0]));
