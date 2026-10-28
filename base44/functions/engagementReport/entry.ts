@@ -94,11 +94,14 @@ async function readSends(base44: any, since: string) {
       sentAt: message.sentAt || message.created_date,
     }));
 
-  const seen = new Set(rows.map((row: any) => `${row.leadId || row.toEmail}|${row.templateId || row.templateName}`));
+  const seenIds = new Set(messages.map((row: any) => String(row.sendId || '')).filter(Boolean));
+  const seenProviderIds = new Set(messages.map((row: any) => String(row.messageId || '')).filter(Boolean));
   legacy.forEach((log: any) => {
-    const key = `${log.leadId || log.toEmail || ''}|${log.templateId || log.templateName || ''}`;
-    if (seen.has(key)) return;
-    seen.add(key);
+    if (log.sendId && seenIds.has(String(log.sendId))) return;
+    if (log.messageId && seenProviderIds.has(String(log.messageId))) return;
+    if (log.status === 'failed' || log.status === 'bounced' || log.status === 'spam') return;
+    if (log.sendId) seenIds.add(String(log.sendId));
+    if (log.messageId) seenProviderIds.add(String(log.messageId));
     rows.push({
       leadId: log.leadId || '',
       toName: log.toName || '',
@@ -136,7 +139,7 @@ async function scoreOne(base44: any, leadId: string, rules: any) {
     score: live === 'coach' ? coach.score : fronter.score,
     tier: live === 'coach' ? coach.tier : fronter.tier,
     tierLabel: live === 'coach' ? coach.tierLabel : fronter.tierLabel,
-    hotLead: coach.hotLead,
+    hotLead: live === 'coach' ? coach.hotLead : fronter.hotLead,
     action: live === 'coach' ? coach.action : fronter.action,
     reasons: live === 'coach' ? coach.reasons : fronter.reasons,
     lastAt: fronter.lastAt || coach.lastAt,
@@ -159,7 +162,7 @@ const templateKey = (templateId: any, templateName: any) => (templateId ? `id:${
  */
 // The credentials + welcome mail is authored under several names but it is the same
 // email, so it always reads as one row instead of one row per name.
-const MERGED_FAMILIES = ['creds_welcome'];
+const MERGED_FAMILIES = ['creds_welcome', 'followup_intro'];
 
 const campaignKeyFor = (templates: Map<string, any>, templateId: any, name: string, family: string) => {
   if (MERGED_FAMILIES.includes(family)) return `family:${family}`;
@@ -185,7 +188,8 @@ async function buildReport(base44: any, body: any, rules: any) {
   const templates = new Map<string, { name: string; system: string; category: string; categoryLabel: string }>();
   const indexTemplate = (id: any, name: string, origin: string) => {
     const category = categoryFor(name);
-    templates.set(String(id), { name, system: category.system, category: category.key, categoryLabel: category.label, origin });
+    const system = origin === 'fronter' ? 'fronter' : 'coach';
+    templates.set(String(id), { name, system, category: system === 'fronter' ? 'fronter_outreach' : category.key, categoryLabel: system === 'fronter' ? 'Fronter outreach' : category.label, origin });
   };
   fronterTemplates.forEach((row: any) => indexTemplate(row.id, row.label || 'Fronter template', 'fronter'));
   coachTemplates.forEach((row: any) => indexTemplate(row.id, row.name || 'Coach template', 'coach'));
@@ -197,7 +201,8 @@ async function buildReport(base44: any, body: any, rules: any) {
       const known = templates.get(String(event.templateId || ''));
       const name = known?.name || event.templateName || '';
       const category = categoryFor(name);
-      return { ...event, templateName: name, category: category.key, categoryLabel: category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name, category.key) };
+      const family = known?.category || category.key;
+      return { ...event, templateName: name, category: family, categoryLabel: known?.categoryLabel || category.label, system: known?.system || category.system, campaignKey: campaignKeyFor(templates, event.templateId, name, family) };
     });
 
   const sendingRows = sends.map((log: any) => {
@@ -213,7 +218,7 @@ async function buildReport(base44: any, body: any, rules: any) {
       name,
       system: known?.system || category.system,
       categoryLabel: known?.categoryLabel || category.label,
-      campaignKey: campaignKeyFor(templates, log.templateId, name, category.key),
+      campaignKey: campaignKeyFor(templates, log.templateId, name, known?.category || category.key),
     };
   });
 
