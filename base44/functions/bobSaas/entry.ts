@@ -8,13 +8,20 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 const bad = (message: string, status = 400) => Response.json({ error: message }, { status });
 const str = (value: unknown, max = 1000) => String(value ?? '').trim().slice(0, max);
 const emailOf = (value: unknown) => str(value, 255).toLowerCase();
-const bool = (v: unknown) => v === true;
+const encrypted = (v:unknown) => {
+  const payload=str(v,90000),parsed=JSON.parse(payload);
+  if(payload.length>85000 || parsed.v!==1 || !/^[A-Za-z0-9+/=]{16,32}$/.test(parsed.iv) ||
+     !/^[A-Za-z0-9+/=]+$/.test(parsed.ct))throw new Error('Expected encrypted AES-GCM payload.');
+  return payload;
+};
 const now = () => new Date().toISOString();
 const allow = ['active','trial'];
 const fmtOrg = (o: any) => ({
   id:o.id, name:o.name, slug:o.slug, ownerEmail:o.ownerEmail, seatLimit:o.seatLimit,
   status:o.status, industry:o.industry, preferredVoice:o.preferredVoice,
-  hasDeepgramKey:!!o.encryptedDeepgramKey, createdAt:o.createdAt
+  hasDeepgramKey:!!o.encryptedDeepgramKey, createdAt:o.createdAt, knowledgeSalt:o.knowledgeSalt||'',
+  keyVerifier:o.keyVerifier||'', billingStatus:o.billingStatus||'trial',
+  hasSubscription:!!o.stripeSubscriptionId
 });
 const secureGateway = async (req: Request) => {
   const base44 = createClientFromRequest(req);
@@ -35,6 +42,7 @@ const secureGateway = async (req: Request) => {
   const user = await base44.auth.me().catch(() => null);
   const email = emailOf(user?.email);
   if (!user || !email) return bad('Sign in to the BOB Training Portal.',401);
+  if(user.email_verified===false || user.emailVerified===false)return bad('Verify your email to continue.',403);
   const adminEmails = (Deno.env.get('BOB_PLATFORM_ADMIN_EMAILS')||'').toLowerCase().split(',').map(v=>v.trim()).filter(Boolean);
   const isPlatformAdmin = adminEmails.includes(email) || user.role === 'admin';
   const allMembers = await db.BOBMember.filter({ email });
@@ -44,14 +52,18 @@ const secureGateway = async (req: Request) => {
   const isPlatformOrg = isPlatformAdmin && selectedOrgId;
   const org = selectedOrgId ? await db.BOBOrganization.get(selectedOrgId).catch(()=>null) : null;
   const requireOrg = () => {
-    if (!org || !(member || isPlatformOrg)) throw new Error('Organization not available to this account.');
+    if (!org || !member) throw new Error('Private organization content requires a verified assigned member.');
     if (!allow.includes(org.status) && !isPlatformAdmin) throw new Error('Organization is not active.');
   };
   const requireAdmin = () => {
     requireOrg();
-    if (!isPlatformAdmin && member?.role!=='owner' && member?.role!=='admin') throw new Error('Organization administrator permission required.');
+    if (member?.role!=='owner' && member?.role!=='admin') throw new Error('Organization administrator permission required.');
   };
 
+  const requireSettingsAccess=()=>{
+    if(!org||!(isPlatformOrg||['owner','admin'].includes(member?.role)))
+       throw new Error('Organization settings permission required.');
+  };
   if (action === 'context') {
     const accessible = await Promise.all(memberships.map(async (m:any) => {
       const o=await db.BOBOrganization.get(m.organizationId).catch(()=>null);
@@ -69,7 +81,9 @@ const secureGateway = async (req: Request) => {
     const ownerEmail=isPlatformAdmin?emailOf(data.ownerEmail)||email:email;
     const o=await db.BOBOrganization.create({name,slug:name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)+'-'+crypto.randomUUID().slice(0,7),
       ownerEmail,seatLimit:seats,status:isPlatformAdmin?'active':'trial',
-      industry:str(data.industry,80)||'General sales',preferredVoice:'flux-cliff-en',createdAt:now()});
+      industry:str(data.industry,80)||'General sales',preferredVoice:'flux-cliff-en',
+      knowledgeSalt:btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
+      billingStatus:'trial',createdAt:now()});
     await db.BOBMember.create({organizationId:o.id,email:ownerEmail,displayName:'',role:'owner',status:'active',createdAt:now()});
     return Response.json({success:true,organization:fmtOrg(o)});
   }
@@ -79,7 +93,7 @@ const secureGateway = async (req: Request) => {
     return Response.json({success:true,inquiries});
   }
   if (action==='setOrg') {
-    requireAdmin();
+    requireSettingsAccess();
     const fields:any={};
     if (typeof data.name==='string' && str(data.name,120).length>=2) fields.name=str(data.name,120);
     if (typeof data.industry==='string') fields.industry=str(data.industry,80);
@@ -106,7 +120,15 @@ const secureGateway = async (req: Request) => {
     if (members.some((m:any)=>m.email===newEmail)) return bad('This email is already on the organization.');
     if (members.filter((m:any)=>m.status==='active').length>=Number(org.seatLimit)) return bad('All seats are assigned. Increase the seat allocation first.');
     await db.BOBMember.create({organizationId:org.id,email:newEmail,role,status:'active',displayName:str(data.displayName,100),createdAt:now()});
-    return Response.json({success:true});
+    let invitationStatus='failed';
+    try{
+      await base44.asServiceRole.integrations.Core.SendEmail({
+        to:newEmail,subject:`BOB Training invitation · ${org.name}`,
+        body:`Your company ${org.name} has assigned you a BOB training seat.\nVisit https://rosieai-investorpage.base44.app/bob/login and sign in with ${newEmail}.\nYour organization admin will share a separate knowledge unlock passphrase securely. BOB support cannot recover it.`
+      });
+      invitationStatus='sent';
+    }catch(e){console.warn('[BOB] Invitation failed',e);}
+    return Response.json({success:true,invitationStatus});
   }
   if (action==='removeMember') {
     requireAdmin();
@@ -116,24 +138,31 @@ const secureGateway = async (req: Request) => {
     await db.BOBMember.delete(target.id);
     return Response.json({success:true});
   }
-  if (action==='knowledge') {
+  if(action==='initializeEncryption'){
+    requireAdmin();
+    if(org.keyVerifier)return bad('Encryption already initialized. No platform reset is possible.',409);
+    await db.BOBOrganization.update(org.id,{keyVerifier:encrypted(data.verifier)});
+    return Response.json({success:true});
+  }
+  if(action==='knowledge'){
     requireOrg();
-    const docs=await db.BOBKnowledge.filter({organizationId:org.id},'-created_date',250);
-    return Response.json({success:true,documents:docs});
+    const rows=await db.BOBKnowledge.filter({organizationId:org.id},'-created_date',250);
+    return Response.json({success:true,documents:rows.map((d:any)=>({
+       id:d.id,createdAt:d.createdAt,encryptedPayload:d.encryptedPayload||''
+    }))});
   }
-  if (action==='addKnowledge') {
+  if(action==='addKnowledge'){
     requireAdmin();
-    const title=str(data.title,150), content=str(data.content,25000);
-    if (!title || content.length<10) return bad('Give this knowledge entry a title and at least 10 characters of training content.');
-    const record=await db.BOBKnowledge.create({organizationId:org.id,title,content,category:str(data.category,60)||'Sales playbook',
-      createdBy:email,createdAt:now()});
-    return Response.json({success:true,document:record});
+    if(!org.keyVerifier)return bad('Set up customer-owned encryption first.',409);
+    const row=await db.BOBKnowledge.create({organizationId:org.id,encryptedPayload:encrypted(data.encryptedPayload),
+        createdBy:email,createdAt:now()});
+    return Response.json({success:true,id:row.id});
   }
-  if (action==='deleteKnowledge') {
+  if(action==='deleteKnowledge'){
     requireAdmin();
-    const record=await db.BOBKnowledge.get(str(data.documentId,100)).catch(()=>null);
-    if (!record||record.organizationId!==org.id) return bad('Not found.',404);
-    await db.BOBKnowledge.delete(record.id);
+    const row=await db.BOBKnowledge.get(str(data.documentId,100)).catch(()=>null);
+    if(!row||row.organizationId!==org.id)return bad('Not found.',404);
+    await db.BOBKnowledge.delete(row.id);
     return Response.json({success:true});
   }
   if (action==='setDeepgramKey') {
@@ -174,60 +203,71 @@ const secureGateway = async (req: Request) => {
     await db.BOBVoiceGrant.create({organizationId:org.id,traineeEmail:email,issuedAt:now()});
     return Response.json({success:true,key:granted.key,expiresInSeconds:600});
   }
-  if (action==='sessions') {
+  if(action==='sessions'){
     requireOrg();
-    const records=await db.BOBTrainingSession.filter({organizationId:org.id},'-created_date',100);
-    return Response.json({success:true,sessions:isPlatformAdmin||['owner','admin'].includes(member?.role)
-      ?records:records.filter((s:any)=>s.traineeEmail===email)});
+    const rows=await db.BOBTrainingSession.filter({organizationId:org.id},'-created_date',100);
+    const allowed=['owner','admin'].includes(member?.role)?rows:rows.filter((r:any)=>r.traineeEmail===email);
+    return Response.json({success:true,sessions:allowed.map((r:any)=>({
+      id:r.id,traineeEmail:r.traineeEmail,scenario:r.scenario,mode:r.mode,
+      persona:r.persona,difficulty:r.difficulty,voiceModel:r.voiceModel,
+      durationSeconds:r.durationSeconds,createdAt:r.createdAt,
+      encryptedPayload:r.encryptedPayload||'',encryptedReview:r.encryptedReview||'',score:r.score
+    }))});
   }
-  if (action==='saveSession') {
+  if(action==='saveSession'){
     requireOrg();
-    const transcript=Array.isArray(data.transcript)?data.transcript.slice(-250).map((t:any)=>({
-      role: t.role==='bob'?'bob':'trainee',text:str(t.text,800),time:str(t.time,40)
-    })):[];
-    // Keep transcript JSON valid even when a conversation is extremely long.
-    let compact=transcript;
-    while(JSON.stringify(compact).length>48000 && compact.length>0) compact=compact.slice(1);
-    const saved=await db.BOBTrainingSession.create({
-      organizationId:org.id,traineeEmail:email,scenario:str(data.scenario,150),mode:['inbound','outbound'].includes(data.mode)?data.mode:'outbound',
-      persona:str(data.persona,100),difficulty:Math.min(10,Math.max(1,Number(data.difficulty)||5)),
+    if(!org.keyVerifier)return bad('Initialize encrypted storage first.',409);
+    const record=await db.BOBTrainingSession.create({
+      organizationId:org.id,traineeEmail:email,scenario:str(data.scenario,150),
+      mode:['inbound','outbound'].includes(data.mode)?data.mode:'outbound',
+      persona:str(data.persona,100),difficulty:Math.max(1,Math.min(10,Number(data.difficulty)||5)),
       voiceModel:str(data.voiceModel,80),durationSeconds:Math.max(0,Math.min(43200,Number(data.durationSeconds)||0)),
-      transcriptJson:JSON.stringify(compact),notes:str(data.notes,2500),createdAt:now()
+      encryptedPayload:encrypted(data.encryptedPayload),createdAt:now()
     });
-    return Response.json({success:true,id:saved.id});
+    return Response.json({success:true,id:record.id});
   }
-  if (action==='reviewSession') {
+  if(action==='reviewSession'){
     requireOrg();
-    const session=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
-    if(!session || session.organizationId!==org.id) return bad('Session not found.',404);
-    if(!isPlatformAdmin && !['owner','admin'].includes(member?.role) && session.traineeEmail!==email)
-      return bad('Not permitted to review this session.',403);
-    if(session.reviewJson) return Response.json({success:true,review:JSON.parse(session.reviewJson),cached:true});
-    const transcript=JSON.parse(session.transcriptJson||'[]');
-    if(transcript.length<4) return bad('Not enough conversation recorded to assess this training.',400);
-    const dialogue=transcript.map((t:any)=>`${t.role==='bob'?'CUSTOMER':'TRAINEE'}: ${str(t.text,600)}`).join('\n').slice(0,24000);
+    const record=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
+    if(!record||record.organizationId!==org.id)return bad('Session not found.',404);
+    if(!['owner','admin'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
+    if(record.encryptedReview)return bad('Review already exists.',409);
+    // Plaintext decrypted in browser, processed transiently by model, never persisted here.
+    const rows=Array.isArray(data.transcript)?data.transcript.slice(-250).map((t:any)=>({
+      role:t.role==='bob'?'bob':'trainee',text:str(t.text,800)
+    })):[];
+    if(rows.length<4)return bad('Not enough dialogue for coaching.',400);
+    const dialogue=rows.map((t:any)=>`${t.role==='bob'?'CUSTOMER':'TRAINEE'}: ${t.text}`).join('\n').slice(0,24000);
     const response=await base44.asServiceRole.integrations.Core.InvokeLLM({
-      prompt:`You are an evidence-based sales training coach. Evaluate ONLY the TRAINEE'S performance from the realistic training call below.
-Industry: ${str(org.industry,100)}. Scenario: ${str(session.scenario,150)}.
-Be constructive and specific, never fabricate statements not in the dialogue. Treat the customer's fictional statements as simulated, not real. Give five sub-scores 0-20 (total 0-100), a 1-2 sentence summary, and 3 prioritized tips. A shorter session gets lower marks for missed steps; do not presume a sale or verified compliance from a simulation.
-Rubric: discovery: learned relevant needs through open questions; listening: acknowledged the customer's answers; clarity: explained simply without unsupported guarantees; objections: acknowledged concerns and answered thoughtfully; nextSteps: made an appropriate next-step ask.
-TRAINING TRANSCRIPT:
+      prompt:`You are a sales training coach. Analyze ONLY the trainee's performance in this fictional simulation.
+Scenario: ${str(record.scenario,150)}.
+Give scores from 0 to 20 for discovery, listening, clarity, objections, nextSteps, plus a summary
+and 3 specific recommendations. Do not invent statements or unsupported promises.
+DIALOGUE:
 ${dialogue}`,
       response_json_schema:{type:'object',properties:{
         discovery:{type:'number'},listening:{type:'number'},clarity:{type:'number'},
-        objections:{type:'number'},nextSteps:{type:'number'},
-        summary:{type:'string'},tips:{type:'array',items:{type:'string'}}
+        objections:{type:'number'},nextSteps:{type:'number'},summary:{type:'string'},
+        tips:{type:'array',items:{type:'string'}}
       },required:['discovery','listening','clarity','objections','nextSteps','summary','tips']}
     });
-    const raw=(response && typeof response==='object')?response:{};
-    const categories=['discovery','listening','clarity','objections','nextSteps'];
+    const raw=typeof response==='object'&&response?response:{};
     const review:any={};
-    for(const key of categories)review[key]=Math.max(0,Math.min(20,Math.round(Number(raw[key])||0)));
-    review.score=categories.reduce((t,key)=>t+review[key],0);
+    for(const key of ['discovery','listening','clarity','objections','nextSteps'])
+      review[key]=Math.max(0,Math.min(20,Math.round(Number(raw[key])||0)));
+    review.score=['discovery','listening','clarity','objections','nextSteps'].reduce((n,k)=>n+review[k],0);
     review.summary=str(raw.summary,600);
     review.tips=Array.isArray(raw.tips)?raw.tips.slice(0,4).map((t:any)=>str(t,300)):[];
-    await db.BOBTrainingSession.update(session.id,{reviewJson:JSON.stringify(review),reviewedAt:now(),score:review.score});
-    return Response.json({success:true,review,cached:false});
+    return Response.json({success:true,review});
+  }
+  if(action==='saveReview'){
+    requireOrg();
+    const record=await db.BOBTrainingSession.get(str(data.sessionId,100)).catch(()=>null);
+    if(!record||record.organizationId!==org.id)return bad('Session not found.',404);
+    if(!['owner','admin'].includes(member?.role) && record.traineeEmail!==email)return bad('Not permitted.',403);
+    if(record.encryptedReview)return bad('Review already saved.',409);
+    await db.BOBTrainingSession.update(record.id,{encryptedReview:encrypted(data.encryptedReview),reviewedAt:now()});
+    return Response.json({success:true});
   }
   return bad('Unsupported BOB action.',404);
 };
