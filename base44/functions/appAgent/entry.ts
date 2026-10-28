@@ -580,6 +580,11 @@ Deno.serve(async (req) => {
 
     const who = await resolveIdentity(base44, body);
     if (!who) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    // The ACE console is restricted at the API boundary, not just hidden in
+    // the browser. Reject non-admin staff BEFORE any model/API token is spent.
+    if (!['admin', 'super_admin'].includes(String(who.role || '').toLowerCase())) {
+      return Response.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
     const history = (Array.isArray(body?.messages) ? body.messages : [])
       .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
