@@ -147,7 +147,7 @@ function App() {
               <Route path="/live-codebase-explorer" element={<LiveCodebaseExplorer />} />
               <Route path="/DirectD" element={<DirectD />} />
               <Route path="/debt-call-coach-login" element={<DebtCoachAuthProvider><DebtCoachLogin /></DebtCoachAuthProvider>} />
-              <Route path="/debt-call-coach" element={<DebtCoachAuthProvider><TwilioDeviceProvider><DebtCallCoach /></TwilioDeviceProvider></DebtCoachAuthProvider>} />
+              <Route path="/debt-call-coach" element={<DebtCoachAuthProvider><TwilioDeviceProvider autoInit={false}><DebtCallCoach /></TwilioDeviceProvider></DebtCoachAuthProvider>} />
               <Route path="/credit" element={<CreditReportUpload />} />
               <Route path="/manager-portal" element={<DebtCoachAuthProvider><ManagerPortal /></DebtCoachAuthProvider>} />
               <Route path="/compliance-portal" element={<DebtCoachAuthProvider><CompliancePortal /></DebtCoachAuthProvider>} />
