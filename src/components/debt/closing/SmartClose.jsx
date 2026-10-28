@@ -95,6 +95,7 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const [savedAt, setSavedAt] = useState(null);
   const [progressLoadedLeadId, setProgressLoadedLeadId] = useState(null);
   const [progressDirty, setProgressDirty] = useState(false);
+  const closingSaveRef = useRef({ leadId, done: manualDone, dirty: false });
   const analysisRunningRef = useRef(false);
   // ── Closing script config (editable modules with keywords + script text) ──
   const [scriptModules, setScriptModules] = useState(defaultScriptModules());
@@ -112,17 +113,29 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
 
   useEffect(() => { dismissedRef.current = dismissedSkips; }, [dismissedSkips]);
   useEffect(() => { manualRef.current = manualDone; }, [manualDone]);
+  useEffect(() => { closingSaveRef.current = { leadId, done: manualDone, dirty: progressDirty && progressLoadedLeadId === leadId }; }, [leadId, manualDone, progressDirty, progressLoadedLeadId]);
+  useEffect(() => () => {
+    // Navigating away from Closing can unmount it before the debounce finishes.
+    const pending = closingSaveRef.current;
+    if (!pending.dirty || !pending.leadId) return;
+    const savedOn = new Date().toISOString();
+    base44.entities.DebtLead.update(pending.leadId, {
+      closingProgressJson: JSON.stringify(pending.done),
+      closingProgressUpdatedAt: savedOn,
+    }).catch(e => console.error('Closing progress flush failed', e));
+  }, []);
   useEffect(() => { savedNotesRef.current = savedNotes; }, [savedNotes]);
 
   const transcript = (liveTranscript && liveTranscript.length > 0) ? liveTranscript : savedTranscript;
   const combinedDone = { ...autoDone, ...manualDone };
+  const scoredSteps = smartOn ? combinedDone : manualDone;
 
   // Calculate deal score from checked steps (sum of step scores, capped at 100)
   const dealScore = (() => {
     let score = 0;
     scriptModules.forEach(m => {
       m.steps.forEach((s, i) => {
-        if (combinedDone[`${m.id}_${i}`]) score += (s.score || 0);
+        if (scoredSteps[`${m.id}_${i}`]) score += (s.score || 0);
       });
     });
     return Math.min(100, score);
@@ -236,7 +249,8 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   //    transcript update alongside the heavier AI analysis.
   useEffect(() => {
     if (!smartOn || !transcript || transcript.length === 0) return;
-    const text = transcript.map(t => t.text || '').join(' ').toLowerCase();
+    // Only what the agent actually says should advance script checkpoints.
+    const text = transcript.filter(t => t.speaker === 0 || /^agent$/i.test(String(t.speaker || ''))).map(t => t.text || '').join(' ').toLowerCase();
     if (!text.trim()) return;
     const modules = scriptModulesRef.current;
     let changed = false;
@@ -348,7 +362,7 @@ ${recentText}`,
 
   const handleToggle = (key) => {
     if (progressLoadedLeadId !== leadId) return;
-    setManualDone(prev => ({ ...prev, [key]: !(prev[key] === undefined ? !!autoDone[key] : !!prev[key]) }));
+    setManualDone(prev => ({ ...prev, [key]: !(prev[key] === undefined ? !!(smartOn && autoDone[key]) : !!prev[key]) }));
     setProgressDirty(true);
   };
 
@@ -411,7 +425,7 @@ ${recentText}`,
 
   const currentStage = smartOn && analysis?.currentStage ? scriptModules.find(m => m.id === analysis.currentStage) : null;
   const readiness = smartOn && Number.isFinite(analysis?.closeReadiness) ? Math.max(0, Math.min(100, Math.round(analysis.closeReadiness))) : null;
-  const nextPending = scriptModules.flatMap(m => m.steps.map((step, index) => ({ key: `${m.id}_${index}`, text: step.text || step, title: m.title }))).find(item => !combinedDone[item.key]);
+  const nextPending = scriptModules.flatMap(m => m.steps.map((step, index) => ({ key: `${m.id}_${index}`, text: step.text || step, title: m.title }))).find(item => !scoredSteps[item.key]);
   const suggestedNextStep = (smartOn && analysis?.recommendations?.[0]) || nextPending?.text || 'All checklist steps reviewed. Verify the agreement and enrollment status separately.';
 
   // Tab bar — Checklist vs Script vs Phone #s
@@ -570,7 +584,7 @@ ${recentText}`,
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Stage Score</span>
           <span style={{ color: dealScore >= 100 ? GOLD : dealScore >= 75 ? PURPLE : dealScore >= 50 ? BLUE : dealScore >= 25 ? AMBER : '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>{dealScore}/100</span>
-          {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>Checklist complete · verify enrollment separately</span>}
+          {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>Stages covered · verify enrollment separately</span>}
         </span>
       </div>
 
