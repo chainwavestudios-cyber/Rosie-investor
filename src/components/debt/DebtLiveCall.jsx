@@ -1325,6 +1325,17 @@ ${recentText}`,
   }, []);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false) => {
+    // Never start a saved mode with missing/mismatched hardware. In particular,
+    // don't silently switch the customer line to an ordinary microphone.
+    const selectedProfile = audioModes(audioSetups)[activeSetupIndex];
+    if (selectedProfile?.saved) {
+      const resolved = resolveAudioMode(selectedProfile, micDevices, outputDevices, isLoopbackSource);
+      const customerRequired = !!(selectedProfile.customerDeviceId || selectedProfile.customerLabel);
+      if (!resolved.micId || (customerRequired && !resolved.customerId)) {
+        setError(`Audio setup unavailable: ${resolved.problems.join(' ')} Re-scan, choose the correct devices, and Save Setup.`);
+        return;
+      }
+    }
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !leadRef.current?.id) {
       // Persist the lead to the database immediately so transcript + auto-extraction
@@ -1426,7 +1437,7 @@ ${recentText}`,
     let agentStream, customerStream;
     let feedDual = dualMode;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       streamRef.current = agentStream;
       if (dualMode) {
         // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
@@ -1434,6 +1445,9 @@ ${recentText}`,
         // ends up recording the agent's own voice — two voices on one channel.
         const grab = (id) => navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id } } });
         customerStream = await grab(customerMicId).catch(async () => {
+          // For a saved preset, never substitute an unrelated loopback device.
+          // The agent must explicitly reselect and save the correct hardware.
+          if (selectedProfile?.saved) return null;
           // Plugging in headphones re-numbers the Realtek inputs, so the saved id
           // goes stale. Re-find the loopback by name before giving up on it.
           const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
@@ -1506,7 +1520,7 @@ ${recentText}`,
     });
     feedRef.current = feed;
     ctxRef.current = feed.ctx;
-  }, [micDeviceId, customerMicId, micDevices, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, micDevices, outputDevices, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
@@ -1795,7 +1809,7 @@ ${recentText}`,
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testAgentCtxRef.current = ctx;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       testAgentStreamRef.current = stream;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
