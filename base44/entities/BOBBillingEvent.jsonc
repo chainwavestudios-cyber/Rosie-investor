@@ -1,0 +1,48 @@
+{
+  "name": "BOBBillingEvent",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "title": "eventId"
+    },
+    "eventType": {
+      "type": "string",
+      "title": "eventType"
+    },
+    "organizationId": {
+      "type": "string",
+      "title": "organizationId"
+    },
+    "processedAt": {
+      "type": "string",
+      "title": "processedAt"
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

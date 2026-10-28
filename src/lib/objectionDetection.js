@@ -42,15 +42,18 @@ export function recentCustomerTurn(transcript, maxGapMs = 8000) {
 }
 function normalize(text) {
   return String(text || '').toLowerCase()
+    .replace(/\bi['’]m\b/g, 'i am')
+    .replace(/\bdon['’]t\b/g, 'do not')
+    .replace(/\bcan['’]t\b/g, 'cannot')
     .replace(/[’']/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 function phraseConfidence(text, phrase) {
-  const m = matchPhrase(text, phrase);
-  if (!m) return null;
   const utterance = normalize(text);
   const trigger = normalize(phrase);
   const exact = trigger.length >= 8 && ((' ' + utterance + ' ').includes(' ' + trigger + ' '));
-  if (exact) return { ...m, score: 1, exact: true };
+  if (exact) return { words:[], matched:1, needed:1, pair:null, score:1, exact:true };
+  const m = matchPhrase(text, phrase);
+  if (!m) return null;
   // Distinctive negative phrases are useful in short utterances; weak isolated
   // words like "good" cannot trigger an objection on their own.
   const short = trigger.split(' ').length <= 3 && /\b(not interested|im good|no thanks|dont trust|too expensive)\b/.test(trigger);

@@ -37,6 +37,34 @@
     "createdAt": {
       "type": "string",
       "title": "createdAt"
+    },
+    "knowledgeSalt": {
+      "type": "string",
+      "title": "knowledgeSalt"
+    },
+    "keyVerifier": {
+      "type": "string",
+      "title": "keyVerifier"
+    },
+    "stripeCustomerId": {
+      "type": "string",
+      "title": "stripeCustomerId"
+    },
+    "stripeSubscriptionId": {
+      "type": "string",
+      "title": "stripeSubscriptionId"
+    },
+    "billingStatus": {
+      "type": "string",
+      "title": "billingStatus"
+    },
+    "billingPriceId": {
+      "type": "string",
+      "title": "billingPriceId"
+    },
+    "stripeCheckoutSessionId": {
+      "type": "string",
+      "title": "stripeCheckoutSessionId"
     }
   },
   "required": [

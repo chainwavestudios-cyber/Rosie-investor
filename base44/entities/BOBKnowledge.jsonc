@@ -25,12 +25,16 @@
     "createdAt": {
       "type": "string",
       "title": "createdAt"
+    },
+    "encryptedPayload": {
+      "type": "string",
+      "title": "Client-encrypted document (AES-GCM)",
+      "format": "textarea"
     }
   },
   "required": [
     "organizationId",
-    "title",
-    "content"
+    "encryptedPayload"
   ],
   "rls": {
     "create": {

@@ -57,6 +57,16 @@
     "score": {
       "type": "number",
       "title": "score"
+    },
+    "encryptedPayload": {
+      "type": "string",
+      "title": "encryptedPayload",
+      "format": "textarea"
+    },
+    "encryptedReview": {
+      "type": "string",
+      "title": "encryptedReview",
+      "format": "textarea"
     }
   },
   "required": [
