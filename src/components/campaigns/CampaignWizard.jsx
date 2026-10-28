@@ -29,7 +29,7 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
 
   const loadTemplates = useCallback(async () => {
     const page = await base44.entities.EmailCampaignTemplate.list('-created_date', 100).catch(() => []);
-    setTemplates(page?.items || page || []);
+    setTemplates((page?.items || page || []).filter(t=>t.source!=='fronter' && /debt advisors of america|debtadvisorsofamerica\.com|\bDAA\b/i.test([t.name,t.subject,t.bodyHtml].join(' ')) && !/golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test([t.name,t.subject,t.bodyHtml].join(' '))));
   }, []);
 
   const load = useCallback(async () => {
