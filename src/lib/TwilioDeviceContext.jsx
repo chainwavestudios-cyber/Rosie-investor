@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 
 const TwilioDeviceContext = createContext(null);
 
-export function TwilioDeviceProvider({ children }) {
+export function TwilioDeviceProvider({ children, autoInit = true }) {
   const deviceRef    = useRef(null);
   const initPromise  = useRef(null);
   const [ready, setReady]               = useState(false);
@@ -125,8 +125,8 @@ export function TwilioDeviceProvider({ children }) {
 
   // Auto-initialize device on mount so it's ready to receive inbound calls
   useEffect(() => {
-    getDevice().catch(() => {});
-  }, []);
+    if (autoInit) getDevice().catch(() => {});
+  }, [autoInit, getDevice]);
 
   // Destroy on unmount
   useEffect(() => () => {
