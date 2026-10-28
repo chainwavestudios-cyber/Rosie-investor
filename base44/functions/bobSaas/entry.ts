@@ -81,6 +81,12 @@ const secureGateway = async (req: Request) => {
     requireOrg();
     if(!['owner','admin','manager'].includes(member?.role))throw new Error('Manager permission required.');
   };
+  const audit=async (op:string, targetId='', description='')=>{
+    // Metadata only. Never log keys, private knowledge or call content.
+    await db.BOBAdminAudit.create({organizationId:org?.id||'',actorEmail:email,action:op,
+      targetId:str(targetId,120),description:str(description,220),createdAt:now()})
+      .catch(e=>console.warn('[BOB] nonblocking admin audit failure',e));
+  };
   const requireSettingsAccess=()=>{
     if(!org||!(isPlatformOrg||['owner','admin'].includes(member?.role)))
        throw new Error('Organization settings permission required.');
@@ -115,6 +121,15 @@ const secureGateway = async (req: Request) => {
       managerCanConfigure:false,managerCanControlRecording:false,
       allowSessionRecording:false,allowLiveMonitoring:false,createdAt:now()});
     await db.BOBMember.create({organizationId:o.id,email:ownerEmail,displayName:'',role:'owner',status:'active',createdAt:now()});
+    await db.BOBAdminAudit.create({organizationId:o.id,actorEmail:email,action:'organization.created',targetId:o.id,
+       description:'Organization created; seat allocation '+seats,createdAt:now()}).catch(()=>{});
+    if(isPlatformAdmin && ownerEmail!==email){
+      try{await base44.asServiceRole.integrations.Core.SendEmail({
+        to:ownerEmail,subject:'Your BOB Training organization is ready',
+        body:'Your company '+name+' has been invited to BOB Training Intelligence.\n\nSign in using '+ownerEmail+
+        ' at https://rosieai-investorpage.base44.app/bob/login\n\nYour admin access begins with your account email. Set up your private organization knowledge vault after you sign in.'
+      });}catch(err){console.warn('[BOB] owner invite could not be sent',err);}
+    }
     return Response.json({success:true,organization:fmtOrg(o)});
   }
   if (action==='requestAddons') {
@@ -125,7 +140,43 @@ const secureGateway = async (req: Request) => {
     return Response.json({success:true,requestedAddons:requested,
        status:'interest_only',message:'BOB sales will review these product requests. Neither product is activated by this action.'});
   }
-  if (action==='listInquiries') {
+  if(action==='updateInquiry'){
+    if(!isPlatformAdmin)return bad('Platform administrator access required.',403);
+    const id=str(data.inquiryId,120),record=await db.BOBInquiry.get(id).catch(()=>null);
+    if(!record)return bad('Commercial inquiry not found.',404);
+    const status=['new','contacted','qualified','converted','closed'].includes(data.status)?data.status:null;
+    if(!status)return bad('Invalid inquiry status.',400);
+    await db.BOBInquiry.update(id,{status});
+    await audit('inquiry.status',id,status);
+    return Response.json({success:true});
+  }
+  if(action==='adminActivity'){
+    if(!isPlatformAdmin && !member)return bad('No access to administration records.',403);
+    if(!isPlatformAdmin && !['owner','admin'].includes(member?.role))
+       return bad('Organization administrator permission required.',403);
+    const records=isPlatformAdmin && data.global===true
+      ?await db.BOBAdminAudit.list('-created_date',100)
+      :await db.BOBAdminAudit.filter({organizationId:org.id},'-created_date',100);
+    return Response.json({success:true,events:(records||[]).map((x:any)=>({
+      id:x.id,organizationId:x.organizationId,actorEmail:x.actorEmail,action:x.action,
+      targetId:x.targetId,description:x.description,createdAt:x.createdAt
+    }))});
+  }
+  if(action==='resendMemberInvite'){
+    requireAdmin();
+    const target=await db.BOBMember.get(str(data.memberId,120)).catch(()=>null);
+    if(!target || target.organizationId!==org.id)return bad('Member is outside this organization.',404);
+    if(target.status!=='active')return bad('Only active members may receive an invitation.',403);
+    await base44.asServiceRole.integrations.Core.SendEmail({
+      to:target.email,subject:'Your BOB Training invitation · '+org.name,
+      body:'You have been invited to '+org.name+' in BOB Training Intelligence.\n\n'+
+        'Sign in at https://rosieai-investorpage.base44.app/bob/login with '+target.email+
+        '.\n\nYour organization administrator shares the separate knowledge-unlock passphrase.'
+    });
+    await audit('member.invited',target.id,'Invitation resent');
+    return Response.json({success:true});
+  }
+    if (action==='listInquiries') {
     if (!isPlatformAdmin) return bad('Platform access required.',403);
     const inquiries=await db.BOBInquiry.list('-created_date',100);
     return Response.json({success:true,inquiries});
@@ -148,6 +199,7 @@ const secureGateway = async (req: Request) => {
         if(typeof data[key]==='boolean')fields[key]=data[key];
     }
     await db.BOBOrganization.update(org.id, fields);
+    await audit('organization.updated',org.id, Object.keys(fields).join(', '));
     return Response.json({success:true});
   }
   if (action==='members') {
@@ -171,6 +223,7 @@ const secureGateway = async (req: Request) => {
       });
       invitationStatus='sent';
     }catch(e){console.warn('[BOB] Invitation failed',e);}
+    await audit('member.added','',newEmail+' as '+role);
     return Response.json({success:true,invitationStatus});
   }
   if (action==='removeMember') {
@@ -179,6 +232,7 @@ const secureGateway = async (req: Request) => {
     if (!target || target.organizationId!==org.id) return bad('Member not found.',404);
     if (target.role==='owner') return bad('Organization owner cannot be removed.');
     await db.BOBMember.delete(target.id);
+    await audit('member.removed',target.id,'Member seat released');
     return Response.json({success:true});
   }
   if (action==='updateMemberRole'){
@@ -188,6 +242,7 @@ const secureGateway = async (req: Request) => {
     if(target.role==='owner')return bad('The organization owner cannot be reassigned.',403);
     if(!['trainee','manager','admin'].includes(data.role))return bad('Invalid role.');
     await db.BOBMember.update(target.id,{role:data.role});
+    await audit('member.role',target.id,'Role changed to '+data.role);
     return Response.json({success:true});
   }
   if(action==='ensureEncryptionSalt'){

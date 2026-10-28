@@ -1,0 +1,57 @@
+{
+  "name": "BOBAdminAudit",
+  "type": "object",
+  "properties": {
+    "organizationId": {
+      "type": "string",
+      "title": "organizationId"
+    },
+    "actorEmail": {
+      "type": "string",
+      "title": "actorEmail"
+    },
+    "action": {
+      "type": "string",
+      "title": "action"
+    },
+    "targetId": {
+      "type": "string",
+      "title": "targetId"
+    },
+    "description": {
+      "type": "string",
+      "title": "description"
+    },
+    "createdAt": {
+      "type": "string",
+      "title": "createdAt"
+    }
+  },
+  "required": [
+    "actorEmail",
+    "action",
+    "createdAt"
+  ],
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
