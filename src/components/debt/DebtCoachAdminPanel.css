@@ -80,6 +80,7 @@
 .dcc-admin-permission input,.dcc-admin-invite-label input{accent-color:#5bcc98}
 .dcc-admin-showmore{display:flex;width:100%;align-items:center;justify-content:center;gap:7px;padding:11px;color:#e3c17e;border:0;background:#162c35;font-size:11px;font-weight:770}
 .dcc-admin-empty{display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;color:#90acb6;font-size:12px;border:1px dashed #34545c;border-radius:9px}
+.dcc-admin-setup-delivery{padding:13px 15px;border:1px solid rgba(221,187,111,.5);border-radius:9px;background:linear-gradient(110deg,#2b2b21,#182d2b);margin-bottom:12px}
 .dcc-admin-security-note{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 12px;border:1px solid rgba(202,157,89,.30);background:rgba(97,68,25,.10);border-radius:8px;color:#c7b494;font-size:10px;line-height:1.6}
 .dcc-admin-security-note svg{flex:0 0 auto;margin-top:1px}
 .dcc-admin-create{padding:14px;margin-bottom:13px;border-radius:10px;border:1px solid rgba(122,188,149,.34);background:linear-gradient(110deg,#162c36,#192f2d)}
