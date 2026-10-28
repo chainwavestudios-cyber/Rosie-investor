@@ -251,7 +251,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
     if (phase !== 'live') return;
     scriptsPanel.openAtSavedPosition();
     transcriptPanel.openAtSavedPosition();
-    aiPanel.openAtSavedPosition();
+    aiPanel.openAtSavedPosition(); leadPanel.openAtSavedPosition();
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [micMuted, setMicMuted] = useState(false);

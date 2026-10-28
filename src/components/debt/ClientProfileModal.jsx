@@ -490,24 +490,55 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
       {/* Appointment countdown — ticks live whenever a time is set */}
       {local.appointmentDate && <AppointmentCountdown date={local.appointmentDate} />}
 
-      {/* Timer + Call bar — compact single row */}
-      <div className="dcc-profile-subbar" style={{ padding: '6px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', background: 'rgba(0,0,0,0.15)' }}>
-        <span style={{ color: '#8a9ab8', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>⏰</span>
-        {activeTimer ? (
-          <>
-            <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>{Math.floor((activeTimer.fireAt - now) / 60000)}m {Math.floor(((activeTimer.fireAt - now) % 60000) / 1000)}s</span>
-            <button onClick={handleCancelTimer} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>Cancel</button>
-          </>
-        ) : (
-          <>
-            <input type="number" min="0" max="23" value={timerInput.hours} onChange={e => setTimerInput(p => ({ ...p, hours: Number(e.target.value) }))} style={{ width: '34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '3px 4px', color: '#e8e0d0', fontSize: '11px', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: '#6b7280', fontSize: '10px' }}>h</span>
-            <input type="number" min="0" max="59" value={timerInput.minutes} onChange={e => setTimerInput(p => ({ ...p, minutes: Number(e.target.value) }))} style={{ width: '34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '3px', padding: '3px 4px', color: '#e8e0d0', fontSize: '11px', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: '#6b7280', fontSize: '10px' }}>m</span>
-            <button onClick={handleSetTimer} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>Set</button>
-          </>
-        )}
-        <div style={{ flex: 1, minWidth: '120px' }}>
+      {/* Simple contact reminder + call controls */}
+      <div className="dcc-profile-subbar dcc-profile-timer-bar" onMouseDown={e=>e.stopPropagation()}>
+        <div className="dcc-profile-timer-settings">
+          <div className="dcc-profile-timer-input-row">
+            <label htmlFor="dcc-reminder-minutes"><Clock3 size={15}/> REMIND ME IN</label>
+            <input
+              id="dcc-reminder-minutes"
+              className="dcc-timer-minutes"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              max="1440"
+              step="1"
+              value={timerInput}
+              onChange={e=>{setTimerInput(e.target.value);setTimerError('');}}
+              onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();void handleSetTimer();}}}
+              placeholder="Minutes"
+              aria-label="Number of minutes until reminder"
+            />
+            <span className="dcc-timer-unit">minutes</span>
+            <button type="button" className="dcc-timer-set-button" disabled={!local.id||!username}
+              onClick={handleSetTimer}>{activeTimer?'Reset timer':'Start timer'}</button>
+            {activeTimer && <button type="button" className="dcc-timer-cancel-button" onClick={handleCancelTimer}>Cancel</button>}
+          </div>
+          <div className="dcc-profile-timer-sounds">
+            <label htmlFor="dcc-reminder-sound"><Bell size={15}/> ALERT SOUND</label>
+            <select
+              id="dcc-reminder-sound"
+              className="dcc-timer-sound-select"
+              value={timerSoundChoice?.id==='custom'&&uploadedTimerSound?.url?'custom':chosenTimerSound.id}
+              onChange={e=>handleTimerSoundChange(e.target.value)}
+              aria-label="Select countdown notification sound"
+            >
+              {PROFILE_TIMER_SOUNDS.map(sound=><option key={sound.id} value={sound.id}>{sound.label}</option>)}
+              {uploadedTimerSound?.url&&<option value="custom">Uploaded: {uploadedTimerSound.name||'My sound'}</option>}
+            </select>
+            <button type="button" className="dcc-timer-preview-button" onClick={previewTimerSound}
+              title="Play a sample of the selected alert" aria-label="Test notification sound"><Volume2 size={16}/> Test</button>
+            <button type="button" className="dcc-timer-upload-button" disabled={soundUploading} onClick={()=>soundFileInputRef.current?.click()}>
+              <UploadCloud size={16}/>{soundUploading?'Uploading…':'Upload'}
+            </button>
+            <input ref={soundFileInputRef} type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.webm"
+              onChange={handleTimerSoundUpload} className="dcc-timer-file-input" tabIndex={-1} aria-label="Upload a custom notification sound"/>
+          </div>
+          {(timerError||soundError)&&<p className="dcc-profile-timer-error" role="alert">{timerError||soundError}</p>}
+          {chosenTimerSound.id==='custom'&&uploadedTimerSound?.name&&
+            <span className="dcc-timer-custom-name" title={uploadedTimerSound.name}>Custom sound: {uploadedTimerSound.name}</span>}
+        </div>
+        <div className="dcc-profile-timer-call-controls">
           <DebtCallBar lead={local} onLaunch={launchFromProfile} />
         </div>
       </div>
