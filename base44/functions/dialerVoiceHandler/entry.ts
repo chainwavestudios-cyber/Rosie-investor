@@ -635,7 +635,10 @@ export default async function(req) {
       // admin master) → connect Adam AI agent Media Stream.
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
-      const configuredAiNumber = aiConfig?.twilioLineKey ? lineNumber(aiConfig.twilioLineKey) : '';
+      // Do not use lineNumber() here: that helper falls back to the default
+      // line if a configured environment key is missing, taking the wrong line.
+      const aiLineKey = String(aiConfig?.twilioLineKey || '');
+      const configuredAiNumber = aiLineKey.startsWith('+') ? aiLineKey : (aiLineKey ? Deno.env.get(aiLineKey) || '' : '');
       const normalizeLine = (number: string) => String(number || '').replace(/\D/g, '');
       const agentOwnsLine = !!(aiConfig?.isActive && configuredAiNumber &&
         normalizeLine(configuredAiNumber) === normalizeLine(calledNumber));
