@@ -1674,11 +1674,19 @@ ${recentText}`,
     if (customerStreamRef.current) { if (!wasTwilio) customerStreamRef.current.getTracks().forEach(t => t.stop()); customerStreamRef.current = null; }
     if (wasTwilio) twilioDialerRef.current?.hangup();
     if (officeBridgeRef.current?.bridgeToken) {
-      base44.functions.invoke('officeLineBridge', {
-        action:'end', leadId:officeBridgeRef.current.leadId,
-        bridgeToken:officeBridgeRef.current.bridgeToken, sessionUserId,sessionToken
-      }).catch(()=>{});
-      setOffice(null);
+      try {
+        const response=await base44.functions.invoke('officeLineBridge', {
+          action:'end',leadId:officeBridgeRef.current.leadId,
+          bridgeToken:officeBridgeRef.current.bridgeToken,sessionUserId,sessionToken
+        });
+        const ended=response?.data||response;
+        if(ended?.error)throw new Error(ended.error);
+        setOffice(null);
+      } catch(err) {
+        // Preserve controls for a retry. Never silently hide a still-open
+        // external PSTN leg when the cleanup request fails.
+        setTwilioWarning('Office call cleanup failed — use End Bridge again: '+(err?.message||String(err)));
+      }
     }
     if (ctxRef.current) { try { ctxRef.current.close(); } catch {} ctxRef.current = null; }
     if (recordingUri && transcriptRecordIdRef.current) {
@@ -1826,7 +1834,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder]);
+  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
