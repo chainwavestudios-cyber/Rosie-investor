@@ -17,14 +17,14 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
 
   useEffect(() => {
     (async () => {
-      const [debt, fronter] = await Promise.all([
-        base44.entities.DebtEmailTemplate.list('-created_date', 50).catch(() => []),
-        base44.entities.FronterEmailTemplate.list('-created_date', 50).catch(() => []),
-      ]);
-      const list = [
-        ...(debt?.items || debt || []).map((t) => ({ kind: 'debt_coach', id: t.id, name: t.name, subject: t.subject, html: t.bodyHtml, text: '' })),
-        ...(fronter?.items || fronter || []).map((t) => ({ kind: 'fronter', id: t.id, name: t.label, subject: t.subject, html: t.body, text: '' })),
-      ];
+      // Debt Call Coach campaigns may copy DAA source templates ONLY.
+      // Fronter uses its own separate cold outreach provider and must never
+      // import or send from this Gmail campaign workspace.
+      const debt = await base44.entities.DebtEmailTemplate.list('-created_date', 100).catch(() => []);
+      const list = (debt?.items || debt || []).filter(t=>
+        /debt advisors of america|debtadvisorsofamerica\.com|\bDAA\b/i.test([t.name,t.subject,t.bodyHtml].join(' '))
+        && !/golden\s*boy|goldenboy|stephani\s+live\s+video|fronter|nb\s*tech/i.test([t.name,t.subject,t.bodyHtml].join(' '))
+      ).map(t=>({ kind:'debt_coach',id:t.id,name:t.name,subject:t.subject,html:t.bodyHtml,text:'' }));
       setSourceTemplates(list);
 
       const res = await base44.functions.invoke('emailCampaignSend', { mode: 'accounts' }).catch(() => null);
@@ -37,7 +37,9 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
   // its source has been brought across (matched by the source it came from).
   const copiedIds = useMemo(() => new Set(templates.map((t) => t.sourceTemplateId).filter(Boolean)), [templates]);
 
-  const copyIntoLibrary = (source) => base44.entities.EmailCampaignTemplate.create({
+  const copyIntoLibrary = (source) => {
+    if(source.kind!=='debt_coach')throw new Error('Only DAA templates are permitted in the Gmail campaign library.');
+    return base44.entities.EmailCampaignTemplate.create({
     name: source.name || 'Imported mailer',
     category: source.kind === 'debt_coach' ? 'intro' : 'other',
     subject: source.subject || '',
@@ -48,6 +50,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
     version: 1,
     updatedBy: campaign?.createdBy || '',
   });
+  };
 
   const copyIn = async (source) => {
     if (!source.html) { setError(`“${source.name}” has no HTML body to copy.`); return; }
@@ -90,7 +93,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <Card title="Step 3 — Choose the email" hint="This list is your template library — copy your Debt Call Coach and Fronter mailers in below and they appear here. A campaign always sends the library copy, so editing a design never touches a running campaign.">
+      <Card title="Step 3 — Choose the email" hint="This library contains DAA-approved Gmail designs only. Fronter uses a separate cold-outreach sending system.">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '10px' }}>
           <Field label="Email template">
             <select
@@ -133,7 +136,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
 
       <Card
         title="Copy your existing mailers into the library"
-        hint={`Your Debt Call Coach mailers and Fronter templates, brought across with their subject and body so the campaign can personalize them — ${sourceTemplates.length} found, ${sourceTemplates.filter((source) => copiedIds.has(source.id)).length} already in the library.`}
+        hint={`DAA Gmail mailers only — ${sourceTemplates.length} available, ${sourceTemplates.filter((source) => copiedIds.has(source.id)).length} already in the library.`}
         actions={
           <Btn tone="gold" onClick={copyAll} disabled={busy === 'all' || !sourceTemplates.length}>
             {busy === 'all' ? 'Copying…' : '⤵ Copy all into library'}
@@ -146,7 +149,7 @@ export default function CampaignBuildStep({ campaign, templates, loadTemplates, 
             <div key={`${source.kind}-${source.id}`} style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: '5px', padding: '10px 12px' }}>
               <div style={{ color: '#e8e0d0', fontSize: '12px', fontWeight: 'bold' }}>{source.name}</div>
               <div style={{ color: DIM, fontSize: '10px', marginTop: '3px' }}>
-                {source.kind === 'debt_coach' ? 'Debt Call Coach mailer' : 'Fronter template'} · {(source.html || '').length.toLocaleString()} characters
+                DAA Gmail mailer · {(source.html || '').length.toLocaleString()} characters
               </div>
               <div style={{ marginTop: '8px' }}>
                 {copiedIds.has(source.id) ? (
