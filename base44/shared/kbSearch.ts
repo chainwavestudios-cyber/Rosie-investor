@@ -12,6 +12,13 @@ export function getAnswers(entry: any): string[] {
     } catch {}
   }
   if (out.length === 0 && entry?.answer && String(entry.answer).trim()) out.push(String(entry.answer));
+  // All KB readers should see the manager-starred answer first, regardless of
+  // its display position in answersJson. Never let an older alternative lead.
+  const preferred = Number(entry?.starredAnswerIndex);
+  if (Number.isInteger(preferred) && preferred > 0 && preferred < out.length) {
+    const [starred] = out.splice(preferred, 1);
+    out.unshift(starred);
+  }
   return out;
 }
 
