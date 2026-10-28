@@ -66,10 +66,11 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
 
     const days = Math.max(1, Math.min(180, Number(body.days) || 30));
     const since = new Date(Date.now() - days * 86400000).toISOString();
-    const [templatePage, messagePage, eventPage] = await Promise.all([
+    const [templatePage, messagePage, eventPage, audioPage] = await Promise.all([
       readAll(svc.DebtEmailTemplate, {}, 'sortOrder'),
       readAll(svc.EmailMessage, { contactKind: 'debt_lead', created_date: { $gte: since } }, '-created_date'),
       readAll(svc.EmailTrackingEvent, { trackedAt: { $gte: since } }, '-trackedAt'),
+      readAll(svc.EmailAudioEngagement, { lastAt: { $gte: since } }, '-lastAt'),
     ]);
     const templates = new Map(templatePage.items.map((t: any) => [String(t.id), t]));
     // Send provenance, not words in subject lines, defines what belongs to Coach.
@@ -94,12 +95,25 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
       if (!eventBySend.has(sendId)) eventBySend.set(sendId, []);
       eventBySend.get(sendId)!.push(ev);
     }
+    const audioBySend = new Map<string, any[]>();
+    for (const record of audioPage.items) {
+      const key = String(record.sendId || '');
+      if (!sendById.has(key)) continue;
+      if (!audioBySend.has(key)) audioBySend.set(key, []);
+      audioBySend.get(key)!.push(record);
+    }
     const timeline = sends.map((m: any) => {
       const events = eventBySend.get(String(m.sendId)) || [];
       const opens = events.filter((ev) => ev.eventType === 'open');
       const clicks = events.filter((ev) => ev.eventType === 'click');
       const proxyOpens = opens.filter((ev) => automated(ev.userAgent));
       const intent = intentScore(events);
+      const sessions = audioBySend.get(String(m.sendId)) || [];
+      const audioPlays = sessions.reduce((n: number, s: any) => n + Number(s.playCount || 0), 0);
+      const audioBestPercent = Math.max(0, ...sessions.map((s: any) => Number(s.percentListened || 0)));
+      const audioCompleted = sessions.some((s: any) => s.completed === true);
+      const calendarOpened = sessions.some((s: any) => !!s.calendarOpenedAt);
+      const calendarExternalClicks = sessions.reduce((n: number, s: any) => n + Number(s.calendarExternalClicks || 0), 0);
       const t: any = templates.get(String(m.templateId || ''));
       return {
         id: m.id, sendId: m.sendId, messageId: m.messageId || '', templateId: m.templateId || '',
@@ -111,6 +125,9 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         clicks: clicks.length, distinctLinks: unique(clicks.filter((e) => !automated(e.userAgent)).map((e) => String(e.url || ''))).length,
         lastEventAt: events.reduce((a, e) => clock(e.trackedAt) > clock(a) ? e.trackedAt : a, null),
         intentScore: intent.score, tier: intent.tier, reasons: intent.reasons,
+        audioPlays, audioSessionCount: sessions.length, audioBestPercent, audioCompleted,
+        calendarOpened, calendarExternalClicks,
+        audioPlayedSeconds: Math.max(0, ...sessions.map((s: any) => Number(s.playedSeconds || 0))),
         events: events.map((e) => ({ id: e.id, type: e.eventType, at: e.trackedAt, url: e.url || '', quality: automated(e.userAgent) ? 'proxy_or_automated' : 'unverified_nonproxy' })),
       };
     }).sort((a: any, b: any) => clock(b.sentAt) - clock(a.sentAt));
@@ -185,7 +202,7 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
 
     return Response.json({
       scope: 'debt_call_coach_gmail_templates_only', days, generatedAt: new Date().toISOString(),
-      truncated: { templates: templatePage.truncated, sends: messagePage.truncated, events: eventPage.truncated, legacy: legacyTruncated },
+      truncated: { templates: templatePage.truncated, sends: messagePage.truncated, events: eventPage.truncated, audio: audioPage.truncated, legacy: legacyTruncated },
       failedHistory: failed.map((m: any) => ({ id: m.id, contactName: m.contactName || '', contactEmail: m.contactEmail || '',
         templateName: (templates.get(String(m.templateId)) as any)?.name || m.templateName || '', attemptedAt: m.created_date,
         error: m.error || '', status: m.status })),
@@ -193,6 +210,10 @@ export default async function debtCoachGmailReport(base44: any, body: any): Prom
         withNonProxyOpens: timeline.filter((x: any) => x.nonProxyOpens > 0).length,
         withClicks: timeline.filter((x: any) => x.distinctLinks > 0).length,
         proxyOnlyOpens: timeline.filter((x: any) => x.proxyOnly).length,
+        audioStarted: timeline.filter((x: any) => x.audioPlays > 0).length,
+        audioCompleted: timeline.filter((x: any) => x.audioCompleted).length,
+        calendarOpened: timeline.filter((x: any) => x.calendarOpened).length,
+        calendarExternalClicked: timeline.filter((x: any) => x.calendarExternalClicks > 0).length,
         highIntent: unique(timeline.filter((x: any) => x.tier === 'high').map((x: any) => String(x.contactId))).length },
       templates: [...byTemplate.values()].sort((a, b) => b.sent - a.sent),
       leadDirectory, hotHistory, timeline, legacyHistory,
