@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -57,6 +58,15 @@ import BobSecurity from './pages/bob/BobSecurity';
 import BobLiveProducts from './pages/bob/BobLiveProducts';
 
 const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/email-engagement', '/oauth/consent'];
+
+// Legacy investor-site commercial product links now live on the Rosie AI main site.
+// The original internal Settlement IQ BOB training route stays on this app.
+const BOBCommercialRedirect = ({ to }) => {
+  useEffect(() => {
+    window.location.replace('https://rosieai.tech' + to + window.location.search + window.location.hash);
+  }, [to]);
+  return <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#080a0d', color: '#f0e4cb' }}><a style={{ color: '#d9b978' }} href={'https://rosieai.tech'+to}>Continue to Rosie AI</a></div>;
+};
 
 // Wraps protected routes — applies AuthProvider and its loading/error guards.
 // Public routes bypass this entirely so they never trigger auth redirects.
@@ -119,14 +129,14 @@ function App() {
               <Route path="/qualify" element={<SarahQualifyPage />} />
               <Route path="/stories/:slug" element={<StoryDetail />} />
               <Route path="/oauth/consent" element={<OAuthConsent />} />
-              <Route path="/bob" element={<BobMarketing />} />
-              <Route path="/bob/login" element={<BobLogin />} />
-              <Route path="/bob/signup" element={<BobSignup />} />
-              <Route path="/bob/inquire" element={<BobInquiry />} />
-              <Route path="/bob/security" element={<BobSecurity />} />
-              <Route path="/bob/live-products" element={<BobLiveProducts />} />
-              <Route path="/bob/portal" element={<BobPortal />} />
-              <Route path="/bob/admin" element={<BobPortal initialAdmin />} />
+              <Route path="/bob" element={<BOBCommercialRedirect to="/bob" />} />
+              <Route path="/bob/login" element={<BOBCommercialRedirect to="/bob/login" />} />
+              <Route path="/bob/signup" element={<BOBCommercialRedirect to="/bob/signup" />} />
+              <Route path="/bob/inquire" element={<BOBCommercialRedirect to="/bob/inquire" />} />
+              <Route path="/bob/security" element={<BOBCommercialRedirect to="/bob/security" />} />
+              <Route path="/bob/live-products" element={<BOBCommercialRedirect to="/AITools" />} />
+              <Route path="/bob/portal" element={<BOBCommercialRedirect to="/bob/portal" />} />
+              <Route path="/bob/admin" element={<BOBCommercialRedirect to="/bob/admin" />} />
               <Route path="/bob/internal" element={<DebtCoachAuthProvider><BobInternalPage /></DebtCoachAuthProvider>} />
               {/* Protected */}
               <Route path="/" element={<Home />} />

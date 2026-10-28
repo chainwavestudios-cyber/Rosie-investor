@@ -9,13 +9,44 @@ import { useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
 import { readCsv, importedListCsv, downloadCsv } from '@/lib/csvCampaign';
+import ProspectPicker from './ProspectPicker';
 
-export default function CsvUploadStep({ campaign, csv, setCsv, save, username }) {
+const PROSPECT_HEADERS = ['Email', 'First name', 'Last name', 'Phone', 'City', 'State', 'Debt amount ($)', 'Lead source'];
+const PROSPECT_MAPPING = {
+  email: 'Email',
+  firstName: 'First name',
+  lastName: 'Last name',
+  phone: 'Phone',
+  city: 'City',
+  state: 'State',
+  debtAmount: 'Debt amount ($)',
+  source: 'Lead source',
+};
+
+export default function CsvUploadStep({ campaign, csv, setCsv, setMapping, save, username }) {
   const inputRef = useRef(null);
+  const [source, setSource] = useState('csv');
   const [listName, setListName] = useState(campaign?.listName || '');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const [downloading, setDownloading] = useState(false);
+
+  // Prospects fill the same row shape a CSV produces, so every later step is unchanged.
+  const useProspects = (leads) => {
+    const rows = leads.map((lead) => ({
+      'Email': lead.email || '',
+      'First name': lead.firstName || '',
+      'Last name': lead.lastName || '',
+      'Phone': lead.phone || '',
+      'City': lead.city || '',
+      'State': lead.state || '',
+      'Debt amount ($)': lead.debtAmount || '',
+      'Lead source': 'Prospect pipeline',
+    }));
+    setCsv({ fileName: `Prospects · ${new Date().toLocaleDateString()}`, headers: PROSPECT_HEADERS, rows, fromProspects: true });
+    setMapping?.(PROSPECT_MAPPING);
+    if (!listName) setListName(`Prospects · ${new Date().toLocaleDateString()}`);
+  };
 
   // The rows live on the campaign itself, so the list survives a cancel or a finished run.
   const importedRows = Number(campaign?.importedCount || 0);
