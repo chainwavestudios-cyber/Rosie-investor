@@ -20,6 +20,8 @@ export default function ClosingTab({ lead, update, username }) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(lead?.closingProgressUpdatedAt || null);
   const [error, setError] = useState('');
+  const [progressLeadId, setProgressLeadId] = useState(lead?.id || null);
+  const [progressDirty, setProgressDirty] = useState(false);
   const [modules, setModules] = useState(CLOSING_MODULES);
   const saveTimerRef = useRef(null);
 
@@ -38,19 +40,23 @@ export default function ClosingTab({ lead, update, username }) {
 
   // Reload when lead changes
   useEffect(() => {
-    if (lead?.closingProgressJson) { try { setDone(JSON.parse(lead.closingProgressJson)); } catch {} }
+    setProgressLeadId(null);
+    setProgressDirty(false);
+    if (lead?.closingProgressJson) { try { setDone(JSON.parse(lead.closingProgressJson)); } catch { setDone({}); } }
     else { try { setDone(JSON.parse(localStorage.getItem(`closing_progress_${lead?.id || 'general'}`) || '{}')); } catch { setDone({}); } }
     setSavedAt(lead?.closingProgressUpdatedAt || null);
+    setProgressLeadId(lead?.id || null);
   }, [lead?.id]);
 
   // Persist to localStorage (fast cache)
   useEffect(() => {
-    try { localStorage.setItem(`closing_progress_${lead?.id || 'general'}`, JSON.stringify(done)); } catch {}
-  }, [done, lead?.id]);
+    if (!lead?.id || progressLeadId !== lead.id) return;
+    try { localStorage.setItem(`closing_progress_${lead.id}`, JSON.stringify(done)); } catch {}
+  }, [done, lead?.id, progressLeadId]);
 
   // Auto-save to DB (debounced 3s)
   useEffect(() => {
-    if (!lead?.id) return;
+    if (!lead?.id || progressLeadId !== lead.id || !progressDirty) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
@@ -59,12 +65,18 @@ export default function ClosingTab({ lead, update, username }) {
           closingProgressUpdatedAt: new Date().toISOString(),
         });
         setSavedAt(new Date().toISOString());
-      } catch {}
-    }, 3000);
+        setProgressDirty(false);
+        setError('');
+      } catch (e) { setError(`Auto-save failed: ${e?.message || e}`); }
+    }, 1000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [done, lead?.id]);
+  }, [done, lead?.id, progressLeadId, progressDirty]);
 
-  const handleToggle = (key) => setDone(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleToggle = (key) => {
+    if (progressLeadId !== lead?.id) return;
+    setDone(prev => ({ ...prev, [key]: !prev[key] }));
+    setProgressDirty(true);
+  };
 
   const handleSave = async () => {
     if (!lead?.id) return;
@@ -75,6 +87,7 @@ export default function ClosingTab({ lead, update, username }) {
         closingProgressUpdatedAt: new Date().toISOString(),
       });
       setSavedAt(new Date().toISOString());
+      setProgressDirty(false);
     } catch (e) { setError('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
@@ -93,7 +106,7 @@ export default function ClosingTab({ lead, update, username }) {
         <button onClick={handleSave} disabled={saving || !lead?.id} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving || !lead?.id ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !lead?.id ? 0.5 : 1 }}>
           {saving ? '⏳ Saving…' : '💾 Save Progress'}
         </button>
-        {savedAt && <span style={{ color: '#6b7280', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+        {progressDirty ? <span style={{ color: '#f59e0b', fontSize: '10px' }}>Saving changes…</span> : savedAt && <span style={{ color: '#93bcae', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
       </div>
       {error && <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '11px' }}>⚠ {error}</div>}
     </div>
