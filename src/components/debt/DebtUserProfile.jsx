@@ -1,319 +1,403 @@
 /**
- * DebtUserProfile.jsx — User profile tab showing AI-built profiles from calls.
- * Lists all debt leads with their animal type, intent score, traits, and recommended approach.
+ * Prospect Intelligence Center — compact CRM roster + actionable AI briefing.
+ * Preserves role-scoped lead reads, full contact-card editor, AI profile metrics,
+ * memories, migrated Fronter leads, and explicit report acknowledgement.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
+import {
+  Activity, ArrowUpRight, BarChart3, CalendarClock, CalendarDays, CheckCircle2,
+  ChevronDown, Clock3, FileText, Flame, Headphones, Mail, Phone, Plus,
+  RefreshCcw, Search, Sparkles, UserRound, Users, X
+} from 'lucide-react';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import IntentReportModal from '@/components/debt/IntentReportModal';
 import MigratedLeadsPanel from '@/components/debt/MigratedLeadsPanel';
+import KeyFactsPanel from '@/components/debt/KeyFactsPanel';
+import NextCallBriefing from '@/components/debt/NextCallBriefing';
 import CardTypeChip from '@/components/debt/CardTypeChip';
-import { isCampaignCard } from '@/lib/cardTypes';
+import { cardTypeOf } from '@/lib/cardTypes';
+import './DebtUserProfile.css';
 
-const GOLD = '#10b981';
-const ls = { display: 'block', color: '#8a9ab8', fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' };
-
-const ANIMAL_COLORS = { duck: '#ef4444', cow: '#4ade80', unknown: '#6b7280' };
-const ANIMAL_EMOJI = { duck: '🦆', cow: '🐄', unknown: '❓' };
-
-// Campaign cards stay out of the prospect pipeline until an agent tags them
-// from the contact card — the view filters below separate the two.
-const CARD_VIEWS = [
-  { id: 'prospect', label: '👤 Prospects' },
-  { id: 'campaign', label: '📧 Campaign' },
-  { id: 'all', label: 'All' },
+const PAGE = 200;
+const asRows = r => Array.isArray(r) ? r : Array.isArray(r?.items) ? r.items : [];
+const parseJson = v => { try { return typeof v === 'string' ? JSON.parse(v) : v || {}; } catch { return {}; } };
+const safe = v => typeof v === 'string' ? v.trim() : '';
+const fullName = l => [l?.firstName, l?.lastName].filter(Boolean).join(' ').trim() || 'Unnamed prospect';
+const money = n => Number(n) > 0 ? '$' + Math.round(Number(n)).toLocaleString('en-US') : '—';
+const dateText = s => {
+  if (!s || Number.isNaN(new Date(s).getTime())) return '—';
+  return new Date(s).toLocaleString('en-US', {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+};
+const timeNum = s => s && Number.isFinite(new Date(s).getTime()) ? new Date(s).getTime() : 0;
+const prospectType = l => cardTypeOf(l) === 'campaign' ? 'campaign' : 'prospect';
+const upcoming = l => {
+  const timestamp = timeNum(l?.callbackAt) || timeNum(l?.appointmentDate);
+  return timestamp > Date.now() ? timestamp : 0;
+};
+const needsAction = l => {
+  const callback = timeNum(l?.callbackAt);
+  const booked = timeNum(l?.appointmentDate);
+  const last = timeNum(l?.lastCallAt);
+  if (['declined','enrolled','completed'].includes(l?.status)) return false;
+  return Boolean(l?.appointmentChangeRequested || (callback && callback < Date.now() && last < callback) || (booked && booked < Date.now() && last < booked));
+};
+const nextStep = call => {
+  if (!call) return '';
+  const intent = parseJson(call.intentPlaybookJson), analysis = parseJson(call.callAnalysisJson);
+  return safe(intent.recommendedNextStep) ||
+    safe(intent.nextCallPlaybook?.recommendedNextStep) ||
+    safe(analysis.detailedFollowUp?.recommendedApproach) ||
+    safe(call.followUpReport);
+};
+const callSummary = call => {
+  if (!call) return '';
+  const intent = parseJson(call.intentPlaybookJson), analysis = parseJson(call.callAnalysisJson);
+  return safe(analysis.managerReport?.summary) || safe(intent.summary) || safe(intent.callSummary) ||
+    safe(call.intentReport).slice(0,450);
+};
+const FILTERS = [
+  ['prospect','Prospects'], ['campaign','Campaign'], ['all','All contacts']
 ];
+const PRIORITY = [
+  ['all','All'],['hot','Hot leads'],['attention','Needs action'],
+  ['upcoming','Upcoming'],['high','High intent']
+];
+function Metric({Icon,label,value,sub}) {
+  return <div className="pic-metric"><div className="pic-metric-name">{label}<Icon size={15}/></div><strong>{value}</strong><span>{sub}</span></div>;
+}
+function LabelValue({label,value}) {
+  return <div className="pic-kv"><span>{label}</span><strong>{value || '—'}</strong></div>;
+}
+function Insight({label,value,note}) {
+  return <div className="pic-insight"><span>{label}</span><strong>{value ?? '—'}</strong>{note && <small>{note}</small>}</div>;
+}
 
-export default function DebtUserProfile({ debtCoachUser }) {
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [showProfile, setShowProfile] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [subView, setSubView] = useState('all'); // 'all' | 'migrated'
-  const [showIntentReport, setShowIntentReport] = useState(false);
-  const [cardView, setCardView] = useState('prospect'); // 'prospect' | 'campaign' | 'all'
+export default function DebtUserProfile({ debtCoachUser, onGoToCalls }) {
+  const [leads,setLeads] = useState([]);
+  const [selectedId,setSelectedId] = useState(null);
+  const [loading,setLoading] = useState(true);
+  const [loadingMore,setLoadingMore] = useState(false);
+  const [hasMore,setHasMore] = useState(false);
+  const [error,setError] = useState('');
+  const [creating,setCreating] = useState(false);
+  const [promoting,setPromoting] = useState(false);
+  const [cardView,setCardView] = useState('prospect');
+  const [priority,setPriority] = useState('all');
+  const [search,setSearch] = useState('');
+  const [sort,setSort] = useState('recent');
+  const [subView,setSubView] = useState('all');
+  const [profileView,setProfileView] = useState(null);
+  const [reportOpen,setReportOpen] = useState(false);
+  const [calls,setCalls] = useState([]);
+  const [callsLoading,setCallsLoading] = useState(false);
+  const [callsError,setCallsError] = useState('');
+  const [showAnalysis,setShowAnalysis] = useState(false);
+  const cursorRef = useRef(0);
+  const requestRef = useRef(0);
+
+  // Preserve original access: dialers read only assigned DebtLead records.
+  const readPage = useCallback(async (skip) => {
+    const who = debtCoachUser?.username;
+    if (debtCoachUser?.role === 'dialer') {
+      if (!who) return [];
+      return asRows(await base44.entities.DebtLead.filter({ debtCoachOwner: who }, '-updated_date', PAGE, skip));
+    }
+    return asRows(await base44.entities.DebtLead.list('-updated_date', PAGE, skip));
+  },[debtCoachUser?.role,debtCoachUser?.username]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const request = ++requestRef.current;
+    setLoading(true);setError('');
     try {
-      let all;
-      if (debtCoachUser?.role === 'dialer') {
-        all = await base44.entities.DebtLead.filter({ debtCoachOwner: debtCoachUser.username }, '-updated_date', 200);
-      } else {
-        all = await base44.entities.DebtLead.list('-updated_date', 200);
-      }
-      const active = (all || []).filter(l => !l.deletedAt);
-      setLeads(active);
-      if (active.length > 0 && !selected) setSelected(active[0]);
-    } catch {}
-    setLoading(false);
-  }, [selected, debtCoachUser]);
+      const page = await readPage(0);
+      if (request !== requestRef.current) return;
+      cursorRef.current = page.length;
+      setHasMore(page.length === PAGE);
+      setLeads(page.filter(l => !l.deletedAt));
+    } catch(e) {
+      if (request === requestRef.current) setError('Could not load prospects: ' + (e?.message || 'Please retry.'));
+    } finally {
+      if (request === requestRef.current) setLoading(false);
+    }
+  },[readPage]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{load();return()=>{requestRef.current++;};},[load]);
 
-  const createNewProspect = async () => {
-    setCreating(true);
+  const loadMore = async () => {
+    if (loadingMore || loading || !hasMore) return;
+    const request = requestRef.current;
+    setLoadingMore(true);setError('');
     try {
-      const all = await base44.entities.DebtLead.list('-created_date', 500);
-      const maxNum = (all || []).reduce((max, l) => {
-        const n = parseInt((l.leadNumber || '').replace('#', ''), 10);
-        return isNaN(n) ? max : Math.max(max, n);
-      }, 0);
-      const leadNumber = `#${String(maxNum + 1).padStart(5, '0')}`;
-      const created = await base44.entities.DebtLead.create({
-        firstName: 'New',
-        lastName: 'Prospect',
-        status: 'new',
-        callCount: 0,
-        leadNumber,
-        debtCoachOwner: debtCoachUser?.username || null,
+      const next = await readPage(cursorRef.current);
+      if (request !== requestRef.current) return;
+      cursorRef.current += next.length;
+      setHasMore(next.length === PAGE);
+      setLeads(prev => {
+        const seen = new Set(prev.map(l=>l.id));
+        return [...prev,...next.filter(l=>!l.deletedAt&&!seen.has(l.id))];
       });
-      await load();
-      setSelected(created);
-      setShowProfile(true);
-    } catch (e) { alert('Failed to create prospect: ' + (e?.message || String(e))); }
-    setCreating(false);
+    } catch(e) {
+      if (request === requestRef.current) setError('Could not load additional prospects: ' + (e?.message || 'Please retry.'));
+    } finally {setLoadingMore(false);}
   };
 
-  const profile = selected?.profileJson ? (() => { try { return JSON.parse(selected.profileJson); } catch { return null; } })() : null;
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const rows = leads.filter(l => {
+      if (cardView !== 'all' && prospectType(l) !== cardView) return false;
+      if (priority==='hot' && !l.isHotLead) return false;
+      if (priority==='attention' && !needsAction(l)) return false;
+      if (priority==='upcoming' && !upcoming(l)) return false;
+      if (priority==='high' && !(Number(l.intentScore) >= 75 && l.intentScore != null)) return false;
+      return !q || [fullName(l),l.email,l.phone,l.leadNumber,l.city,l.state,l.status]
+        .some(v => String(v||'').toLowerCase().includes(q));
+    });
+    return rows.sort((a,b)=>{
+      if (sort==='intent') return (Number(b.intentScore)||0)-(Number(a.intentScore)||0);
+      if (sort==='debt') return (Number(b.debtAmount)||0)-(Number(a.debtAmount)||0);
+      if (sort==='calls') return (Number(b.callCount)||0)-(Number(a.callCount)||0);
+      if (sort==='name') return fullName(a).localeCompare(fullName(b));
+      return timeNum(b.updated_date||b.lastCallAt)-timeNum(a.updated_date||a.lastCallAt);
+    });
+  },[leads,cardView,priority,search,sort]);
 
-  const visible = leads.filter(l =>
-    cardView === 'all' ? true : cardView === 'campaign' ? isCampaignCard(l) : !isCampaignCard(l)
-  );
+  // Selection is *always* from the current view: no stale campaign card
+  // hanging in the detail pane after switching to Prospects.
+  const selected = visible.find(l=>l.id===selectedId) || visible[0] || null;
+  const profile = useMemo(()=>parseJson(selected?.profileJson),[selected?.profileJson]);
+  const latest = calls[0] || null;
+  const latestReport = calls.find(c=>safe(c.intentReport)) || null;
+  const next = nextStep(latest) || safe(profile.recommendedApproach);
+  const summary = callSummary(latest) || safe(profile.lastCallSummary);
+  const outstanding = leads.filter(needsAction).length;
 
-  if (subView === 'migrated') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <button onClick={() => setSubView('all')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${GOLD}`, color: GOLD, cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>👤 All Prospects</button>
-          <button onClick={() => setSubView('migrated')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid #22d3ee`, color: '#22d3ee', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px' }}>🚀 Migrated from Fronter</button>
-        </div>
-        <MigratedLeadsPanel debtCoachUser={debtCoachUser} />
+  useEffect(()=>{
+    let cancelled = false;
+    if (!selected?.id) {setCalls([]);setCallsLoading(false);setCallsError('');return undefined;}
+    setCalls([]);setCallsLoading(true);setCallsError('');setReportOpen(false);setShowAnalysis(false);
+    base44.entities.DebtCallTranscript.filter({leadId:selected.id},'-callDate',10)
+      .then(r=>{if(!cancelled)setCalls(asRows(r));})
+      .catch(()=>{if(!cancelled)setCallsError('Recent call details could not be loaded.');})
+      .finally(()=>{if(!cancelled)setCallsLoading(false);});
+    return ()=>{cancelled=true;};
+  },[selected?.id]);
+
+  const createNewProspect = async () => {
+    setCreating(true);setError('');
+    try {
+      // Keep the original sequential lead-number convention.
+      const recent = asRows(await base44.entities.DebtLead.list('-created_date',500));
+      const largest = recent.reduce((max,l)=>{
+        const n = parseInt(String(l.leadNumber||'').replace('#',''),10);
+        return Number.isFinite(n)?Math.max(max,n):max;
+      },0);
+      const created = await base44.entities.DebtLead.create({
+        firstName:'New',lastName:'Prospect',status:'new',callCount:0,
+        isProspect:true,leadNumber:'#'+String(largest+1).padStart(5,'0'),
+        debtCoachOwner:debtCoachUser?.username||null
+      });
+      setCardView('prospect');setPriority('all');setSearch('');
+      await load();
+      setLeads(prev=>prev.some(l=>l.id===created.id)?prev:[created,...prev]);
+      setSelectedId(created.id);
+      setProfileView({lead:created,initialTab:'overview'});
+    } catch(e) {setError('Failed to create prospect: '+(e?.message||String(e)));}
+    finally {setCreating(false);}
+  };
+  const promote = async () => {
+    if (!selected?.id||promoting)return;
+    setPromoting(true);setError('');
+    try {
+      const patch={isProspect:true,prospectTaggedAt:new Date().toISOString(),
+        prospectTaggedBy:debtCoachUser?.username||''};
+      const saved=await base44.entities.DebtLead.update(selected.id,patch);
+      setLeads(prev=>prev.map(l=>l.id===selected.id?{...l,...patch,...saved}:l));
+    } catch(e){setError('Could not promote the contact: '+(e?.message||String(e)));}
+    finally{setPromoting(false);}
+  };
+  const openProfile = initialTab => {
+    if(selected)setProfileView({lead:selected,initialTab});
+  };
+  const onProfileSave = updated => {
+    if (!updated?.id)return;
+    setLeads(prev=>prev.map(l=>l.id===updated.id?{...l,...updated}:l));
+    setProfileView(prev=>prev?.lead.id===updated.id?{...prev,lead:{...prev.lead,...updated}}:prev);
+  };
+  const closeProfile = () => {
+    setProfileView(null);
+    load();
+  };
+  const acknowledgeReport = async () => {
+    if (!latestReport?.id) {setReportOpen(false);return;}
+    try {
+      const stamp = new Date().toISOString();
+      await base44.entities.DebtCallTranscript.update(latestReport.id,{reportAcknowledgedAt:stamp});
+      setCalls(prev=>prev.map(c=>c.id===latestReport.id?{...c,reportAcknowledgedAt:stamp}:c));
+      setReportOpen(false);
+    } catch(e) {setError('Could not acknowledge the intent report: '+(e?.message||String(e)));}
+  };
+
+  if (subView==='migrated') {
+    return <div className="pic-root">
+      <div className="pic-migrate-nav">
+        <button className="pic-btn" onClick={()=>setSubView('all')}><UserRound size={14}/> All prospects</button>
+        <span className="pic-muted">Migrated from Fronter</span>
       </div>
-    );
+      <MigratedLeadsPanel debtCoachUser={debtCoachUser}/>
+    </div>;
   }
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
-      <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '2px', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '12px' }}>
-        <button onClick={() => setSubView('all')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${subView === 'all' ? GOLD : 'transparent'}`, color: subView === 'all' ? GOLD : '#8a9ab8', cursor: 'pointer', fontSize: '12px', fontWeight: subView === 'all' ? 'bold' : 'normal', letterSpacing: '1px' }}>👤 All Prospects</button>
-        <button onClick={() => setSubView('migrated')} style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: `2px solid ${subView === 'migrated' ? '#22d3ee' : 'transparent'}`, color: subView === 'migrated' ? '#22d3ee' : '#8a9ab8', cursor: 'pointer', fontSize: '12px', fontWeight: subView === 'migrated' ? 'bold' : 'normal', letterSpacing: '1px' }}>🚀 Migrated from Fronter</button>
+  return <div className="pic-root">
+    <header className="pic-header">
+      <div><span className="pic-eyebrow">Settlement IQ · Customer intelligence</span>
+        <h2>Prospect Intelligence Center</h2>
+        <p>Every prospect, conversation, next action and customer insight in one workspace.</p>
       </div>
-      {/* Lead list */}
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px' }}>
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>👤 Debt Leads</div>
-          <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={createNewProspect} disabled={creating} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '4px 12px', cursor: creating ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: creating ? 0.5 : 1 }}>+ New</button>
-            <button onClick={load} style={{ background: 'rgba(255,255,255,0.05)', color: '#8a9ab8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '11px' }}>↻</button>
+      <div className="pic-header-actions">
+        <button className="pic-btn pic-btn-soft" onClick={()=>setSubView('migrated')}><Users size={14}/> Fronter migrations</button>
+        <button className="pic-btn pic-btn-soft" onClick={load} disabled={loading}><RefreshCcw size={14}/> {loading?'Refreshing…':'Refresh'}</button>
+        <button className="pic-btn pic-btn-primary" onClick={createNewProspect} disabled={creating}><Plus size={15}/>{creating?'Creating…':'New prospect'}</button>
+      </div>
+    </header>
+    <div className="pic-metrics">
+      <Metric Icon={Users} label="Loaded contacts" value={leads.length} sub={hasMore?'More records available':'In your access scope'}/>
+      <Metric Icon={UserRound} label="Prospects" value={leads.filter(l=>prospectType(l)==='prospect').length} sub="Excludes unpromoted campaigns"/>
+      <Metric Icon={Flame} label="Hot leads" value={leads.filter(l=>l.isHotLead).length} sub="Manually flagged contacts"/>
+      <Metric Icon={CalendarClock} label="Need attention" value={outstanding} sub="From available appointment data"/>
+    </div>
+    <div className="pic-toolbar">
+      <label className="pic-search"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, email, phone, lead number…" aria-label="Search prospects"/></label>
+      <select className="pic-select" value={sort} onChange={e=>setSort(e.target.value)} aria-label="Sort prospects">
+        <option value="recent">Recently updated</option><option value="intent">Highest intent</option>
+        <option value="debt">Highest debt</option><option value="calls">Most calls</option>
+        <option value="name">Name A–Z</option>
+      </select>
+    </div>
+    <div className="pic-tabline" role="group" aria-label="Contact classification">
+      {FILTERS.map(([value,label])=><button key={value} className="pic-tab" aria-pressed={cardView===value} onClick={()=>{setCardView(value);setSelectedId(null);}}>{label}<span>{leads.filter(l=>value==='all'||prospectType(l)===value).length}</span></button>)}
+    </div>
+    <div className="pic-chipline" role="group" aria-label="Prospect priorities">
+      {PRIORITY.map(([value,label])=><button key={value} className="pic-chip" aria-pressed={priority===value} onClick={()=>{setPriority(value);setSelectedId(null);}}>{label}</button>)}
+    </div>
+    {error&&<div className="pic-error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={14}/></button></div>}
+    <div className="pic-workspace">
+      <section className="pic-roster" aria-label="Prospect list">
+        <div className="pic-panel-heading"><span>Contact roster</span><span>{visible.length} shown{hasMore?' · more available':''}</span></div>
+        {loading&&!leads.length?<div className="pic-empty">Loading prospects…</div>:
+          visible.length===0?<div className="pic-empty">No contacts match this view. Change the filters or search.</div>:
+          <div className="pic-roster-scroll">
+            {visible.map(l=><button key={l.id} type="button" className="pic-contact" aria-pressed={selected?.id===l.id} onClick={()=>setSelectedId(l.id)}>
+              <div className="pic-contact-top"><strong>{fullName(l)}</strong><span>{l.intentScore==null?'':String(l.intentScore)+'/100'}</span></div>
+              <div className="pic-contact-bottom"><span>{l.leadNumber||l.phone||'No contact number'} · {money(l.debtAmount)}</span>
+                <span className="pic-mini-flags">{l.isHotLead&&<Flame size={12} className="pic-hot" aria-label="Hot lead"/>}
+                  {needsAction(l)&&<CalendarClock size={12} className="pic-alert" aria-label="Needs action"/>}
+                  {upcoming(l)>0&&<CalendarDays size={12} className="pic-green" aria-label="Upcoming appointment"/>}
+                  {prospectType(l)==='campaign'&&<Mail size={12} aria-label="Campaign"/>}
+                </span>
+              </div>
+            </button>)}
           </div>
-        </div>
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '6px' }}>
-          {CARD_VIEWS.map(v => (
-            <button key={v.id} onClick={() => setCardView(v.id)} style={{ background: cardView === v.id ? 'rgba(16,185,129,0.12)' : 'transparent', color: cardView === v.id ? GOLD : '#6b7280', border: `1px solid ${cardView === v.id ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>{v.label}</button>
-          ))}
-        </div>
-        <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-          {loading ? (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-          ) : visible.length === 0 ? (
-            <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px', lineHeight: 1.6 }}>
-              {cardView === 'campaign' ? 'No campaign cards yet. A mailer import creates one per recipient.' : cardView === 'prospect' ? 'No prospects yet. Tag a campaign card as Prospect from the contact card, or start a live call.' : 'No debt leads yet. Start a live call to create one.'}
-            </div>
-          ) : visible.map(lead => {
-            const p = lead.profileJson ? (() => { try { return JSON.parse(lead.profileJson); } catch { return null; } })() : null;
-            const animal = p?.animalType || lead.animalType || 'unknown';
-            return (
-              <button key={lead.id} onClick={() => setSelected(lead)} style={{ width: '100%', background: selected?.id === lead.id ? 'rgba(16,185,129,0.08)' : 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '12px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <div style={{ fontSize: '20px' }}>{ANIMAL_EMOJI[animal]}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ color: '#e8e0d0', fontSize: '13px', fontWeight: 'bold' }}>{lead.firstName} {lead.lastName}</span>
-                    <CardTypeChip lead={lead} />
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: '10px' }}>{lead.callCount || 0} calls · {lead.status}</div>
+        }
+        {hasMore&&<button className="pic-loadmore" disabled={loadingMore||loading} onClick={loadMore}>
+          <ChevronDown size={14}/>{loadingMore?'Loading…':'Load more contacts'}
+        </button>}
+        <div className="pic-roster-foot">Compact records · filters search loaded results. {hasMore?'Load more to expand your search.':'All available records loaded.'}</div>
+      </section>
+      <section className="pic-detail" aria-label="Prospect intelligence">
+        {!selected?<div className="pic-empty pic-empty-large">Select a contact to review their history and next steps.</div>:<>
+          <div className="pic-person">
+            <div className="pic-person-head">
+              <div><div className="pic-eyebrow">Customer briefing · {selected.leadNumber||'Contact record'}</div>
+                <h3>{fullName(selected)}</h3>
+                <div className="pic-identity">{selected.phone&&<span><Phone size={12}/>{selected.phone}</span>}
+                  {selected.email&&<span><Mail size={12}/>{selected.email}</span>}
                 </div>
-                {lead.intentScore != null && (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: ANIMAL_COLORS[animal], fontSize: '14px', fontWeight: 'bold' }}>{lead.intentScore}</div>
-                    <div style={{ color: '#4a5568', fontSize: '8px' }}>INTENT</div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Profile detail */}
-      <div style={{ background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '24px' }}>
-        {!selected ? (
-          <div style={{ color: '#4a5568', textAlign: 'center', padding: '80px 0', fontSize: '13px' }}>Select a lead to view their AI-built profile.</div>
-        ) : (
-          <div>
-            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h2 style={{ margin: 0, color: '#e8e0d0', fontSize: '20px', fontWeight: 'normal' }}>{selected.firstName} {selected.lastName}</h2>
-                  <CardTypeChip lead={selected} size={10} />
+                <div className="pic-tags"><CardTypeChip lead={selected}/><span className="pic-status">{selected.status||'new'}</span>
+                  {selected.isHotLead&&<span className="pic-flag-hot"><Flame size={11}/> Hot lead</span>}
+                  {needsAction(selected)&&<span className="pic-flag-alert">Follow-up needs attention</span>}
                 </div>
-                <div style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>{selected.phone} · {selected.email}</div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => setShowProfile(true)} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  💳 Open Contact Card
-                </button>
-                <button onClick={() => setShowIntentReport(true)} title="Open the intent report from the last call" style={{ padding: '6px 14px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: selected?.id ? 'pointer' : 'not-allowed', background: 'rgba(16,185,129,0.09)', color: '#10b981', border: '1px solid rgba(16,185,129,0.27)', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: selected?.id ? 1 : 0.5 }}>
-                  🎯 Intent Report
-                </button>
-                <div style={{ background: `${ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown']}18`, border: `1px solid ${ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown']}44`, borderRadius: '4px', padding: '8px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '20px' }}>{ANIMAL_EMOJI[profile?.animalType || selected.animalType || 'unknown']}</div>
-                  <div style={{ color: ANIMAL_COLORS[profile?.animalType || selected.animalType || 'unknown'], fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>{(profile?.animalType || selected.animalType || 'unknown')}</div>
-                </div>
-                {selected.intentScore != null && (
-                  <div style={{ background: 'rgba(244,114,182,0.08)', border: '1px solid rgba(244,114,182,0.2)', borderRadius: '4px', padding: '8px 14px', textAlign: 'center' }}>
-                    <div style={{ color: '#f472b6', fontSize: '20px', fontWeight: 'bold' }}>{selected.intentScore}</div>
-                    <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px' }}>Intent</div>
-                  </div>
-                )}
-              </div>
+              <div className="pic-intent"><strong>{selected.intentScore!=null?selected.intentScore:'—'}</strong><span>Intent /100</span></div>
             </div>
-
-            {/* Debt summary */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }}>
-              <StatBox label="Total Debt" value={selected.debtAmount ? `$${selected.debtAmount.toLocaleString()}` : '—'} />
-              <StatBox label="Creditors" value={selected.creditorCount || '—'} />
-              <StatBox label="Monthly Income" value={selected.monthlyIncome ? `$${selected.monthlyIncome.toLocaleString()}` : '—'} />
-              <StatBox label="Credit Score" value={selected.creditScore || '—'} />
+            <div className="pic-actions">
+              <button className="pic-btn pic-btn-primary" onClick={()=>openProfile('overview')}><UserRound size={14}/> Contact card <ArrowUpRight size={12}/></button>
+              <button className="pic-btn" onClick={()=>openProfile('activity')}><CalendarDays size={14}/> Follow-up / rebook</button>
+              <NextCallBriefing key={selected.id} lead={selected} agentUsername={debtCoachUser?.username} compact/>
+              <button className="pic-btn" onClick={()=>setReportOpen(true)} disabled={!latestReport||callsLoading}><FileText size={14}/> Intent report</button>
+              {onGoToCalls&&<button className="pic-btn pic-btn-soft" onClick={onGoToCalls}><Headphones size={14}/> Calls tab</button>}
+              {prospectType(selected)==='campaign'&&<button className="pic-btn pic-btn-soft" onClick={promote} disabled={promoting}><CheckCircle2 size={14}/>{promoting?'Promoting…':'Promote to prospect'}</button>}
             </div>
-
-            {profile ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {/* Intent Engine Metrics Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                  {profile.engagementScore != null && <MetricBox label="Engagement" value={profile.engagementScore} max={100} color="#4ade80" notes={profile.engagementNotes} />}
-                  {profile.excitementLevel && <MetricBox label="Excitement" value={profile.excitementLevel} color="#f472b6" notes={profile.excitementNotes} />}
-                  {profile.emotionalState && <MetricBox label="Emotional State" value={profile.emotionalState} color="#fb923c" notes={profile.emotionalNotes} />}
-                  {profile.commitmentLevel && <MetricBox label="Commitment" value={profile.commitmentLevel} color={profile.commitmentLevel === 'firm' ? '#4ade80' : profile.commitmentLevel === 'soft' ? '#f59e0b' : '#ef4444'} notes={profile.commitmentDetails} />}
-                  {profile.pace && <MetricBox label="Pace" value={profile.pace} color="#60a5fa" notes={profile.paceNotes} />}
-                  {profile.rapportLevel != null && <MetricBox label="Rapport" value={profile.rapportLevel} max={100} color="#a78bfa" notes={profile.rapportNotes} />}
-                </div>
-
-                {/* Call analytics */}
-                {(profile.questionCount != null || profile.talkRatioProspect != null || profile.callDurationSeconds != null) && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                    {profile.questionCount != null && <StatBox label="Questions Asked" value={profile.questionCount} />}
-                    {profile.talkRatioProspect != null && <StatBox label="Talk Ratio" value={`${profile.talkRatioProspect}%`} />}
-                    {profile.callDurationSeconds != null && <StatBox label="Call Duration" value={`${Math.floor(profile.callDurationSeconds/60)}m ${profile.callDurationSeconds%60}s`} />}
-                    {profile.hesitationCount != null && <StatBox label="Hesitations" value={profile.hesitationCount} />}
-                  </div>
-                )}
-
-                {profile.overallIntentLabel && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Overall Intent</div>
-                    <div style={{ color: profile.overallIntentLabel === 'hot' ? '#4ade80' : profile.overallIntentLabel === 'warm' ? '#f59e0b' : '#ef4444', fontSize: '14px', fontWeight: 'bold', textTransform: 'capitalize' }}>{profile.overallIntentLabel}</div>
-                  </div>
-                )}
-                {profile.keyObservations?.length > 0 && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Key Observations</div>
-                    {profile.keyObservations.map((o, i) => <div key={i} style={{ color: '#8a9ab8', fontSize: '12px', marginBottom: '4px', lineHeight: 1.5 }}>• {o}</div>)}
-                  </div>
-                )}
-                {profile.recommendedApproach && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Recommended Approach</div>
-                    <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.6, background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '4px', padding: '12px' }}>{profile.recommendedApproach}</div>
-                  </div>
-                )}
-                {profile.traits && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Behavioral Traits</div>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {Object.entries(profile.traits).filter(([, v]) => v).map(([k]) => (
-                        <span key={k} style={{ padding: '4px 12px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '20px', color: GOLD, fontSize: '11px' }}>{k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {profile.lastCallSummary && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Last Call Summary</div>
-                    <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.6 }}>{profile.lastCallSummary}</div>
-                  </div>
-                )}
-                {profile.animalConfidence != null && (
-                  <div>
-                    <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Animal Confidence</div>
-                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${profile.animalConfidence}%`, height: '100%', background: ANIMAL_COLORS[profile.animalType || 'unknown'], borderRadius: '3px' }} />
-                    </div>
-                    <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>{profile.animalConfidence}% confident</div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0', fontSize: '12px' }}>No AI profile yet. Run a live call to build this profile automatically.</div>
-            )}
-
-            {/* Key Facts & Memory — persisted across calls, surfaced in AI Coach */}
-            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-              <KeyFactsPanel leadId={selected.id} leadName={`${selected.firstName} ${selected.lastName}`.trim()} />
-            </div>
-
-            {selected.notes && (
-              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px' }}>Notes</div>
-                <div style={{ color: '#8a9ab8', fontSize: '12px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{selected.notes}</div>
-              </div>
-            )}
           </div>
-        )}
-      </div>
-
-      {showProfile && selected && (
-        <ClientProfileModal lead={selected} onClose={() => setShowProfile(false)} onSave={() => load()} />
-      )}
-
-      {showIntentReport && selected && (
-        <IntentReportModal
-          report={selected.nextCallBriefing || 'No intent report yet for this client. The intent engine writes one automatically when a call ends.'}
-          callDate={selected.nextCallBriefingAt}
-          leadName={`${selected.firstName || ''} ${selected.lastName || ''}`.trim()}
-          onAcknowledge={() => setShowIntentReport(false)}
-          onDismiss={() => setShowIntentReport(false)}
-        />
-      )}
+          <div className="pic-detail-scroll">
+            <div className="pic-financial">
+              <LabelValue label="Total unsecured debt" value={money(selected.debtAmount)}/>
+              <LabelValue label="Creditors" value={selected.creditorCount||'—'}/>
+              <LabelValue label="Monthly income" value={money(selected.monthlyIncome)}/>
+              <LabelValue label="Credit score" value={selected.creditScore||'—'}/>
+            </div>
+            <div className="pic-two-cards">
+              <article className="pic-info-card pic-featured"><h4><Sparkles size={15}/> Recommended next action</h4>
+                {callsLoading?<p className="pic-muted">Loading last call…</p>:next?<p>{next}</p>:<p className="pic-muted">No next-step recommendation recorded. Review the contact card and call history.</p>}
+                {selected.appointmentChangeRequested&&<div className="pic-reminder">Appointment change requested</div>}
+                {selected.callbackAt&&<div className="pic-reminder">Callback: {dateText(selected.callbackAt)}</div>}
+                {selected.appointmentDate&&<div className="pic-reminder">Appointment: {dateText(selected.appointmentDate)}{selected.appointmentConfirmed?' · Confirmed':''}</div>}
+              </article>
+              <article className="pic-info-card"><h4><Activity size={15}/> Last conversation</h4>
+                {callsLoading?<p className="pic-muted">Loading call history…</p>:
+                  summary?<p>{summary}</p>:
+                    selected.notes?<p>{String(selected.notes).slice(0,420)}</p>:
+                      <p className="pic-muted">No saved AI summary for this contact.</p>}
+                <div className="pic-meta">{latest?.callDate?'Last recorded call · '+dateText(latest.callDate):selected.lastCallAt?'Last call · '+dateText(selected.lastCallAt):'No saved calls'} · {selected.callCount||0} logged calls</div>
+                {callsError&&<div className="pic-muted" role="status">{callsError}</div>}
+              </article>
+            </div>
+            <article className="pic-info-card"><h4><CalendarClock size={15}/> Contact & follow-up</h4>
+              <div className="pic-followup-grid">
+                <LabelValue label="Last contacted" value={dateText(selected.lastCallAt)}/>
+                <LabelValue label="Next appointment" value={dateText(selected.appointmentDate)}/>
+                <LabelValue label="Callback" value={dateText(selected.callbackAt)}/>
+                <LabelValue label="Last updated" value={dateText(selected.updated_date)}/>
+              </div>
+            </article>
+            <article className="pic-info-card">
+              <div className="pic-cardtop"><h4><BarChart3 size={15}/> AI behavioral analysis</h4>
+                <button className="pic-link" onClick={()=>setShowAnalysis(v=>!v)} aria-expanded={showAnalysis}>{showAnalysis?'Hide details':'View full analysis'} <ChevronDown size={13}/></button>
+              </div>
+              <div className="pic-insight-grid">
+                <Insight label="Engagement" value={profile.engagementScore!=null?profile.engagementScore+'/100':'—'}/>
+                <Insight label="Commitment" value={profile.commitmentLevel}/>
+                <Insight label="Emotional state" value={profile.emotionalState}/>
+                <Insight label="Rapport" value={profile.rapportLevel!=null?profile.rapportLevel+'/100':'—'}/>
+              </div>
+              {showAnalysis&&<div className="pic-analysis-expanded">
+                <div className="pic-insight-grid">
+                  <Insight label="Excitement" value={profile.excitementLevel} note={profile.excitementNotes}/>
+                  <Insight label="Pace" value={profile.pace} note={profile.paceNotes}/>
+                  <Insight label="Questions asked" value={profile.questionCount}/>
+                  <Insight label="Talk ratio" value={profile.talkRatioProspect!=null?profile.talkRatioProspect+'%':'—'}/>
+                  <Insight label="Hesitations" value={profile.hesitationCount}/>
+                  <Insight label="Animal type" value={profile.animalType||selected.animalType} note={profile.animalConfidence!=null?profile.animalConfidence+'% confidence':''}/>
+                </div>
+                {profile.overallIntentLabel&&<p><strong>Overall intent:</strong> {profile.overallIntentLabel}</p>}
+                {Array.isArray(profile.keyObservations)&&profile.keyObservations.length>0&&<div><strong>Key observations</strong>{profile.keyObservations.map((p,i)=><p key={i}>• {typeof p==='string'?p:JSON.stringify(p)}</p>)}</div>}
+                {profile.recommendedApproach&&<p><strong>Approach:</strong> {profile.recommendedApproach}</p>}
+                {profile.traits&&typeof profile.traits==='object'&&<div className="pic-traits">{Object.entries(profile.traits).filter(([,v])=>v).map(([key])=><span key={key}>{key.replace(/([A-Z])/g,' $1')}</span>)}</div>}
+              </div>}
+            </article>
+            <article className="pic-info-card"><h4><Users size={15}/> Key facts & memory</h4>
+              <KeyFactsPanel key={selected.id} leadId={selected.id} leadName={fullName(selected)}/>
+            </article>
+            {selected.notes&&<article className="pic-info-card"><h4><FileText size={15}/> Agent notes</h4><p className="pic-notes">{selected.notes}</p></article>}
+          </div>
+        </>}
+      </section>
     </div>
-  );
-}
-
-function StatBox({ label, value }) {
-  return (
-    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
-      <div style={{ color: '#e8e0d0', fontSize: '16px', fontWeight: 'bold' }}>{value}</div>
-      <div style={{ color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>{label}</div>
-    </div>
-  );
-}
-
-function MetricBox({ label, value, max, color, notes }) {
-  const isScore = max != null && typeof value === 'number';
-  return (
-    <div style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: '4px', padding: '10px 12px' }}>
-      <div style={{ color, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>{label}</div>
-      <div style={{ color: '#e8e0d0', fontSize: '15px', fontWeight: 'bold', textTransform: 'capitalize' }}>
-        {isScore ? `${value}/100` : value}
-      </div>
-      {isScore && (
-        <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
-          <div style={{ width: `${Math.min(100, value)}%`, height: '100%', background: color, borderRadius: '2px' }} />
-        </div>
-      )}
-      {notes && <div style={{ color: '#8a9ab8', fontSize: '10px', marginTop: '4px', lineHeight: 1.4 }}>{notes}</div>}
-    </div>
-  );
+    {profileView&&<ClientProfileModal key={profileView.lead.id} lead={profileView.lead} username={debtCoachUser?.username}
+      initialTab={profileView.initialTab} onClose={closeProfile} onSave={onProfileSave}/>}
+    {reportOpen&&latestReport&&selected&&<IntentReportModal
+      report={latestReport.intentReport} callDate={latestReport.callDate}
+      leadName={fullName(selected)} onAcknowledge={acknowledgeReport}
+      onDismiss={()=>setReportOpen(false)}/>}
+  </div>;
 }
