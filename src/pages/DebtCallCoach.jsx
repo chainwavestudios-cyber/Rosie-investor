@@ -64,7 +64,7 @@ export default function DebtCallCoach() {
   useEffect(() => {
     const launch = (event) => {
       const { leadId, mode } = event.detail || {};
-      if (!leadId || !['listen','dial'].includes(mode)) return;
+      if (!leadId || !['listen','dial','office'].includes(mode)) return;
       setLiveLaunch({ leadId, mode, token: Date.now() });
       setTab('live');
     };

@@ -110,35 +110,46 @@ export default function CsvUploadStep({ campaign, csv, setCsv, setMapping, save,
           </div>
         </Card>
       )}
-      <Card
-        title="Step 1 — Upload the contacts file"
-        hint="CSV exported from Excel, Google Sheets, a CRM or a lead vendor. Quoted commas, blank cells and a UTF-8 BOM are all handled."
-      >
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files?.[0]); }}
-          style={{ border: `1px dashed ${csv ? `${GOLD}66` : BORDER}`, borderRadius: '6px', padding: '22px', textAlign: 'center', background: SURFACE }}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <Btn tone={source === 'csv' ? 'gold' : 'ghost'} onClick={() => setSource('csv')}>📁 Upload a CSV</Btn>
+        <Btn tone={source === 'prospects' ? 'gold' : 'ghost'} onClick={() => setSource('prospects')}>👥 Pick from prospects</Btn>
+      </div>
+
+      {source === 'prospects' ? (
+        <ProspectPicker onUse={useProspects} />
+      ) : (
+        <Card
+          title="Step 1 — Upload the contacts file"
+          hint="CSV exported from Excel, Google Sheets, a CRM or a lead vendor. Quoted commas, blank cells and a UTF-8 BOM are all handled."
         >
-          <div style={{ color: csv ? GOLD : MUTED, fontSize: '13px', fontWeight: 'bold' }}>
-            {csv ? `✓ ${csv.fileName}` : 'Drop the CSV here, or choose it'}
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); pick(e.dataTransfer.files?.[0]); }}
+            style={{ border: `1px dashed ${csv ? `${GOLD}66` : BORDER}`, borderRadius: '6px', padding: '22px', textAlign: 'center', background: SURFACE }}
+          >
+            <div style={{ color: csv ? GOLD : MUTED, fontSize: '13px', fontWeight: 'bold' }}>
+              {csv ? `✓ ${csv.fileName}` : 'Drop the CSV here, or choose it'}
+            </div>
+            <div style={{ color: DIM, fontSize: '11px', marginTop: '6px' }}>
+              {csv
+                ? `${csv.rows.length.toLocaleString()} rows · ${csv.headers.length} columns detected`
+                : 'The file is read in the browser — nothing is imported until you confirm the mapping.'}
+            </div>
+            <input ref={inputRef} type="file" accept=".csv,.txt,text/csv" style={{ display: 'none' }} onChange={(e) => pick(e.target.files?.[0])} />
+            <div style={{ marginTop: '14px' }}>
+              <Btn tone={csv ? 'ghost' : 'gold'} onClick={() => inputRef.current?.click()}>{csv ? 'Choose a different file' : '📁 Choose CSV file'}</Btn>
+            </div>
           </div>
-          <div style={{ color: DIM, fontSize: '11px', marginTop: '6px' }}>
-            {csv
-              ? `${csv.rows.length.toLocaleString()} rows · ${csv.headers.length} columns detected`
-              : 'The file is read in the browser — nothing is imported until you confirm the mapping.'}
-          </div>
-          <input ref={inputRef} type="file" accept=".csv,.txt,text/csv" style={{ display: 'none' }} onChange={(e) => pick(e.target.files?.[0])} />
-          <div style={{ marginTop: '14px' }}>
-            <Btn tone={csv ? 'ghost' : 'gold'} onClick={() => inputRef.current?.click()}>{csv ? 'Choose a different file' : '📁 Choose CSV file'}</Btn>
-          </div>
-        </div>
-        {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '10px' }}>{error}</div>}
-      </Card>
+          {error && <div style={{ color: '#ef4444', fontSize: '11px', marginTop: '10px' }}>{error}</div>}
+        </Card>
+      )}
 
       {csv && (
         <Card
-          title="What was found"
-          hint="The first rows exactly as they were read — check that the header line landed in the header row, not as data."
+          title={csv.fromProspects ? 'The prospects you picked' : 'What was found'}
+          hint={csv.fromProspects
+            ? 'These exact rows go through the mailbox check and the import next. People who already have a contact card keep it — only their empty fields are filled in.'
+            : 'The first rows exactly as they were read — check that the header line landed in the header row, not as data.'}
           actions={<Btn tone="ghost" onClick={saveDraft}>💾 Save draft</Btn>}
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '10px', marginBottom: '12px' }}>

@@ -88,7 +88,7 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
 
   const hint = useMemo(() => {
     if (canAdvance) return '';
-    if (step === 'upload') return 'Choose a CSV to continue.';
+    if (step === 'upload') return 'Upload a CSV or pick from your prospects to continue.';
     if (step === 'map') return 'Run the check, then commit the import to continue.';
     if (step === 'build') return 'Choose an email template to continue.';
     return '';
@@ -121,7 +121,7 @@ export default function CampaignWizard({ campaignId, username, onExit, onChanged
           <StepRail current={step} furthest={furthest} onSelect={goTo} />
 
           {step === 'upload' && (
-            <CsvUploadStep campaign={campaign} csv={csv} setCsv={setCsv} save={save} username={username} />
+            <CsvUploadStep campaign={campaign} csv={csv} setCsv={setCsv} setMapping={setMapping} save={save} username={username} />
           )}
           {step === 'map' && (
             <FieldMappingStep
