@@ -63,7 +63,7 @@ export default async function(req:Request):Promise<Response>{
       const bridgeId='office_'+crypto.randomUUID().replace(/-/g,'');
       const xml='<Response><Dial><Conference beep="false" startConferenceOnEnter="true" endConferenceOnExit="true">'+xmlEscape(bridgeId)+'</Conference></Dial></Response>';
       const call=await twilioFetch('/Calls.json',{method:'POST',body:new URLSearchParams({
-        From:FROM,To:OFFICE,Twiml:xml,Timeout:'28'
+        From:FROM,To:OFFICE,Twiml:xml,Timeout:'28',TimeLimit:'7200'
       })});
       const data={v:1,leadId:lead.id,userId:user.id,bridgeId,officeSid:call.sid,createdAt:Date.now(),clientSid:''};
       return respond({ok:true,bridgeToken:await sign(data),monitorToken:await sign({v:1,leadId:lead.id,userId:user.id,bridgeId,createdAt:data.createdAt,monitor:true}),
@@ -80,7 +80,7 @@ export default async function(req:Request):Promise<Response>{
     let participant:any=null;
     if(participantPath&&clientAnswered) participant=await twilioFetch(participantPath).catch(()=>null);
     const merged=clientAnswered&&!!participant;
-    if(action==='status')return respond({ok:true,officeStatus,clientStatus,clientAnswered,merged,conferenceReady:!!conferenceSid,
+    if(action==='status')return respond({ok:true,officeStatus,clientStatus,clientAnswered,merged,mergePending:!!data.mergedRequested&&!merged,conferenceReady:!!conferenceSid,
       officeNumber:OFFICE,clientName:[lead.firstName,lead.lastName].filter(Boolean).join(' ')});
     if(action==='contact'){
       if(data.clientSid)return respond({error:'Customer already dialed. End the bridge before starting another customer call.'},409);
@@ -96,7 +96,7 @@ export default async function(req:Request):Promise<Response>{
       const waitRoom='office_wait_'+data.bridgeId.slice('office_'.length);
       const holdTwiML='<Response><Dial><Conference beep="false" startConferenceOnEnter="false" endConferenceOnExit="false">'+xmlEscape(waitRoom)+'</Conference></Dial></Response>';
       const call=await twilioFetch('/Calls.json',{method:'POST',body:new URLSearchParams({
-        From:FROM,To:to,Twiml:holdTwiML,Timeout:'30'
+        From:FROM,To:to,Twiml:holdTwiML,Timeout:'30',TimeLimit:'7200'
       })});
       const next={...data,clientSid:call.sid,mergedRequested:false};
       return respond({ok:true,bridgeToken:await sign(next),officeStatus,clientStatus:call.status||'queued',clientAnswered:false,merged:false});
@@ -111,7 +111,7 @@ export default async function(req:Request):Promise<Response>{
       await twilioFetch('/Calls/'+data.clientSid+'.json',{method:'POST',body:new URLSearchParams({Twiml:joinTwiML})});
       await service.entities.LeadHistory.create({leadId:lead.id,type:'call',
         content:'Office main-line conference merged with customer via Debt Call Coach',createdBy:user.username,twilioCallSid:data.clientSid}).catch(()=>{});
-      return respond({ok:true,merged:true,bridgeToken:await sign({...data,mergedRequested:true})});
+      return respond({ok:true,merged:false,mergePending:true,bridgeToken:await sign({...data,mergedRequested:true})});
     }
     if(action==='end'){
       if(data.clientSid&&['queued','initiated','ringing','in-progress'].includes(clientStatus))
