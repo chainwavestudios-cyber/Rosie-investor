@@ -157,8 +157,44 @@ export default function AIAgentDialer({ adminUsername }) {
           adminUsername,
         });
         const data = res?.data || res;
-        if (data?.ok) {
-          setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'dialed', callSid: data.callSid, leadId: data.leadId } : q));
+        if (data?.ok && data?.leadId) {
+          setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'dialing', callSid: data.callSid, leadId: data.leadId } : q));
+          // Do NOT blindly place a second prospect call after five seconds.
+          // The live call owns Alex until Twilio reports an ended call or the
+          // customer enters the separate, recorded transfer queue.
+          const deadline=Date.now()+5*60*1000;
+          let completed=false;
+          let nextStatus='finished';
+          while(!stopRequestedRef.current && Date.now()<deadline){
+            try{
+              const active=await base44.entities.FronterLead.get(data.leadId);
+              const callState=String(active?.callStatus||'');
+              const disposition=String(active?.lastCallResult||'');
+              const inQueue=['queue_hold','recording_queue','queue_callback'].includes(callState);
+              const ended=['ai_outbound_complete','queue_abandoned','transferred'].includes(callState) ||
+                ['transferred','queued_no_connect','no_answer'].includes(disposition);
+              if(inQueue || ended){
+                completed=true;
+                nextStatus=inQueue?'queued':'finished';
+                setQueue(prev=>prev.map((q,idx)=>idx===i?{...q,status:nextStatus,lastCallResult:disposition}:q));
+                setStatus(inQueue?'Customer entered Chris’s recorded queue. Preparing next approved lead…':'AI call finished. Preparing next approved lead…');
+                break;
+              }
+            }catch(e){
+              console.warn('[Alex queue] Waiting for authoritative call outcome:',e?.message);
+            }
+            for(let elapsed=0;elapsed<2500&&!stopRequestedRef.current;elapsed+=125){
+              await new Promise(resolve=>setTimeout(resolve,125));
+            }
+          }
+          if(!completed && !stopRequestedRef.current){
+            setError('Unable to confirm the previous call has ended or entered the transfer queue. New dialing paused to prevent overlapping calls.');
+            setQueue(prev=>prev.map((q,idx)=>idx===i?{...q,status:'unconfirmed'}:q));
+            stopRequestedRef.current=true;
+          }
+        } else if(data?.ok){
+          setError('Twilio started the call without a lead record. Auto-dialing stopped to avoid overlapping customers.');
+          stopRequestedRef.current=true;
         } else {
           setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: data?.error || 'Unknown' } : q));
         }
@@ -166,11 +202,11 @@ export default function AIAgentDialer({ adminUsername }) {
         setQueue(prev => prev.map((q, idx) => idx === i ? { ...q, status: 'failed', error: callError(e) } : q));
       }
 
-      // Interruptible pacing: Stop is checked throughout the wait, not only
-      // after an unconditional 5-second timeout.
+      // The previous call has already ended or entered hold. Apply a short
+      // intentional inter-call gap; never use this gap as a completion signal.
       if (i < queue.length - 1 && !stopRequestedRef.current) {
-        setStatus('Waiting 5s before next call…');
-        for (let elapsed = 0; elapsed < 5000 && !stopRequestedRef.current; elapsed += 100) {
+        setStatus('Next approved call begins shortly…');
+        for (let elapsed = 0; elapsed < 1200 && !stopRequestedRef.current; elapsed += 100) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
@@ -230,7 +266,8 @@ export default function AIAgentDialer({ adminUsername }) {
     total: queue.length,
     pending: queue.filter(q => q.status === 'pending').length,
     dialing: queue.filter(q => q.status === 'dialing').length,
-    dialed: queue.filter(q => q.status === 'dialed').length,
+    dialed: queue.filter(q => ['dialed','finished','queued'].includes(q.status)).length,
+    queued: queue.filter(q => q.status === 'queued').length,
     failed: queue.filter(q => q.status === 'failed').length,
     blocked: queue.filter(q => q.status === 'blocked').length,
   };
@@ -292,7 +329,8 @@ export default function AIAgentDialer({ adminUsername }) {
           <div style={{ display: 'flex', gap: '10px', fontSize: '11px' }}>
             <span style={{ color: '#8a9ab8' }}>Total: <b style={{ color: '#e8e0d0' }}>{stats.total}</b></span>
             <span style={{ color: '#8a9ab8' }}>Dialing: <b style={{ color: AMBER }}>{stats.dialing}</b></span>
-            <span style={{ color: '#8a9ab8' }}>Initiated: <b style={{ color: GREEN }}>{stats.dialed}</b></span>
+            <span style={{ color: '#8a9ab8' }}>Completed/Queued: <b style={{ color: GREEN }}>{stats.dialed}</b></span>
+            <span style={{ color: '#8a9ab8' }}>Handoff Queues: <b style={{ color: AMBER }}>{stats.queued}</b></span>
             <span style={{ color: '#8a9ab8' }}>Failed: <b style={{ color: RED }}>{stats.failed}</b></span>
             {stats.blocked > 0 && <span style={{ color: '#8a9ab8' }}>Blocked (8pm): <b style={{ color: RED }}>{stats.blocked}</b></span>}
           </div>
@@ -324,7 +362,7 @@ export default function AIAgentDialer({ adminUsername }) {
         <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '4px' }}>
           {queue.map((q, i) => {
             const isCurrent = i === currentIdx;
-            const statusColor = q.status === 'dialed' ? GREEN : q.status === 'dialing' ? AMBER : q.status === 'failed' ? RED : q.status === 'blocked' ? RED : '#6b7280';
+            const statusColor = ['dialed','finished','queued'].includes(q.status) ? GREEN : q.status === 'dialing' ? AMBER : q.status === 'failed' ? RED : q.status === 'blocked' ? RED : '#6b7280';
             const tzLabel = getTzLabel(q.phone);
             const localTime = getLocalTimeString(q.phone);
             return (
