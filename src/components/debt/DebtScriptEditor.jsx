@@ -165,6 +165,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   const active = scripts.find(s => s.id === activeId) || scripts[0];
   useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => { setSmsOpen(false); }, [activeId]);
 
   const updateActive = (changes) => {
     setScripts(prev => prev.map(s => s.id === activeId ? { ...s, ...changes } : s));
@@ -469,7 +470,8 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
             <>
             <ScriptContactDock lead={liveLead || lead} onSaved={onContactSaved}
               onSendEmail={sendCredsEmail} sendingEmail={sendingEmail}
-              smsOpen={smsOpen} onSmsOpen={setSmsOpen} emailRequest={emailRequest} />
+              smsOpen={smsOpen} onSmsOpen={setSmsOpen} emailRequest={emailRequest}
+              smsActionEnabled={/@@SEND_TEXT@@/i.test(active.content || '')} />
             <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={liveLead || lead} onFieldSaved={onContactSaved} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: () => setEmailRequest(n => n + 1), sendingEmail, onSendText: () => setSmsOpen(true) }} />
             </>
           )}
