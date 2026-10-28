@@ -2409,7 +2409,7 @@ ${recentText}`,
                     <DebtAIPanel
                       transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
                       profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
-                      memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion}
+                      memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion} liveQAItems={qaItems} liveCoachTips={coachTips}
                       canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                       username={coachUser?.username}
                       activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
