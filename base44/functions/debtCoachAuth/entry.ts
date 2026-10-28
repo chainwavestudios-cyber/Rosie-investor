@@ -30,21 +30,42 @@ async function createSetupLink(userId: string) {
 const validNewPassword = (value: unknown) =>
   typeof value === 'string' && value.length >= 12 && value.length <= 256;
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.randomUUID().replace(/-/g, '');
-  const data = new TextEncoder().encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer)).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-  return `${salt}:${hashHex}`;
+const HASH_ITERATIONS = 210_000;
+// New passwords use a slow salted derivation; existing salt:sha256 hashes
+// remain verifiable to avoid locking existing users out of their accounts.
+async function passwordDigest(password: string, salt: Uint8Array, iterations: number) {
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256
+  );
+  return Array.from(new Uint8Array(bits), value => value.toString(16).padStart(2,'0')).join('');
 }
-
+async function hashPassword(password: string): Promise<string> {
+  const salt = secureRandomHex(16);
+  const digest = await passwordDigest(password, Uint8Array.from(salt.match(/.{2}/g)!.map(x=>parseInt(x,16))), HASH_ITERATIONS);
+  return `pbkdf2:${HASH_ITERATIONS}:${salt}:${digest}`;
+}
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  if (!storedHash || !storedHash.includes(':')) return false;
-  const [salt, hash] = storedHash.split(':');
-  const data = new TextEncoder().encode(salt + password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashHex = Array.from(new Uint8Array(hashBuffer)).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-  return hashHex === hash;
+  if (!storedHash || typeof storedHash !== 'string') return false;
+  if (storedHash.startsWith('pbkdf2:')) {
+    const [algorithm, count, salt, hash] = storedHash.split(':');
+    const iterations = Number(count);
+    if (algorithm !== 'pbkdf2' || !Number.isInteger(iterations) || iterations < 100_000 || iterations > 500_000
+      || !/^[0-9a-f]{32}$/.test(salt||'') || !/^[0-9a-f]{64}$/.test(hash||'')) return false;
+    const derived = await passwordDigest(password, Uint8Array.from(salt.match(/.{2}/g)!.map(x=>parseInt(x,16))), iterations);
+    let diff = 0;
+    for (let i=0;i<derived.length;i++) diff |= derived.charCodeAt(i)^hash.charCodeAt(i);
+    return diff === 0;
+  }
+  // Legacy compatibility until each existing account changes its password.
+  const [salt,hash] = storedHash.split(':');
+  if (!/^[0-9a-f]{32}$/.test(salt||'') || !/^[0-9a-f]{64}$/.test(hash||'')) return false;
+  const derived = await sha256(salt+password);
+  let diff = 0;
+  for(let i=0;i<derived.length;i++) diff |= derived.charCodeAt(i)^hash.charCodeAt(i);
+  return diff === 0;
 }
 
 // ── Voice login helpers ──────────────────────────────────────────────────────
