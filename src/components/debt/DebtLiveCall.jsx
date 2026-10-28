@@ -418,9 +418,10 @@ Agent line: "${firstAgentLines}"`,
       .catch(() => {}).finally(() => setKbLoading(false));
   }, []);
 
-  // Load mic devices — auto-detect Rodecaster for customer audio (wait for saved defaults)
-  // Re-scannable device list — Windows "Stereo Mix" (or a Rodecaster) fills the customer feed.
-  const loadDevices = useCallback(async () => {
+  // Passive device enumeration on mount; microphone permission is requested
+  // only after an explicit Re-scan / Test / Start Call action.
+  // Windows Stereo Mix / Rodecaster sources still auto-select when enumerated.
+  const loadDevices = useCallback(async (requestPermission = false) => {
     // List what Windows reports FIRST — before any permission grab — so a denied
     // or busy mic can never leave the dropdowns completely empty.
     const scan = async () => {
@@ -434,7 +435,7 @@ Agent line: "${firstAgentLines}"`,
     let { mics, outputs } = await scan();
     // Labels (and some loopback/virtual inputs) only appear after a permission
     // grant — grab the mic once, release it, then list again for the full set.
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+    const stream = requestPermission ? await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null) : null;
     if (stream) {
       // Release the mic immediately — we only grabbed it to populate device labels.
       // Keeping it open leaves Chrome showing "using mic" and can cause the later
@@ -460,7 +461,7 @@ Agent line: "${firstAgentLines}"`,
 
   useEffect(() => {
     if (!micLoaded || !customerMicLoaded || !outputLoaded) return;
-    loadDevices();
+    loadDevices(false);
   }, [micLoaded, customerMicLoaded, outputLoaded, loadDevices]);
 
   // Windows devices that are enabled/plugged in after the page loaded (Stereo
@@ -469,7 +470,7 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => {
     const md = navigator.mediaDevices;
     if (!md?.addEventListener) return;
-    const onDeviceChange = () => loadDevices();
+    const onDeviceChange = () => loadDevices(false);
     md.addEventListener('devicechange', onDeviceChange);
     return () => md.removeEventListener('devicechange', onDeviceChange);
   }, [loadDevices]);
@@ -1910,7 +1911,7 @@ ${recentText}`,
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
-            <button onClick={loadDevices} disabled={phase === 'live'} title="Re-scan the inputs — click after enabling Stereo Mix in Windows" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
+            <button onClick={() => loadDevices(true)} disabled={phase === 'live'} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
             {micDevices.length > 0 && <span style={{ color: '#4a5568', fontSize: '9px', whiteSpace: 'nowrap' }}>{micDevices.length} input{micDevices.length === 1 ? '' : 's'}</span>}
           </div>
           <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
