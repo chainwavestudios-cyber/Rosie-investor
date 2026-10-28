@@ -11,11 +11,11 @@ const DARK = '#0a0f1e';
 const RED = '#ef4444';
 const PURPLE = '#a78bfa';
 
-export default function ObjectionPopup({ objection, onDismiss }) {
+export default function ObjectionPopup({ objection, onDismiss, startMinimized = false }) {
   const [selected, setSelected] = useState(0);
   const [copied, setCopied] = useState(false);
   // New automatic detections arrive quietly; the agent opens advice intentionally.
-  const [minimized, setMinimized] = useState(true);
+  const [minimized, setMinimized] = useState(startMinimized);
   const [pos, setPos] = useState(() => ({ x: Math.max(10, window.innerWidth - 470), y: Math.max(12, window.innerHeight - 100) }));
   const [size, setSize] = useState({ w: 390, h: 400 });
   const dragRef = useRef(null);
@@ -24,10 +24,10 @@ export default function ObjectionPopup({ objection, onDismiss }) {
   useEffect(() => {
     if (objection) {
       setSelected(0); setCopied(false);
-      setMinimized(!objection.manualOpenAt);
-      setPos({ x: Math.max(10, window.innerWidth - 410), y: objection.manualOpenAt ? Math.max(12, window.innerHeight - 450) : Math.max(12, window.innerHeight - 100) });
+      setMinimized(startMinimized && !objection.manualOpenAt);
+      setPos({ x: Math.max(10, window.innerWidth - 410), y: objection.manualOpenAt || !startMinimized ? Math.max(12, window.innerHeight - 450) : Math.max(12, window.innerHeight - 100) });
     }
-  }, [objection?.id, objection?.lineTime, objection?.manualOpenAt]);
+  }, [objection?.id, objection?.lineTime, objection?.manualOpenAt, startMinimized]);
 
   // Build the list of answer options: engine response first, then KB answers.
   const options = useMemo(() => {
