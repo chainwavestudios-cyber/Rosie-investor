@@ -93,7 +93,10 @@ export default function ScriptContactDock({ lead, onSaved, onSendEmail, sendingE
   };
   const email = async () => {
     if (sendingEmail || busy) return;
-    if (await save()) await onSendEmail?.();
+    if (await save()) {
+      const result = await onSendEmail?.();
+      if (result?.message) setFeedback(result.message);
+    }
   };
   useEffect(() => { if (emailRequest) email(); }, [emailRequest]); // eslint-disable-line react-hooks/exhaustive-deps
   const openSms = async () => {

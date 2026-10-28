@@ -271,8 +271,8 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
 
   // 📧 Send Credentials & Welcome Message — emails the card's address
   const sendCredsEmail = async () => {
-    if (sendingEmail) return;
-    if (!lead?.id) { setActionMsg('Select a contact in Live Call before sending an email.'); return; }
+    if (sendingEmail) return { success: false, message: 'Email send already in progress' };
+    if (!lead?.id) { setActionMsg('Select a contact in Live Call before sending an email.'); return { success: false, message: 'Select a contact first' }; }
     setSendingEmail(true); setActionMsg('📧 Sending the credentials & welcome message…');
     try {
       // Always reload AFTER the script has saved any edits. Never use a stale lead
@@ -284,12 +284,12 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       const page = await base44.entities.DebtEmailTemplate.filter({ name: { $regex: 'cred', $options: 'i' } }, { limit: 5 });
       const items = page?.items || page || [];
       const template = items.find(t => /creds and welcome/i.test(t.name || '')) || items[0];
-      if (!template) { setActionMsg('No credentials email template found — add it in the Emails tab.'); setSendingEmail(false); return; }
+      if (!template) { setActionMsg('No credentials email template found — add it in the Emails tab.'); return { success: false, message: 'Credentials template is not configured' }; }
       const res = await base44.functions.invoke('sendDebtEmail', { leadId: lead.id, templateId: template.id });
       if (res?.data?.error) throw new Error(res.data.error);
       setActionMsg(`📧 ${template.name} sent to ${lead.email}`);
-    } catch (e) { setActionMsg('Email failed: ' + (e?.message || String(e))); }
-    setSendingEmail(false);
+    } catch (e) { const message = 'Email failed: ' + (e?.message || String(e)); setActionMsg(message); return { success: false, message }; }
+    finally { setSendingEmail(false); }
   };
 
   // 🤖 AI Input — summarizes the call so far into the card's notes
