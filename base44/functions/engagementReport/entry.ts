@@ -308,6 +308,13 @@ async function buildReport(base44: any, body: any, rules: any) {
     migrationStartScore: rules.migrationStartScore,
     truncated: { events: rawEvents.length >= MAX_EVENTS, sends: sends.length >= MAX_SENDS },
     systems,
+    // Audit-only historical view: old EmailLog records remain untouched.
+    legacyHistory: (await readAll(base44.asServiceRole.entities.EmailLog, { sentAt: { $gte: since } }, MAX_SENDS, '-sentAt'))
+      .map((log: any) => ({ id: log.id, leadId: log.leadId || '', toName: log.toName || '',
+        toEmail: log.toEmail || '', templateName: log.templateName || '', subject: log.subject || '',
+        sentAt: log.sentAt || log.created_date, openedAt: log.openedAt || null,
+        clickedAt: log.clickedAt || null, status: log.status || '',
+        sendId: log.sendId || '', providerMessageId: log.messageId || '' })),
   };
 }
 
