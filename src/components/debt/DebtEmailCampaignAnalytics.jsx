@@ -16,6 +16,7 @@ const n=v=>Number.isFinite(Number(v))?Number(v):0;
 const fmt=v=>n(v).toLocaleString('en-US');
 const pct=(a,b)=>b?Math.round(n(a)/n(b)*100)+'%':'—';
 const date=v=>v&&!isNaN(new Date(v).getTime())?new Date(v).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'—';
+const callStamp=v=>v&&!isNaN(new Date(v).getTime())?new Date(v).toLocaleString('en-US',{month:'numeric',day:'numeric',year:'2-digit',hour:'numeric',minute:'2-digit'}).replace(', ',' '):'Never';
 const shortDate=v=>v&&!isNaN(new Date(v).getTime())?new Date(v).toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
 const colors={running:'green',completed:'green',sent:'green',ready:'blue',pending:'blue',draft:'grey',paused:'gold',skipped:'gold',cancelled:'red',failed:'red'};
 const csvValue=value=>{
@@ -107,7 +108,7 @@ export default function DebtEmailCampaignAnalytics(){
    const ids=[...new Set(rows.map(r=>r.leadId).filter(Boolean))];
    if(!ids.length)return;
    // Fetch the actual contact-card phone and call history; never infer a call from email engagement.
-   Promise.all(ids.map(async id=>{try{const lead=await base44.entities.DebtLead.get(id);return [id,{phone:lead.phone||'',lastCallAt:lead.lastCallAt||null}]}catch{return [id,null]}})).then(values=>{
+   Promise.all(ids.map(async id=>{try{const lead=await base44.entities.DebtLead.get(id);return [id,{phone:lead.phone||'',lastCallAt:lead.lastCallAt||null,outcome:lead.appointmentDate && (!lead.lastCallAt||new Date(lead.appointmentDate)>new Date(lead.lastCallAt))?'Scheduled Appointment':''}]}catch{return [id,null]}})).then(values=>{
      if(!cancelled)setContactMeta(prev=>({...prev,...Object.fromEntries(values.filter(([,v])=>v))}));
    });
    return ()=>{cancelled=true};
@@ -147,21 +148,20 @@ export default function DebtEmailCampaignAnalytics(){
      await base44.entities.DebtLeadActivity.create({leadId:row.leadId,leadName:row.name,activityType:'call',activityText:result==='left_voicemail'?'☎ Outgoing call — Left voicemail':'📞 Outgoing call — No answer',createdBy:user?.username||'',metadataJson:JSON.stringify({result,source:'email_campaign',campaignId:activeId})});
      const calledAt=new Date().toISOString();
      await base44.entities.DebtLead.update(row.leadId,{lastCallAt:calledAt,callCount:n(lead.callCount)+1});
-     setContactMeta(prev=>({...prev,[row.leadId]:{...prev[row.leadId],lastCallAt:calledAt}}));
+     setContactMeta(prev=>({...prev,[row.leadId]:{...prev[row.leadId],lastCallAt:calledAt,outcome:result==='left_voicemail'?'Left VM':'No Answer'}}));
      setActionNote(`${row.name}: ${result==='left_voicemail'?'voicemail':'no answer'} saved.`);
    }catch(e){setActionNote('Could not save call outcome: '+(e?.message||String(e)))}finally{setQuickBusy('')}
  };
  const book=async()=>{
-   if(!meeting?.row?.leadId||!meeting.when)return;
-   setQuickBusy('meeting');try{
+   if(!meeting?.row?.leadId||!meeting.when||!meeting.label?.trim())return;
+   setQuickBusy('meeting');setActionNote('');try{
      const start=new Date(meeting.when);if(!Number.isFinite(start.getTime())||start<=new Date())throw Error('Choose a future date and time');
-     const lead=await base44.entities.DebtLead.get(meeting.row.leadId);
-     const result=await base44.functions.invoke('googleCalendarSync',{action:'createEvent',title:'Consultation — '+meeting.row.name,startISO:start.toISOString(),endISO:new Date(start.getTime()+30*60000).toISOString(),description:`Contact: ${meeting.row.name}\nPhone: ${lead.phone||meeting.row.phone||''}\nEmail: ${meeting.row.email}`});
+     const description=`${meeting.notes||''}\n\nContact: ${meeting.row.name}\nPhone: ${meeting.row.phone||''}\nEmail: ${meeting.row.email}`;
+     const result=await base44.functions.invoke('googleCalendarSync',{action:'saveLeadAppointment',sessionUserId,sessionToken,leadId:meeting.row.leadId,title:meeting.label.trim(),startISO:start.toISOString(),duration:Number(meeting.duration||30),description,reminders:meeting.reminders?[{method:'email',minutes:1440},{method:'email',minutes:60}]:[]});
      const data=result?.data||result;if(data.status!=='success')throw Error(data.error||'Calendar unavailable');
-     await base44.entities.DebtLead.update(meeting.row.leadId,{appointmentDate:start.toISOString(),appointmentTitle:'Consultation',appointmentEventId:data.eventId||'',appointmentEventHtmlLink:data.htmlLink||''});
-     await base44.entities.DebtLeadActivity.create({leadId:meeting.row.leadId,leadName:meeting.row.name,activityType:'calendar_event',activityText:'📅 Consultation — '+start.toLocaleString(),createdBy:user?.username||'',metadataJson:JSON.stringify({eventId:data.eventId,htmlLink:data.htmlLink})});
+     setContactMeta(prev=>({...prev,[meeting.row.leadId]:{...prev[meeting.row.leadId],outcome:'Scheduled Appointment',lastCallAt:new Date().toISOString()}}));
      setActionNote('Meeting scheduled for '+meeting.row.name);setMeeting(null);
-   }catch(e){setActionNote('Schedule failed: '+(e?.message||String(e)))}finally{setQuickBusy('')}
+   }catch(e){setActionNote('Schedule failed: '+(e?.response?.data?.error||e?.message||String(e)))}finally{setQuickBusy('')}
  };
  const askAI=async()=>{
    if(!aiInput.trim()||!aiTarget?.leadId)return;
@@ -287,12 +287,12 @@ export default function DebtEmailCampaignAnalytics(){
                <td style={cell}><strong>{info.score||0}</strong>/100</td>
                <td style={cell}>{shortDate(info.lastEngagementAt||row.clickedAt||row.openedAt||row.sentAt)}</td>
                <td style={cell}><strong style={{fontSize:17,color:'#eac784'}}>{contactMeta[row.leadId]?.phone||row.phone||'—'}</strong></td>
-               <td style={cell}>{contactMeta[row.leadId]?.lastCallAt?date(contactMeta[row.leadId].lastCallAt):'Never'}</td>
+               <td style={cell}>{callStamp(contactMeta[row.leadId]?.lastCallAt)}{contactMeta[row.leadId]?.outcome?' · '+contactMeta[row.leadId].outcome:''}</td>
                <td style={cell}><div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'nowrap'}}>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setLeadCard({leadId:row.leadId,source:'coach',name:row.name})}>Contact Card</button>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'no_answer')}>No Answer</button>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId||!!quickBusy} onClick={()=>activity(row,'left_voicemail')}>Voicemail</button>
-                 <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setMeeting({row,when:''})}>Meeting</button>
+                 <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>setMeeting({row,when:'',label:'Consultation',notes:'',duration:30,reminders:true})}>Meeting</button>
                  <button className="dca-row-action" style={btn} disabled={!row.leadId} onClick={()=>{setAiTarget(row);setAiHistory([]);setAiProposal(null);setAiInput('')}}>✦ AI</button>
                </div></td>
              </tr>})}
@@ -319,7 +319,14 @@ export default function DebtEmailCampaignAnalytics(){
        </div>}
      </aside>
    </div>}
-   {meeting&&<div className="dca-overlay"><section className="dca-drawer" role="dialog" aria-modal="true" aria-label="Schedule meeting" style={{padding:24}}><h3>Schedule meeting · {meeting.row.name}</h3><label>Appointment date and time <input type="datetime-local" value={meeting.when} onChange={e=>setMeeting(m=>({...m,when:e.target.value}))}/></label><div style={{display:'flex',gap:8,marginTop:20}}><button className="dca-button" disabled={!meeting.when||!!quickBusy} onClick={book}>Create calendar meeting</button><button className="dca-button" onClick={()=>setMeeting(null)}>Cancel</button></div></section></div>}
+   {meeting&&<div className="dca-overlay"><section className="dca-drawer" role="dialog" aria-modal="true" aria-label="Schedule meeting" style={{padding:24}}><h3>Schedule appointment · {meeting.row.name}</h3>
+     <label style={{display:'block',marginBottom:12}}>Appointment label <input style={{display:'block',width:'100%'}} value={meeting.label} onChange={e=>setMeeting(m=>({...m,label:e.target.value}))}/></label>
+     <label style={{display:'block',marginBottom:12}}>Date and time <input style={{display:'block'}} type="datetime-local" value={meeting.when} onChange={e=>setMeeting(m=>({...m,when:e.target.value}))}/></label>
+     <label style={{display:'block',marginBottom:12}}>Duration <select value={meeting.duration} onChange={e=>setMeeting(m=>({...m,duration:Number(e.target.value)}))}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={60}>60 minutes</option></select></label>
+     <label style={{display:'block',marginBottom:12}}>Appointment notes <textarea style={{display:'block',width:'100%',minHeight:85}} value={meeting.notes} onChange={e=>setMeeting(m=>({...m,notes:e.target.value}))}/></label>
+     <label style={{display:'block',marginBottom:12}}><input type="checkbox" checked={meeting.reminders} onChange={e=>setMeeting(m=>({...m,reminders:e.target.checked}))}/> Enable calendar email reminders (1 day and 1 hour before)</label>
+     <p style={{fontSize:11,color:'#aec3c4'}}>Google Calendar email reminders notify the calendar owner, not automatically the customer.</p>
+     <div style={{display:'flex',gap:8,marginTop:20}}><button className="dca-button" disabled={!meeting.when||!meeting.label?.trim()||!!quickBusy} onClick={book}>Create Appointment</button><button className="dca-button" onClick={()=>setMeeting(null)}>Cancel</button></div></section></div>}
    {aiTarget&&<div className="dca-overlay"><section className="dca-drawer" role="dialog" aria-modal="true" aria-label="AI contact assistant" style={{padding:24}}><h3>✦ Contact AI · {aiTarget.name}</h3><p className="dca-muted">Ask questions or describe changes. Review updates before saving to the contact card.</p><div style={{maxHeight:250,overflowY:'auto',marginBottom:12}}>{aiHistory.map((m,i)=><p key={i}><strong>{m.who}: </strong>{m.text}</p>)}</div><textarea style={{width:'100%',minHeight:80,background:'#0d1b2a',color:'#fff'}} value={aiInput} onChange={e=>setAiInput(e.target.value)} placeholder="Example: Update their phone number, add a callback note, change the debt amount…"/><button className="dca-button" disabled={!!quickBusy||!aiInput.trim()} onClick={askAI}>Send to AI</button>{aiProposal&&<div style={{marginTop:15}}><h4>Review changes</h4><pre style={{whiteSpace:'pre-wrap'}}>{JSON.stringify(aiProposal,null,2)}</pre><button className="dca-button" disabled={!!quickBusy} onClick={applyAI}>Approve and update contact</button></div>}<button className="dca-button" style={{marginLeft:8}} onClick={()=>setAiTarget(null)}>Close</button></section></div>}
    <EngagementContactCard target={leadCard} username={user?.username} onClose={()=>setLeadCard(null)}/>
  </section>;
