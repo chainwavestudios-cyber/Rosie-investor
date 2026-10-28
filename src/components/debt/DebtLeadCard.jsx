@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import DebtCallBar from '@/components/debt/DebtCallBar';
+import DebtBadge from '@/components/fronter/DebtBadge';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import NonAcceptedCreditorsTab from '@/components/debt/NonAcceptedCreditorsTab';
 import AcceptedCreditorRulesRef from '@/components/debt/AcceptedCreditorRulesRef';
@@ -128,6 +129,11 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
         </div>
       </div>
 
+      {/* Default debt badge when only a total is known; do not invent a credit-card/loan split. */}
+      {Number(lead.debtAmount) > 0 && <div style={{padding:'6px 18px',display:'flex',alignItems:'center',gap:9,borderBottom:'1px solid rgba(255,255,255,.07)'}}>
+        <DebtBadge debtType="Unsecured Credit Card" amount={lead.debtAmount} size={64}/>
+        <span style={{fontSize:10,color:'#c5c9bd'}}>Total unsecured debt · Category/split not confirmed</span>
+      </div>}
       {/* Live Call bar */}
       <div className="dcc-contact-callbar" style={{ padding: '0 18px 10px' }}>
         <DebtCallBar lead={lead} onLaunch={launchFromCard} />
