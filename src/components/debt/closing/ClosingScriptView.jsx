@@ -221,7 +221,7 @@ export default function ClosingScriptView({
                                     onChange={e => updateStepScore(mod.id, i, e.target.value)}
                                     style={{ width: '60px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 8px', color: GOLD, fontSize: '11px', fontWeight: 'bold', outline: 'none', boxSizing: 'border-box' }}
                                   />
-                                  <span style={{ color: '#4a5568', fontSize: '9px' }}>points (100 = enrolled)</span>
+                                  <span style={{ color: '#8cabb1', fontSize: '9px' }}>stage score only — enrollment is verified separately</span>
                                 </div>
                                 </div>
                             ) : (
