@@ -235,7 +235,7 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   //    transcript, auto-check that step. Cheap (string match), runs on every
   //    transcript update alongside the heavier AI analysis.
   useEffect(() => {
-    if (!transcript || transcript.length === 0) return;
+    if (!smartOn || !transcript || transcript.length === 0) return;
     const text = transcript.map(t => t.text || '').join(' ').toLowerCase();
     if (!text.trim()) return;
     const modules = scriptModulesRef.current;
@@ -251,7 +251,7 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
       });
     }
     if (changed) setAutoDone(newAuto);
-  }, [transcript, autoDone, manualDone]);
+  }, [transcript, autoDone, manualDone, smartOn]);
 
   // ── Save editable script config to DB ──
   const handleSaveScript = async () => {
@@ -272,7 +272,9 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   };
 
   const runAnalysis = useCallback(async () => {
-    if (!transcript || transcript.length < 4) return;
+    if (!transcript || transcript.length < 4 || analysisRunningRef.current) return;
+    analysisRunningRef.current = true;
+    lastAnalyzedLinesRef.current = transcript.length;
     setAnalyzing(true);
     setError('');
     try {
@@ -318,15 +320,14 @@ ${recentText}`,
       // Auto-check completed steps
       const newAuto = {};
       (result.completedSteps || []).forEach(k => { newAuto[k] = true; });
-      setAutoDone(newAuto);
+      setAutoDone(prev => ({ ...prev, ...newAuto }));
       // Queue skipped steps not already dismissed/saved/confirmed
       const newSkips = (result.skippedSteps || [])
         .filter(s => s.key && !dismissedRef.current[s.key] && !manualRef.current[s.key] && !savedNotesRef.current.find(n => n.key === s.key))
         .map(s => ({ ...s, label: labelForKey(s.key, scriptModulesRef.current) }));
       if (newSkips.length > 0) setSkippedQueue(prev => [...prev, ...newSkips.filter(s => !prev.some(p => p.key === s.key))]);
-      lastAnalyzedLinesRef.current = transcript.length;
     } catch (e) { setError('Smart Close analysis failed: ' + (e?.message || String(e))); }
-    setAnalyzing(false);
+    finally { analysisRunningRef.current = false; setAnalyzing(false); }
   }, [transcript, lead, leadId, intentScore, animalType]);
 
   // Analysis loop — run when smartOn and transcript grows (or first time)
@@ -345,7 +346,11 @@ ${recentText}`,
     return () => clearInterval(interval);
   }, [smartOn, transcript.length, runAnalysis]);
 
-  const handleToggle = (key) => setManualDone(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleToggle = (key) => {
+    if (progressLoadedLeadId !== leadId) return;
+    setManualDone(prev => ({ ...prev, [key]: !(prev[key] === undefined ? !!autoDone[key] : !!prev[key]) }));
+    setProgressDirty(true);
+  };
 
   // Force-complete an entire section: checks every step in the module at once,
   // awarding all of that section's points to the deal score immediately.
@@ -390,8 +395,11 @@ ${recentText}`,
         activityText: `⚠️ Smart Close: skipped step — ${skip.label || skip.key}${skip.reason ? ` (${skip.reason})` : ''}`,
         createdBy: lead?.debtCoachOwner || 'smart_close',
       });
-    } catch {}
-    setSavedNotes(prev => [...prev, { key: skip.key, reason: skip.reason }]);
+    } catch (e) {
+      setError(`Unable to save skipped-step note: ${e?.message || e}`);
+      return;
+    }
+    setSavedNotes(prev => [...prev, { key: skip.key, label: skip.label, reason: skip.reason }]);
     removeSkip(skip.key);
   };
   const handleSkipConfirm = (skip) => {
@@ -401,8 +409,10 @@ ${recentText}`,
     removeSkip(skip.key);
   };
 
-  const currentStage = analysis?.currentStage ? scriptModules.find(m => m.id === analysis.currentStage) : null;
-  const readiness = analysis?.closeReadiness;
+  const currentStage = smartOn && analysis?.currentStage ? scriptModules.find(m => m.id === analysis.currentStage) : null;
+  const readiness = smartOn && Number.isFinite(analysis?.closeReadiness) ? Math.max(0, Math.min(100, Math.round(analysis.closeReadiness))) : null;
+  const nextPending = scriptModules.flatMap(m => m.steps.map((step, index) => ({ key: `${m.id}_${index}`, text: step.text || step, title: m.title }))).find(item => !combinedDone[item.key]);
+  const suggestedNextStep = (smartOn && analysis?.recommendations?.[0]) || nextPending?.text || 'All checklist steps reviewed. Verify the agreement and enrollment status separately.';
 
   // Tab bar — Checklist vs Script vs Phone #s
   const tabBar = (
@@ -431,7 +441,7 @@ ${recentText}`,
         <ClosingScriptView
           modules={scriptModules}
           done={smartOn ? combinedDone : manualDone}
-          onToggle={smartOn ? handleToggle : undefined}
+          onToggle={handleToggle}
           onCompleteSection={smartOn ? handleCompleteSection : undefined}
           autoDone={smartOn ? autoDone : undefined}
           smartMode={smartOn}
@@ -474,6 +484,30 @@ ${recentText}`,
   return (
     <div>
       {tabBar}
+      {/* Condensed command view: active contact, stage, AI readiness and next action. */}
+      <div style={{ marginBottom: '12px', padding: '14px', borderRadius: '10px', background: 'linear-gradient(130deg,#102723,#10202d 66%,#151b2b)', border: '1px solid rgba(124,193,161,.24)' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ color: '#9cb7b2', fontSize: '9px', letterSpacing: '1.6px', fontWeight: 'bold' }}>ACTIVE CLOSE</div>
+            <div style={{ color: '#f0f3eb', fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{[lead?.firstName, lead?.lastName].filter(Boolean).join(' ') || 'Loading contact…'}</div>
+          </div>
+          <span style={{ fontSize: '10px', color: '#9edcc5', padding: '6px 9px', border: '1px solid rgba(90,164,134,.3)', background: 'rgba(90,164,134,.1)', borderRadius: '20px' }}>{transcript.length ? `${transcript.length} transcript lines` : 'Waiting for transcript'}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: '8px', marginTop: '12px' }}>
+          <div style={{ padding: '10px', border: '1px solid rgba(255,255,255,.08)', borderRadius: '8px', background: 'rgba(0,0,0,.12)' }}>
+            <div style={{ color: '#90a6ac', fontSize: '10px', marginBottom: '5px' }}>Current stage</div>
+            <div style={{ color: '#dceee7', fontSize: '12px', fontWeight: 700 }}>{currentStage?.title || nextPending?.title || 'Review complete'}</div>
+          </div>
+          <div style={{ padding: '10px', border: '1px solid rgba(255,255,255,.08)', borderRadius: '8px', background: 'rgba(0,0,0,.12)' }}>
+            <div style={{ color: '#90a6ac', fontSize: '10px', marginBottom: '5px' }}>Customer readiness · AI estimate</div>
+            <div style={{ color: readiness === null ? '#92a4ae' : readiness >= 70 ? '#8fe5ba' : readiness >= 40 ? '#f6cd80' : '#f1a3a3', fontSize: '16px', fontWeight: 700 }}>{readiness === null ? 'Not analyzed' : `${readiness}/100`}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: '9px', padding: '10px 12px', background: 'rgba(167,139,250,.075)', border: '1px solid rgba(167,139,250,.22)', borderRadius: '8px' }}>
+          <div style={{ color: '#c4acf9', fontSize: '10px', fontWeight: 700, marginBottom: '5px' }}>SUGGESTED NEXT STEP</div>
+          <div style={{ color: '#d6dee7', fontSize: '12px', lineHeight: 1.5 }}>{suggestedNextStep}</div>
+        </div>
+      </div>
       {/* Smart Close toggle bar */}
       <div style={{ marginBottom: '12px', padding: '12px 16px', background: smartOn ? 'rgba(167,139,250,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${smartOn ? 'rgba(167,139,250,0.35)' : 'rgba(255,255,255,0.08)'}`, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <button
@@ -519,31 +553,33 @@ ${recentText}`,
       <ClosingChecklist
         leadId={leadId}
         compact={compact}
-        done={smartOn ? combinedDone : undefined}
-        onToggle={smartOn ? handleToggle : undefined}
+        done={smartOn ? combinedDone : manualDone}
+        onToggle={handleToggle}
         autoDone={smartOn ? autoDone : undefined}
         smartMode={smartOn}
+        modules={scriptModules}
+        currentStage={currentStage?.id}
       />
 
       {/* Save button — persists closing progress to the lead record */}
       <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button onClick={handleSave} disabled={saving || !leadId} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving || !leadId ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !leadId ? 0.5 : 1 }}>
+        <button onClick={handleSave} disabled={saving || !leadId || progressLoadedLeadId !== leadId} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '8px 20px', cursor: saving || !leadId ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', opacity: saving || !leadId || progressLoadedLeadId !== leadId ? 0.5 : 1 }}>
           {saving ? '⏳ Saving…' : '💾 Save Progress'}
         </button>
-        {savedAt && <span style={{ color: '#6b7280', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
+        {progressDirty ? <span style={{ color: AMBER, fontSize: '10px' }}>Saving changes…</span> : savedAt && <span style={{ color: '#92bfb0', fontSize: '10px' }}>✓ Saved {new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Deal Score</span>
+          <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Stage Score</span>
           <span style={{ color: dealScore >= 100 ? GOLD : dealScore >= 75 ? PURPLE : dealScore >= 50 ? BLUE : dealScore >= 25 ? AMBER : '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>{dealScore}/100</span>
           {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>Checklist complete · verify enrollment separately</span>}
         </span>
       </div>
 
       {/* Smart recommendations — close-focused coaching */}
-      {smartOn && analysis?.recommendations?.length > 0 && (
+      {smartOn && analysis?.recommendations?.length > 1 && (
         <div style={{ marginTop: '14px', background: '#0d1b2a', border: '1px solid rgba(167,139,250,0.25)', borderRadius: '6px', padding: '14px' }}>
           <div style={{ color: PURPLE, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>🧠 Smart Close Recommendations</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {analysis.recommendations.map((r, i) => (
+            {analysis.recommendations.slice(1).map((r, i) => (
               <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '8px 10px', background: 'rgba(167,139,250,0.06)', borderRadius: '4px' }}>
                 <span style={{ color: PURPLE, fontSize: '12px', flexShrink: 0 }}>💡</span>
                 <span style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{r}</span>
