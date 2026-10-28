@@ -28,6 +28,7 @@ export const ACTION_TAGS = {
   '@@COMPLETED_STEPS@@': 'completedSteps',
   '@@AI_INPUT@@': 'aiInput',
   '@@SEND_EMAIL@@': 'sendEmail',
+  '@@SEND_TEXT@@': 'sendText',
 };
 
 export const CUE_CATEGORIES = {
@@ -166,7 +167,7 @@ export function substituteClientName(text, clientFirstName, clientLastName) {
 }
 
 // ─── Teleprompter Component ────────────────────────────────────────────────────
-export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, lead, fronterFirstName, micLabel, onPositionChange, actions = {}, actionMsg }) {
+export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSize = 14, liveTranscript, phase, clientFirstName, clientLastName, lead, fronterFirstName, micLabel, onPositionChange, onFieldSaved, actions = {}, actionMsg }) {
   // Contact-card tokens ({{phone}}, {{zip}}, {{notice id}}, {{debt amount}}, …) resolve
   // from the live lead; without one, the legacy name tokens are still swapped.
   const displayContent = useMemo(() => {
@@ -352,6 +353,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
     debtConfirm: { label: '💰 Debt Confirm', busy: '⏳ Confirming…', color: GOLD, bg: `${GOLD}18`, border: `${GOLD}55`, onClick: actions.onDebtConfirm, isBusy: actions.debtConfirming },
     completedSteps: { label: '✅ Completed Steps', busy: '⏳', color: '#22c55e', bg: 'rgba(34,197,94,0.18)', border: 'rgba(34,197,94,0.55)', onClick: actions.onCompletedSteps, isBusy: false },
     aiInput: { label: '🤖 AI Input', busy: '⏳ Summarizing…', color: '#a78bfa', bg: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.55)', onClick: actions.onAiInput, isBusy: actions.aiInputRunning },
+    sendText: { label: '✉ Compose SMS via Android', busy: 'Opening…', color: '#d9bb7a', bg: 'rgba(217,187,122,.13)', border: 'rgba(217,187,122,.45)', onClick: actions.onSendText, isBusy: false },
     sendEmail: { label: '📧 Send Credentials & Welcome Email', busy: '⏳ Sending…', color: '#60a5fa', bg: 'rgba(96,165,250,0.18)', border: 'rgba(96,165,250,0.55)', onClick: actions.onSendEmail, isBusy: actions.sendingEmail },
   };
 
@@ -423,7 +425,7 @@ export default function ScriptTeleprompter({ content, color = '#e8e0d0', fontSiz
           }
           if (el.type === 'field') {
             // Editable contact-card field, live inside the script
-            return <DebtInlineField key={el.id} field={el.field} lead={lead} />;
+            return <DebtInlineField key={el.id} field={el.field} lead={lead} onSaved={onFieldSaved} />;
           }
           const scriptIdx = scriptLines.indexOf(el);
           const isActive = scriptIdx === activeIdx;

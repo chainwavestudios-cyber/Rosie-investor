@@ -6,6 +6,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue, getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 import ScriptTeleprompter from '@/components/debt/ScriptTeleprompter';
+import ScriptContactDock from '@/components/debt/ScriptContactDock';
 import ScriptFormatToolbar from '@/components/debt/ScriptFormatToolbar';
 import ScriptWysiwygEditor from '@/components/debt/ScriptWysiwygEditor';
 import { htmlToBbcode } from '@/components/debt/ScriptRichText';
@@ -90,10 +91,14 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const [debtConfirming, setDebtConfirming] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [aiInputRunning, setAiInputRunning] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [liveLead, setLiveLead] = useState(lead || null);
+  useEffect(() => { setLiveLead(lead || null); }, [lead]);
+  const onContactSaved = useCallback((updates) => { setLiveLead(prev => prev ? { ...prev, ...updates } : prev); }, []);
 
   const autoSaveTimer = useRef(null);
   const activeRef = useRef(null);
-  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'edit'); // 'edit' | 'teleprompt'
+  const [mode, setMode] = useDebtCoachValue(username, 'popout_script_mode', 'teleprompt'); // 'edit' | 'teleprompt'
   const textareaRef = useRef(null);
   const insertionRangeRef = useRef(null);
   const [editRequest, setEditRequest] = useState(0);
@@ -245,6 +250,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
         setActionMsg(data.message || 'No debt figures in the call yet — the customer has to state the debt and the amount.');
       } else {
         await base44.entities.DebtLead.update(lead.id, updates);
+        onContactSaved(updates);
         window.dispatchEvent(new CustomEvent('lead_autosaved', { detail: Object.keys(updates) }));
         const parts = (data.debtAmounts || []).map(a => `${a.type}: $${Number(a.amount).toLocaleString()}`);
         setActionMsg(`💰 Confirmed — ${parts.length > 0 ? parts.join(' · ') : '$' + Number(data.debtAmount || 0).toLocaleString()}`);
@@ -264,9 +270,14 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
   const sendCredsEmail = async () => {
     if (sendingEmail) return;
     if (!lead?.id) { setActionMsg('Select a contact in Live Call before sending an email.'); return; }
-    if (!lead.email) { setActionMsg('Add an email to the contact card first.'); return; }
     setSendingEmail(true); setActionMsg('📧 Sending the credentials & welcome message…');
     try {
+      // Always reload AFTER the script has saved any edits. Never use a stale lead
+      // object from the Live Call tab for email validation or success feedback.
+      const freshLead = await base44.entities.DebtLead.get(lead.id);
+      if (!freshLead?.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(freshLead.email)) {
+        throw new Error('Save a valid email address on the contact card first.');
+      }
       const page = await base44.entities.DebtEmailTemplate.filter({ name: { $regex: 'cred', $options: 'i' } }, { limit: 5 });
       const items = page?.items || page || [];
       const template = items.find(t => /creds and welcome/i.test(t.name || '')) || items[0];
@@ -372,7 +383,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       {active ? (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           {/* Name + type row */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
+          {mode === 'edit' && <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
             <input value={active.name || ''} onChange={e => updateAndSave({ name: e.target.value })} placeholder="Script name…" style={{ ...inp, flex: 1, minWidth: '120px' }} />
             <select value={active.scriptType || 'custom'} onChange={e => updateAndSave({ scriptType: e.target.value })} style={{ ...inp, width: '130px', cursor: 'pointer' }}>
               {SCRIPT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -392,7 +403,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
               />
               <span style={{ color: active.alwaysSaveBackup ? GOLD : '#6b7280', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>💾 Always Save</span>
             </label>
-          </div>
+          </div>}
 
           {/* Mode toggle + formatting toolbar — single line */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', flexShrink: 0 }}>
@@ -400,26 +411,26 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
               <button type="button" onClick={editScript} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'edit' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'edit' ? `${GOLD}18` : 'transparent', color: mode === 'edit' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ Edit</button>
               <button onClick={() => setMode('teleprompt')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${mode === 'teleprompt' ? '#f59e0b66' : 'rgba(255,255,255,0.1)'}`, background: mode === 'teleprompt' ? 'rgba(245,158,11,0.15)' : 'transparent', color: mode === 'teleprompt' ? '#f59e0b' : '#6b7280', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>📍 Teleprompt</button>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            {mode === 'edit' && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
               <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Size</span>
               <select value={active.fontSize || 14} onChange={e => updateAndSave({ fontSize: parseInt(e.target.value) })} style={{ ...inp, width: '50px', padding: '3px 4px', cursor: 'pointer' }}>
                 {FONT_SIZES.map(s => <option key={s} value={s}>{s}px</option>)}
               </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+            </div>}
+            {mode === 'edit' && <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
               <span style={{ color: '#4a5568', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase' }}>Color</span>
               <div style={{ display: 'flex', gap: '2px' }}>
                 {TEXT_COLORS.map(c => (
                   <button key={c.value} onClick={() => updateAndSave({ color: c.value })} title={c.label} style={{ width: '16px', height: '16px', borderRadius: '50%', background: c.value, border: active.color === c.value ? '2px solid #fff' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
                 ))}
               </div>
-            </div>
+            </div>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
               {saveMsg && <span style={{ color: saveMsg.startsWith('Error') ? '#ef4444' : '#4ade80', fontSize: '11px' }}>{saveMsg}</span>}
-              {scripts.length > 1 && (
+              {mode === 'edit' && scripts.length > 1 && (
                 <button onClick={deleteActive} disabled={deleting} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '2px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>{deleting ? '…' : '🗑'}</button>
               )}
-              <button onClick={saveActive} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '2px', padding: '4px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>{saving ? 'Saving…' : 'Save'}</button>
+              {mode === 'edit' && <button onClick={saveActive} disabled={saving} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '2px', padding: '4px 14px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>{saving ? 'Saving…' : 'Save'}</button>}
             </div>
           </div>
 
@@ -451,7 +462,12 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
               </div>
             </>
           ) : (
-            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={lead} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: sendCredsEmail, sendingEmail }} />
+            <>
+            <ScriptContactDock lead={liveLead || lead} onSaved={onContactSaved}
+              onSendEmail={sendCredsEmail} sendingEmail={sendingEmail}
+              smsOpen={smsOpen} onSmsOpen={setSmsOpen} />
+            <ScriptTeleprompter content={active.content || ''} color={active.color || '#e8e0d0'} fontSize={active.fontSize || 14} liveTranscript={liveTranscript} phase={phase} clientFirstName={clientFirstName} clientLastName={clientLastName} lead={lead} fronterFirstName={coachUser?.firstName || username || coachUser?.username} micLabel={micLabel} onPositionChange={onScriptPositionChange} actionMsg={actionMsg} actions={{ onDebtConfirm: runDebtConfirm, debtConfirming, onCompletedSteps: openClosingFlow, onAiInput: runAiInputSummary, aiInputRunning, onSendEmail: sendCredsEmail, sendingEmail, onSendText: () => setSmsOpen(true) }} />
+            </>
           )}
         </div>
       ) : (

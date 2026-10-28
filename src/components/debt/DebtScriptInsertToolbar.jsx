@@ -8,6 +8,7 @@ const ACTIONS = [
   ['✅ Completed Steps', '@@COMPLETED_STEPS@@'],
   ['🤖 AI Input', '@@AI_INPUT@@'],
   ['📧 Send Credentials & Welcome Email', '@@SEND_EMAIL@@'],
+  ['✉ Send Text via Android', '@@SEND_TEXT@@'],
 ];
 
 export default function DebtScriptInsertToolbar({ variables, onInsert, onCaptureSelection, accent }) {
