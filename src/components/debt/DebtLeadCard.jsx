@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import DebtCallBar from '@/components/debt/DebtCallBar';
 import DebtBadge from '@/components/fronter/DebtBadge';
@@ -26,6 +27,7 @@ const STATUS_LABELS = {
 };
 
 export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLeadSaved, transcript, intentScore, animalType, profileData }) {
+  const {user} = useDebtCoachAuth();
   const [tab, setTab] = useState('overview');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -287,7 +289,7 @@ export default function DebtLeadCard({ lead, onLeadChange, onLeadFieldEdit, onLe
         {!lead.firstName && <span style={{ color: '#4a5568', fontSize: '11px' }}>Enter a name to save</span>}
       </div>
 
-      {showProfile && <ClientProfileModal lead={lead} onClose={() => setShowProfile(false)} onSave={(updated) => onLeadChange(updated)} />}
+      {showProfile && <ClientProfileModal lead={lead} username={user?.username} onClose={() => setShowProfile(false)} onSave={(updated) => onLeadChange(updated)} />}
     </div>
   );
 }
