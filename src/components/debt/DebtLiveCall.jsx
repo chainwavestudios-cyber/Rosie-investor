@@ -441,6 +441,7 @@ Agent line: "${firstAgentLines}"`,
   const lastAskedAtRef = useRef(0);
   const recentQaRequestRef = useRef({ question: '', ts: 0, id: null });
   const supersededQaIdsRef = useRef(new Set());
+  const interimPaintTimeRef = useRef({});
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
 
@@ -1357,6 +1358,11 @@ ${recentText}`,
       clearTimeout(bufferTimeoutRef.current);
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1300);
     }
+    // Render no more than ~12 preview updates/sec per speaker. Recognition
+    // stays streaming at full rate; this only reduces React layout work.
+    const paintAt = Date.now();
+    if (paintAt - (interimPaintTimeRef.current[speaker] || 0) < 85) return;
+    interimPaintTimeRef.current[speaker] = paintAt;
     setTranscript(prev => {
       // Search backwards for the most recent interim line for this speaker.
       // Stop at the first non-interim line for this speaker (it was already committed).
@@ -1457,6 +1463,7 @@ ${recentText}`,
     lastAskedAtRef.current = 0;
     recentQaRequestRef.current = { question: '', ts: 0, id: null };
     supersededQaIdsRef.current.clear();
+    interimPaintTimeRef.current = {};
     setMicMuted(false);
     setTestMode(testModeArg);
     setPhase('live'); setDgStatus('connecting');
