@@ -93,6 +93,9 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
   const [leadResults, setLeadResults] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [progressLoadedLeadId, setProgressLoadedLeadId] = useState(null);
+  const [progressDirty, setProgressDirty] = useState(false);
+  const analysisRunningRef = useRef(false);
   // ── Closing script config (editable modules with keywords + script text) ──
   const [scriptModules, setScriptModules] = useState(defaultScriptModules());
   const [scriptConfigId, setScriptConfigId] = useState(null);
@@ -127,16 +130,18 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
 
   // Load lead + closing progress from DB
   useEffect(() => {
+    setProgressLoadedLeadId(null);
+    setProgressDirty(false);
+    setSavedAt(null);
     if (!leadId) { setLead(null); setSavedTranscript([]); return; }
     let cancelled = false;
     base44.entities.DebtLead.get(leadId).then(l => {
       if (cancelled) return;
       setLead(l);
-      // Load progress from DB record (falls back to localStorage)
-      const dbProgress = loadProgress(leadId, l);
-      setManualDone(dbProgress);
-      if (l.closingProgressUpdatedAt) setSavedAt(l.closingProgressUpdatedAt);
-    }).catch(() => {});
+      setManualDone(loadProgress(leadId, l));
+      setSavedAt(l.closingProgressUpdatedAt || null);
+      setProgressLoadedLeadId(leadId);
+    }).catch(e => { if (!cancelled) setError(`Unable to load closing progress: ${e?.message || e}`); });
     return () => { cancelled = true; };
   }, [leadId]);
 
@@ -155,41 +160,40 @@ export default function SmartClose({ leadId, liveTranscript, intentScore, animal
     return () => clearInterval(interval);
   }, [leadId, liveTranscript]);
 
-  // Persist manualDone to localStorage (fast cache)
+  // Do not allow a stale local cache to overwrite another lead or a newer DB record.
   useEffect(() => {
-    try { localStorage.setItem(`closing_progress_${leadId || 'general'}`, JSON.stringify(manualDone)); } catch {}
-  }, [manualDone, leadId]);
+    if (!leadId || progressLoadedLeadId !== leadId) return;
+    try { localStorage.setItem(`closing_progress_${leadId}`, JSON.stringify(manualDone)); } catch {}
+  }, [manualDone, leadId, progressLoadedLeadId]);
 
-  // Auto-save to DB (debounced 3s after last toggle)
+  // Save only user-confirmed checklist edits. AI suggestions stay separate.
   useEffect(() => {
-    if (!leadId) return;
+    if (!leadId || progressLoadedLeadId !== leadId || !progressDirty) return;
+    let cancelled = false;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
+        const savedOn = new Date().toISOString();
         await base44.entities.DebtLead.update(leadId, {
           closingProgressJson: JSON.stringify(manualDone),
-          closingProgressUpdatedAt: new Date().toISOString(),
+          closingProgressUpdatedAt: savedOn,
         });
-        setSavedAt(new Date().toISOString());
-      } catch {}
-    }, 3000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [manualDone, leadId]);
-
-  // Save dealScore to lead + auto-enroll at 100 (debounced 2s)
-  useEffect(() => {
-    if (!leadId) return;
-    const t = setTimeout(async () => {
-      const updates = { dealScore };
-      if (dealScore >= 100 && lead?.status !== 'enrolled') {
-        updates.status = 'enrolled';
-        updates.programEnrolled = true;
-        updates.enrollmentDate = new Date().toISOString().split('T')[0];
+        if (!cancelled) { setSavedAt(savedOn); setProgressDirty(false); setError(''); }
+      } catch (e) {
+        if (!cancelled) setError(`Auto-save failed. Use Save Progress to retry: ${e?.message || e}`);
       }
-      try { await base44.entities.DebtLead.update(leadId, updates); } catch {}
+    }, 1000);
+    return () => { cancelled = true; if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [manualDone, leadId, progressLoadedLeadId, progressDirty]);
+
+  // Deal score is a coaching metric, NOT proof of enrollment.
+  useEffect(() => {
+    if (!leadId || progressLoadedLeadId !== leadId) return;
+    const t = setTimeout(() => {
+      base44.entities.DebtLead.update(leadId, { dealScore }).catch(() => {});
     }, 2000);
     return () => clearTimeout(t);
-  }, [dealScore, leadId, lead?.status]);
+  }, [dealScore, leadId, progressLoadedLeadId]);
 
   // Reset state when lead changes
   useEffect(() => {
@@ -346,6 +350,7 @@ ${recentText}`,
   // Force-complete an entire section: checks every step in the module at once,
   // awarding all of that section's points to the deal score immediately.
   const handleCompleteSection = (modId) => {
+    if (progressLoadedLeadId !== leadId) return;
     const mod = scriptModules.find(m => m.id === modId);
     if (!mod) return;
     setManualDone(prev => {
@@ -353,11 +358,12 @@ ${recentText}`,
       mod.steps.forEach((_, i) => { next[`${modId}_${i}`] = true; });
       return next;
     });
+    setProgressDirty(true);
   };
 
   // Explicit save button — persists immediately to DB
   const handleSave = async () => {
-    if (!leadId) return;
+    if (!leadId || progressLoadedLeadId !== leadId) return;
     setSaving(true);
     try {
       await base44.entities.DebtLead.update(leadId, {
@@ -365,6 +371,8 @@ ${recentText}`,
         closingProgressUpdatedAt: new Date().toISOString(),
       });
       setSavedAt(new Date().toISOString());
+      setProgressDirty(false);
+      setError('');
     } catch (e) { setError('Save failed: ' + (e?.message || String(e))); }
     setSaving(false);
   };
@@ -387,7 +395,9 @@ ${recentText}`,
     removeSkip(skip.key);
   };
   const handleSkipConfirm = (skip) => {
+    if (progressLoadedLeadId !== leadId) return;
     setManualDone(prev => ({ ...prev, [skip.key]: true }));
+    setProgressDirty(true);
     removeSkip(skip.key);
   };
 
@@ -524,7 +534,7 @@ ${recentText}`,
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ color: '#8a9ab8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Deal Score</span>
           <span style={{ color: dealScore >= 100 ? GOLD : dealScore >= 75 ? PURPLE : dealScore >= 50 ? BLUE : dealScore >= 25 ? AMBER : '#ef4444', fontSize: '16px', fontWeight: 'bold' }}>{dealScore}/100</span>
-          {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>🎓 Enrolled!</span>}
+          {dealScore >= 100 && <span style={{ color: GOLD, fontSize: '11px', fontWeight: 'bold' }}>Checklist complete · verify enrollment separately</span>}
         </span>
       </div>
 
