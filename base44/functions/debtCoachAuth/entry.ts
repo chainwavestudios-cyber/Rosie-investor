@@ -154,10 +154,11 @@ export default async function(req: Request): Promise<Response> {
       if (existing?.length > 0) return Response.json({ error: 'Username already exists' }, { status: 400 });
 
       const role = body.role || 'dialer';
-      if (role === 'super_admin' && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins can create super admins' }, { status: 403 });
-      if (role === 'fronter' && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins can create fronter users' }, { status: 403 });
+      if (!['super_admin','admin','super_manager','manager','dialer','fronter'].includes(role)) return Response.json({ error: 'Invalid role' }, { status: 400 });
+      if (['super_admin','admin','fronter'].includes(role) && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins may create admin or fronter accounts' }, { status: 403 });
 
-      const hash = await hashPassword(DEFAULT_PASSWORD);
+      // New accounts cannot sign in until their private, expiring setup link is used.
+      const hash = await hashPassword(secureRandomHex(24));
       const permissions = body.permissions ? JSON.stringify(body.permissions) : '';
 
       const newUser = await base44.asServiceRole.entities.DebtCoachUser.create({
@@ -166,16 +167,23 @@ export default async function(req: Request): Promise<Response> {
         createdBy: admin.username, created_date: new Date().toISOString()
       });
 
+      const setup = await createSetupLink(newUser.id);
+      await base44.asServiceRole.entities.DebtCoachUser.update(newUser.id, {
+        setupTokenHash: setup.setupTokenHash, setupTokenExpiresAt: setup.setupTokenExpiresAt,
+      });
+      let inviteSent = false;
       if (body.sendInvite && body.email) {
         try {
           await base44.integrations.Core.SendEmail({
             to: body.email.trim(),
-            subject: 'Welcome to Debt Settlement Call Coach',
-            body: `You've been invited to the Debt Settlement Call Coach platform.\n\nUsername: ${username}\nDefault Password: ${DEFAULT_PASSWORD}\n\nPlease log in at https://rosieai-investorpage.base44.app/debt-call-coach-login and set a new password on first login.\n\nYour role: ${role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : role === 'fronter' ? 'Fronter' : 'Dialer'}`
+            subject: 'Complete your Debt Call Coach account setup',
+            body: `You've been invited to Debt Call Coach.\n\nUsername: ${username}\n\nUse this private, one-time link within 24 hours to set your own password:\n${setup.link}\n\nDo not forward this link. It stops working after use or expiry.\n\nYour role: ${role}.`
           });
-        } catch {}
+          inviteSent = true;
+        } catch (e) { console.error('Debt Call Coach invitation delivery failed', e); }
       }
-      return Response.json({ success: true, user: sanitizeUser(newUser) });
+      return Response.json({ success: true, user: sanitizeUser(newUser), inviteSent,
+        setupLink: inviteSent ? undefined : setup.link, setupExpiresAt: setup.setupTokenExpiresAt });
     }
 
     // ── LIST USERS ──
@@ -206,7 +214,20 @@ export default async function(req: Request): Promise<Response> {
       if (body.updates?.role !== undefined) updateData.role = body.updates.role;
       if (body.updates?.isActive !== undefined) updateData.isActive = body.updates.isActive;
       if (body.updates?.permissions !== undefined) updateData.permissions = typeof body.updates.permissions === 'string' ? body.updates.permissions : JSON.stringify(body.updates.permissions);
-
+      if (body.updates?.aiSettingsJson !== undefined) {
+        let proposed: any;
+        try { proposed = typeof body.updates.aiSettingsJson === 'string' ? JSON.parse(body.updates.aiSettingsJson) : body.updates.aiSettingsJson; }
+        catch { return Response.json({ error: 'Invalid JSON for feature flags' }, { status: 400 }); }
+        if (!proposed || typeof proposed !== 'object' || Array.isArray(proposed)) return Response.json({ error: 'Invalid feature flag object' }, { status: 400 });
+        let existingSettings: Record<string,any> = {};
+        try { existingSettings = JSON.parse(target.aiSettingsJson || '{}'); } catch {}
+        const merged = { ...existingSettings };
+        for (const [key, val] of Object.entries(proposed)) {
+          if (!ADMIN_FLAG_KEYS.has(key) || typeof val !== 'boolean') return Response.json({ error: `Invalid feature flag: ${key}` }, { status: 400 });
+          merged[key] = val;
+        }
+        updateData.aiSettingsJson = JSON.stringify(merged);
+      }
       await base44.asServiceRole.entities.DebtCoachUser.update(body.targetUserId, updateData);
       return Response.json({ success: true });
     }
@@ -220,13 +241,30 @@ export default async function(req: Request): Promise<Response> {
       return Response.json({ success: true });
     }
 
-    // ── RESET PASSWORD (admin resets to default) ──
+    // ── RESET PASSWORD (one-time setup link, no shared passwords) ──
     if (action === 'resetPassword') {
       const admin = await verifySession(base44, body.sessionUserId, body.sessionToken);
       if (!admin || !['admin', 'super_admin'].includes(admin.role)) return Response.json({ error: 'Unauthorized' }, { status: 403 });
-      const hash = await hashPassword(DEFAULT_PASSWORD);
-      await base44.asServiceRole.entities.DebtCoachUser.update(body.targetUserId, { passwordHash: hash, mustResetPassword: true });
-      return Response.json({ success: true });
+      const target = await base44.asServiceRole.entities.DebtCoachUser.get(body.targetUserId);
+      if (!target) return Response.json({ error: 'User not found' }, { status: 404 });
+      if (['admin','super_admin'].includes(target.role) && admin.role !== 'super_admin') return Response.json({ error: 'Only super admins may reset admin users' }, { status: 403 });
+      if (target.id === admin.id) return Response.json({ error: 'Use Change Password to update your own password' }, { status: 400 });
+      const setup = await createSetupLink(target.id);
+      await base44.asServiceRole.entities.DebtCoachUser.update(target.id, {
+        passwordHash: await hashPassword(secureRandomHex(24)), mustResetPassword: true,
+        sessionToken: '', voiceprintUri: '',
+        setupTokenHash: setup.setupTokenHash, setupTokenExpiresAt: setup.setupTokenExpiresAt,
+      });
+      let inviteSent = false;
+      if (body.sendInvite === true && target.email) {
+        try {
+          await base44.integrations.Core.SendEmail({ to: target.email,
+            subject: 'Reset your Debt Call Coach password',
+            body: `Your Debt Call Coach administrator requested a password reset.\n\nUse this one-time link within 24 hours to choose a new password:\n${setup.link}\n\nIf you did not expect this, contact your administrator.` });
+          inviteSent = true;
+        } catch (e) { console.error('Password reset delivery failed', e); }
+      }
+      return Response.json({ success: true, inviteSent, setupLink: inviteSent ? undefined : setup.link, setupExpiresAt: setup.setupTokenExpiresAt });
     }
 
     // ── ENROLL VOICE (requires password to verify identity) ──
