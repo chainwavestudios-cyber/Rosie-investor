@@ -52,7 +52,7 @@ export default function DebtCoachGmailCommandCenter() {
       const noteworthy = [];
       for (const m of next.timeline || []) {
         for (const e of m.events || []) if (e.type === 'click' && e.quality !== 'proxy_or_automated' && e.url) {
-          noteworthy.push({ key: 'clicked:' + (e.id || m.sendId + ':' + e.at), title: 'Email link clicked', subject: m.contactName || m.contactEmail || 'Contact', detail: shortHost(e.url) });
+          noteworthy.push({ key: 'clicked:' + (e.id || m.sendId + ':' + e.at), title: 'Tracked email link opened', subject: m.contactName || m.contactEmail || 'Contact', detail: shortHost(e.url) + ' · visitor unverified' });
         }
         if (m.audioCompleted) noteworthy.push({ key: 'audio:' + m.sendId, title: 'Personal audio completed', subject: m.contactName || m.contactEmail || 'Contact', detail: 'Welcome message completed' });
         if (m.calendarOpened) noteworthy.push({ key: 'calendar:' + m.sendId, title: 'Calendar opened', subject: m.contactName || m.contactEmail || 'Contact', detail: 'Booking not yet confirmed' });
@@ -171,7 +171,7 @@ export default function DebtCoachGmailCommandCenter() {
             {view.feed.slice(0,45).map(e=><div key={e.id} style={{padding:'9px 2px',borderBottom:'1px solid #27414b',fontSize:11,display:'flex',gap:8,alignItems:'center'}}>
               <span style={{fontSize:16}}>{e.eventType==='click'?'🔗':e.eventType==='open'?'◉':'◌'}</span>
               <div style={{minWidth:0,flex:1}}><button onClick={()=>showLead(e)} style={{background:'none',border:0,color:tones.text,textDecoration:'underline dotted',cursor:'pointer',padding:0,fontSize:12}}>{e.leadName}</button>
-                <div style={{color:e.quality==='proxy_or_automated'?tones.muted:tones.teal}}>{e.eventType==='click'?'Clicked '+shortHost(e.url):e.eventType==='open'?'Open pixel':'Event'} {e.quality==='proxy_or_automated'?'· proxy/automated':''}</div></div>
+                <div style={{color:e.quality==='proxy_or_automated'?tones.muted:e.quality==='unverified_relay_click'?tones.gold:tones.teal}}>{e.eventType==='click'?'Tracked link · '+shortHost(e.url):e.eventType==='open'?'Open pixel':'Event'} {e.quality==='proxy_or_automated'?'· proxy/automated':e.quality==='unverified_relay_click'?'· relay, visitor unverified':''}</div></div>
               <span style={{color:tones.muted,whiteSpace:'nowrap'}}>{e.trackedAt?new Date(e.trackedAt).toLocaleDateString():''}</span>
             </div>)}
           </div>
@@ -191,7 +191,7 @@ export default function DebtCoachGmailCommandCenter() {
           </div>)}
         </section>
       </div>
-      <p style={{fontSize:10,color:tones.muted,marginTop:15}}>Scores indicate observed email interactions, not confirmed listening comprehension, buying intent, eligibility, or completed appointments. Notifications appear while this console is open.</p>
+      <p style={{fontSize:10,color:tones.muted,marginTop:15}}>Scores combine tracked redirects with first-party playback and calendar actions. Redirects alone cannot confirm human browsing, intent, eligibility, or completed appointments. Notifications appear while this console is open.</p>
     </>}
     <EngagementContactCard target={card} username={user?.username} onClose={()=>setCard(null)}/>
   </div>;
