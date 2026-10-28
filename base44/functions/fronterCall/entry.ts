@@ -507,10 +507,11 @@ export default async function(req) {
       // grab has to call one of those — a made-up identity rings nothing.
       const identities = [...new Set([`${safeUser}_inbound`, safeUser])];
       let rungIdentity = '';
+      let browserCallSid = '';
       let ringError = '';
       for (const identity of identities) {
         try {
-          await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
+          const browserParticipant = await twilioFetch(`/Conferences/${confSid}/Participants.json`, {
             method: 'POST',
             body: new URLSearchParams({
               To: `client:${identity}`,
@@ -522,6 +523,7 @@ export default async function(req) {
             }),
           });
           rungIdentity = identity;
+          browserCallSid = browserParticipant?.call_sid || browserParticipant?.callSid || '';
           break;
         } catch (e: any) {
           ringError = e?.message || 'ring failed';
@@ -538,7 +540,7 @@ export default async function(req) {
       // The browser is only ringing. For AI queues a confirmed participant
       // join (not the button click) closes the card and marks transferred.
       if (aiQueue) {
-        try { await service.entities.FronterHeadsUp.update(queueRecord.id, { routeState: 'browser_ringing' }); } catch {}
+        try { await service.entities.FronterHeadsUp.update(queueRecord.id, { routeState: 'browser_ringing', browserCallSid }); } catch {}
         return Response.json({ ok: true, state: 'browser_ringing', message: 'Answer the incoming call in your Fronter browser to merge.' });
       }
 
