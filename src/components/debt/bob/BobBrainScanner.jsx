@@ -56,9 +56,9 @@ export default function BobBrainScanner({ kbEntries, transcripts, onKBChanged })
           ? { role: 'bob', text: `I don't have any entries matching "${forgetMatch[1].trim()}" to forget.` }
           : { role: 'bob', text: `Found ${matches.length} entries matching "${forgetMatch[1].trim()}". Click 🗑 to forget:`, deletable: matches }]);
       } else if (rememberMatch) {
-        await base44.entities.KnowledgeBase.create({ question: rememberMatch[1].trim(), answer: rememberMatch[2].trim(), category: 'debt_faq', kbName: 'Debt Settlement', source: 'BobBrain Chat', created_date: new Date().toISOString() });
-        setMessages(prev => [...prev, { role: 'bob', text: `✓ Remembered: "${rememberMatch[1].trim()}"` }]);
-        onKBChanged?.();
+        await base44.entities.DebtKBProposal.create({ question: rememberMatch[1].trim(), answer: rememberMatch[2].trim(), category: 'debt_faq', status: 'pending_review', source: 'BOB Brain Chat' });
+        setMessages(prev => [...prev, { role: 'bob', text: `Queued for Knowledge Base review: "${rememberMatch[1].trim()}". It is not live until approved.` }]);
+        window.dispatchEvent(new CustomEvent('debt_kb_updated'));
       } else if (SCAN_TRIGGER.test(msg) || /credit|objection|hardship|closing|enroll|bankruptcy|interest|payment|score|utilization/i.test(msg)) {
         await runScan(msg);
       } else {
