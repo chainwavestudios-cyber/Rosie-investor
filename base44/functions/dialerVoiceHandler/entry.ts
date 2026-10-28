@@ -99,6 +99,43 @@ function queueMergeTwiml(conf: string, mergeStatusUrl: string): string {
 </Response>`;
 }
 
+
+async function startAiAdvisorAttempt(service: any, config: any, leadId: string, conf: string, callerCallSid: string, queuedAt: string, attempt: number, appUrl: string): Promise<boolean> {
+  const number = toE164(String(attempt === 1 ? config.transferPhoneNumber || '' : config.transferPhoneNumber2 || ''));
+  if (!/^\+[1-9]\d{7,14}$/.test(number)) {
+    console.warn('[AI Queue] Invalid/missing advisor number for attempt', attempt);
+    return false;
+  }
+  const from = await pickTransferLineKey(service, config.twilioLineKey || 'TWILIO_FROM_NUMBER');
+  if (!from) { console.warn('[AI Queue] No available outbound transfer line'); return false; }
+  const args = `&LeadId=${encodeURIComponent(leadId)}&Conf=${encodeURIComponent(conf)}&QueuedAt=${encodeURIComponent(queuedAt)}&CallerCallSid=${encodeURIComponent(callerCallSid)}`;
+  const briefUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueBrief&Attempt=${attempt}${args}`;
+  const fallbackUrl = `${appUrl}/functions/dialerVoiceHandler?Mode=aiQueueFallback&Attempt=${attempt}${args}`;
+  const timeoutSeconds = Math.max(12, Math.min(28, Math.floor(Number(config.queueTimeoutSeconds || 90) / 2)));
+  try {
+    const result = await twilioFetch('/Calls.json', {
+      method: 'POST',
+      body: new URLSearchParams({
+        To: number, From: from, Url: briefUrl, Method: 'GET',
+        Timeout: String(timeoutSeconds), MachineDetection: 'Enable',
+        MachineDetectionTimeout: '6',
+        StatusCallback: fallbackUrl, StatusCallbackEvent: 'completed',
+        StatusCallbackMethod: 'POST',
+      }),
+    });
+    const rows = await service.entities.FronterHeadsUp.filter({ conferenceName: conf, status: 'active' });
+    if (rows?.[0]) await service.entities.FronterHeadsUp.update(rows[0].id, {
+      advisorAttempt: attempt,
+      routeState: attempt === 1 ? 'calling_chris_primary' : 'calling_chris_cell',
+    });
+    console.log('[AI Queue] Started advisor attempt', attempt, 'for conference', conf, 'sid', result?.sid);
+    return true;
+  } catch (e) {
+    console.warn('[AI Queue] Advisor dial error:', e?.message);
+    return false;
+  }
+}
+
 export default async function(req) {
   // ── Always return valid TwiML — never let Twilio see a 5xx ──────────
   try {
