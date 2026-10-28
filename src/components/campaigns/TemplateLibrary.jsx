@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Btn, Card, DIM, Field, GOLD, MUTED, SURFACE, BORDER, inputStyle } from './kit';
 import { templateTags } from './templateTags';
+import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const CATEGORIES = ['invitation', 'intro', 'follow_up', 'warm_lead', 'notice', 'other'];
 const CATEGORY_LABELS = { warm_lead: 'Warm Lead' };
@@ -15,7 +16,13 @@ const categoryLabel = (value) => CATEGORY_LABELS[value] || String(value || 'othe
 const BLANK = { name: '', category: 'invitation', subject: '', previewText: '', bodyHtml: '', bodyText: '', notes: '' };
 
 export default function TemplateLibrary({ username, onBack }) {
+  const {sessionUserId,sessionToken,isAdmin}=useDebtCoachAuth();
   const [templates, setTemplates] = useState([]);
+  const [testTemplate,setTestTemplate]=useState(null);
+  const [testRecipient,setTestRecipient]=useState('');
+  const [testFirstName,setTestFirstName]=useState('Test');
+  const [testBusy,setTestBusy]=useState(false);
+  const [testFeedback,setTestFeedback]=useState(null);
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -77,6 +84,18 @@ export default function TemplateLibrary({ username, onBack }) {
     await load();
   };
 
+  const sendTest=async(e)=>{
+    e.preventDefault();if(!testTemplate||testBusy)return;
+    setTestBusy(true);setTestFeedback(null);
+    try{
+      const res=await base44.functions.invoke('emailCampaignSend',{mode:'test-template',templateId:testTemplate.id,testEmail:testRecipient,testFirstName,sessionUserId,sessionToken});
+      const data=res?.data||res;
+      if(data?.error||!data?.ok)throw new Error(data?.error||'Gmail did not confirm delivery.');
+      setTestFeedback({ok:true,text:`Gmail test sent to ${data.to}; unique audio and email tracking ID ${data.sendId}.`});
+    }catch(err){setTestFeedback({ok:false,text:err?.response?.data?.error||err?.message||'Test send failed.'});}
+    finally{setTestBusy(false);}
+  };
+
   const tags = draft ? templateTags(`${draft.subject || ''}\n${draft.bodyHtml || ''}\n${draft.bodyText || ''}`) : [];
 
   return (
@@ -88,10 +107,15 @@ export default function TemplateLibrary({ username, onBack }) {
             DAA-only Gmail templates. Personalized, tracked welcome audio and link engagement are connected to each email — {'{{FirstName}}'}, {'{{RosieInviteLink}}'}, {'{{ChrisInviteLink}}'}, {'{{UnsubscribeUrl}}'} and {'{{CompanyMailingAddress}}'} all resolve.
           </div>
         </div>
-        <Btn tone="gold" onClick={() => edit(null)}>＋ New template</Btn>
+        <Btn tone="gold" onClick={() => edit(null)}>＋ New DAA template</Btn>
         <Btn tone="ghost" onClick={onBack}>← Campaigns</Btn>
       </div>
 
+      {testTemplate&&isAdmin&&<form onSubmit={sendTest} style={{background:'linear-gradient(110deg,#1b3034,#15232e)',border:'1px solid #ab8c58',borderRadius:9,padding:14,display:'grid',gap:9}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}><strong style={{color:'#e6c57a',fontSize:12}}>Gmail test · {testTemplate.name}</strong><button type="button" onClick={()=>{setTestTemplate(null);setTestFeedback(null);}} style={{background:'transparent',border:'1px solid #496268',borderRadius:6,color:'#d5e6d4',padding:'5px 9px',cursor:'pointer'}}>Close</button></div>
+        <div style={{display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap'}}><label style={{color:'#a9c4c0',fontSize:10,flex:'1 1 230px'}}>Test recipient<input type="email" required value={testRecipient} onChange={e=>setTestRecipient(e.target.value)} style={{...inputStyle,marginTop:5}} placeholder="your-email@example.com"/></label><label style={{color:'#a9c4c0',fontSize:10,flex:'0 1 150px'}}>First name<input value={testFirstName} onChange={e=>setTestFirstName(e.target.value)} style={{...inputStyle,marginTop:5}} /></label><button type="submit" disabled={testBusy} style={{padding:'10px 13px',background:'#ae8a53',color:'#101d25',borderRadius:6,border:0,fontWeight:800,cursor:'pointer'}}>{testBusy?'Sending…':'Send Gmail test'}</button></div>
+        {testFeedback&&<div role="status" style={{fontSize:11,color:testFeedback.ok?'#92edbd':'#ffacaa'}}>{testFeedback.text}</div>}
+      </form>}
       {draft ? (
         <Card
           title={draft.id ? `Edit “${draft.name || 'template'}”` : 'New template'}
@@ -105,7 +129,7 @@ export default function TemplateLibrary({ username, onBack }) {
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: '10px' }}>
             <Field label="Template name">
-              <input style={inputStyle} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Rosie invitation — rate drop" />
+              <input style={inputStyle} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="DAA personal welcome follow-up" />
             </Field>
             <Field label="Category">
               <select style={inputStyle} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })}>
@@ -154,6 +178,7 @@ export default function TemplateLibrary({ username, onBack }) {
                   {(() => { try { const tags = JSON.parse(template.requiredVarsJson || '[]'); return tags.length ? ` · ${tags.length} tags` : ''; } catch { return ''; } })()}
                 </div>
                 <div style={{ display: 'flex', gap: '7px', marginTop: '9px' }}>
+                  {isAdmin&&<Btn tone="gold" onClick={()=>{setTestTemplate(template);setTestFeedback(null);}}>Send test</Btn>}
                   <Btn tone="ghost" onClick={() => edit(template)}>✎ Edit</Btn>
                   <Btn tone="danger" onClick={() => remove(template)} disabled={busy === template.id}>{busy === template.id ? '…' : 'Delete'}</Btn>
                 </div>
