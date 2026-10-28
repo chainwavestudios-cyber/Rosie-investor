@@ -136,7 +136,7 @@ export async function getAllDebtCoachValues(username) {
  */
 export async function setAllDebtCoachValues(username, values) {
   const entry = await ensureLoaded(username);
-  if (!entry) return;
+  if (!entry) return false;
   // Only apply + notify keys whose value actually changed
   const changed = {};
   for (const [key, value] of Object.entries(values)) {
@@ -145,14 +145,14 @@ export async function setAllDebtCoachValues(username, values) {
       changed[key] = value;
     }
   }
-  if (Object.keys(changed).length === 0) return;
+  if (Object.keys(changed).length === 0) return !entry.failed;
   entry.data = { ...entry.data, ...changed };
   for (const [key, value] of Object.entries(changed)) {
     notifyListeners(username, key, value);
   }
   // Save immediately (not debounced) — this is an explicit save/restore action
   if (saveTimers[username]) clearTimeout(saveTimers[username]);
-  if (entry.failed) return;
+  if (entry.failed) return false;
   try {
     const json = JSON.stringify(entry.data);
     if (entry.id) {
@@ -161,8 +161,10 @@ export async function setAllDebtCoachValues(username, values) {
       const created = await base44.entities.DebtCoachUserSetting.create({ username, settingsJson: json });
       entry.id = created.id;
     }
+    return true;
   } catch (e) {
     console.error('Failed to save DebtCoachUserSetting:', e);
+    return false;
   }
 }
 
