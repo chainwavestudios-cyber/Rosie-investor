@@ -6,6 +6,7 @@
  */
 const stamp = (value) => value ? new Date(value).getTime() || 0 : 0;
 const mostRecent = (a, b) => stamp(a) >= stamp(b) ? a : b;
+import { aggregateMilestones, milestoneCounts } from './coachGmailMilestones';
 
 export const shortHost = (url) => {
   try { return new URL(String(url)).hostname.replace(/^www\./, ''); }
@@ -30,12 +31,13 @@ export function composeGmailIntelligence(report) {
         phone: contact.phone || '', assignedTo: contact.assignedTo || '',
         status: contact.status || '', onFile: !!contact.onFile,
         sent: 0, opens: 0, proxyOpens: 0, clicks: 0, qualifyVisits: 0,
-        clickedUrls: new Set(), clickTemplates: new Set(),
+        clickedUrls: new Set(), clickTemplates: new Set(), sends: [],
         lastAt: null, lastSentAt: null, reasons: [],
       });
     }
     const p = people.get(id);
     p.sent++;
+    p.sends.push(send);
     p.audioBestPercent = Math.max(Number(p.audioBestPercent || 0), Number(send.audioBestPercent || 0));
     p.audioCompleted = !!p.audioCompleted || !!send.audioCompleted;
     p.calendarOpened = !!p.calendarOpened || !!send.calendarOpened;
@@ -86,8 +88,9 @@ export function composeGmailIntelligence(report) {
       links >= 2 ? 'Review tracked links; consider a personal follow-up' :
       links ? 'Review recorded link destination and follow up personally' :
       p.opens ? 'Nurture: possible view; no verified buying action' : 'No tracked engagement yet';
-    const { clickedUrls, clickTemplates, ...base } = p;
-    return { ...base, score, hotLead, tier, reasons, action, linkKeys: [...clickedUrls],
+    const { clickedUrls, clickTemplates, sends: sourceSends, ...base } = p;
+    const milestones = aggregateMilestones(sourceSends);
+    return { ...base, ...milestones, score, hotLead, tier, reasons, action, linkKeys: [...clickedUrls],
       welcomeViewed: false, qualifyVisited: p.qualifyVisits > 0 };
   }).sort((a, b) => b.score - a.score || stamp(b.lastAt) - stamp(a.lastAt));
 
@@ -100,6 +103,9 @@ export function composeGmailIntelligence(report) {
     qualifyVisits: leads.filter(p => p.qualifyVisits).map(p => p.id),
     hotLeads: leads.filter(p => p.hotLead).map(p => p.id),
     proxyOnly: leads.filter(p => p.proxyOpens && !p.opens).map(p => p.id),
+    goldListeners: leads.filter(p => p.goldListener).map(p => p.id),
+    allLinksAndAudio: leads.filter(p => p.allLinksAndAudio).map(p => p.id),
+    eliteJourneys: leads.filter(p => p.eliteJourney).map(p => p.id),
   };
   const summary = {
     emailsSent: sends.length,
@@ -111,6 +117,7 @@ export function composeGmailIntelligence(report) {
     avgScore: leads.length ? Math.round(leads.reduce((n, p) => n + p.score, 0) / leads.length) : 0,
     proxyOnly: metricLeads.proxyOnly.length,
     failedAttempts: report?.summary?.failedAttempts || 0,
+    ...milestoneCounts(leads),
   };
   const hot = leads.filter(p => p.hotLead).slice(0, 10).map(p => ({
     leadId: p.leadId, score: p.score, reasons: p.reasons, action: p.action,
