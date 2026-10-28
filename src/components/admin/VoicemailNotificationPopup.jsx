@@ -14,9 +14,20 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logNotification } from '@/lib/notifyCenter';
 
 const GOLD = '#b8933a';
 const POLL_MS = 30000;
+
+function recordVoicemails(logs) {
+  (logs || []).forEach((l) => logNotification({
+    title: `New voicemail${l.fromNumber ? ` from ${l.fromNumber}` : ''}`,
+    body: l.leadName || l.callerName || 'Left on the office line.',
+    type: 'voicemail',
+    source: 'Admin · Calls',
+    linkPath: '/admin',
+  }));
+}
 
 export default function VoicemailNotificationPopup({ onOpenLead, onOpenInvestor, onOpenCallLog }) {
   const [notifications, setNotifications] = useState([]); // [{log, id}]
@@ -49,8 +60,8 @@ export default function VoicemailNotificationPopup({ onOpenLead, onOpenInvestor,
           ...newVms.map(l => ({ log: l, uid: l.id + '-' + Date.now() })),
           ...prev,
         ].slice(0, 5)); // keep max 5 at once
-        // Play a soft notification sound if browser allows
-        try { new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAA==').play().catch(()=>{}); } catch {}
+        // Silent — each voicemail is recorded in the Notifications tab.
+        recordVoicemails(newVms);
       }
     } catch {}
   };

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import SmsTab from '@/components/shared/SmsTab';
+import { logNotification } from '@/lib/notifyCenter';
 
 const GOLD = '#b8933a';
 
@@ -59,22 +60,15 @@ function triggerConfetti() {
   requestAnimationFrame(anim);
 }
 
-// Ding sound
-function playDing() {
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ac = new AudioContext();
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.connect(gain); gain.connect(ac.destination);
-    osc.frequency.setValueAtTime(880, ac.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ac.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.4, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.5);
-    osc.start(ac.currentTime);
-    osc.stop(ac.currentTime + 0.5);
-  } catch {}
+// Silent — each new text is recorded in the Notifications tab instead of dinging.
+function recordNewTexts(messages) {
+  (messages || []).slice(0, 5).forEach((m) => logNotification({
+    title: `New text from ${m.contactName || m.fromNumber || 'unknown number'}`,
+    body: m.body || '',
+    type: 'sms',
+    source: 'Admin · Texts',
+    linkPath: '/admin',
+  }));
 }
 
 export default function IncomingSmsPopup({ onOpenConversations }) {
@@ -97,7 +91,7 @@ export default function IncomingSmsPopup({ onOpenConversations }) {
       const sorted = (msgs || []).sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
       const newCount = sorted.length;
       if (newCount > lastCountRef.current && newCount > 0) {
-        playDing();
+        recordNewTexts(sorted.slice(0, Math.max(1, newCount - lastCountRef.current)));
         triggerConfetti();
         setClosed(false);
         setMinimized(false);

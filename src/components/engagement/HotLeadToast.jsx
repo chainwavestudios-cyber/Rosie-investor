@@ -6,36 +6,24 @@ import { useEffect, useRef } from 'react';
 import { C, chip } from '@/components/superadmin/kit';
 import { tierStyle } from '@/lib/engagementTiers';
 import LeadNameButton from '@/components/engagement/LeadNameButton';
-
-const CHIME = [880, 1180];
+import { logNotification } from '@/lib/notifyCenter';
 
 export default function HotLeadToast({ arrivals, system, soundOn, onOpenLead, onDismiss }) {
   const playedRef = useRef('');
   const key = (arrivals || []).map((row) => `${row.id}:${row.lastEnteredAt}`).join('|');
 
+  // Silent by design — every arrival is recorded in the Notifications tab instead.
   useEffect(() => {
-    if (!arrivals?.length || !soundOn || playedRef.current === key) return;
+    if (!arrivals?.length || playedRef.current === key) return;
     playedRef.current = key;
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new Ctx();
-      CHIME.forEach((freq, index) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        const at = ctx.currentTime + index * 0.18;
-        gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.22, at + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(at);
-        osc.stop(at + 0.18);
-      });
-      setTimeout(() => { try { ctx.close(); } catch { /* nothing to close */ } }, 1000);
-    } catch { /* sound is a nicety — never block the alert */ }
-  }, [key, arrivals, soundOn]);
+    arrivals.forEach((row) => logNotification({
+      title: system === 'coach' ? `Hot lead: ${row.name || 'Lead'}` : `Hot prospect: ${row.name || 'Prospect'}`,
+      body: [row.phone && `📞 ${row.phone}`, row.action].filter(Boolean).join(' · '),
+      type: 'hot_lead',
+      source: system === 'coach' ? 'Debt Call Coach' : 'Fronter engagement',
+      linkPath: system === 'coach' ? '/debt-call-coach' : '/fronter',
+    }));
+  }, [key, arrivals, system]);
 
   if (!arrivals?.length) return null;
 

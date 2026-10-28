@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logNotification } from '@/lib/notifyCenter';
 
 const RED = '#ef4444';
 const GOLD = '#10b981';
@@ -13,46 +14,23 @@ const DARK = '#0a0f1e';
 export default function MeetingAlertPopup() {
   const [alert, setAlert] = useState(null);
   const [dismissed, setDismissed] = useState({}); // eventId -> true
-  const audioCtxRef = useRef(null);
-  const oscillatorRef = useRef(null);
-  const gainRef = useRef(null);
-  const beepIntervalRef = useRef(null);
 
-  // Start the audible tone (repeating beep)
-  const startTone = () => {
-    if (oscillatorRef.current) return; // already playing
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
 
-      const playBeep = () => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880; // A5
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.4);
-      };
-
-      playBeep();
-      beepIntervalRef.current = setInterval(playBeep, 1500); // beep every 1.5s
-    } catch (e) { /* audio not available */ }
+  // Silent by design — the meeting is recorded in the Notifications tab, no tone.
+  const loggedRef = useRef(new Set());
+  const startTone = (ev) => {
+    if (!ev?.id || loggedRef.current.has(ev.id)) return;
+    loggedRef.current.add(ev.id);
+    logNotification({
+      title: `Meeting in ${Math.max(0, Math.round(ev.minutesAway || 0))} min`,
+      body: ev.title || 'A calendar meeting is starting.',
+      type: 'meeting',
+      source: 'Debt Call Coach',
+      linkPath: '/debt-call-coach',
+    });
   };
 
-  // Stop the tone
-  const stopTone = () => {
-    if (beepIntervalRef.current) { clearInterval(beepIntervalRef.current); beepIntervalRef.current = null; }
-    if (oscillatorRef.current) { try { oscillatorRef.current.stop(); } catch {} oscillatorRef.current = null; }
-    if (gainRef.current) { gainRef.current = null; }
-  };
+  const stopTone = () => {};
 
   // Poll calendar events every 30s
   useEffect(() => {
@@ -73,8 +51,9 @@ export default function MeetingAlertPopup() {
           const diffMin = (startMs - now) / 60000;
           // Alert when meeting is within 5 minutes (and not already started > 2 min ago)
           if (diffMin <= 5 && diffMin >= -2) {
-            setAlert({ ...ev, minutesAway: Math.round(diffMin) });
-            startTone();
+            const upcoming = { ...ev, minutesAway: Math.round(diffMin) };
+            setAlert(upcoming);
+            startTone(upcoming);
             break;
           }
         }

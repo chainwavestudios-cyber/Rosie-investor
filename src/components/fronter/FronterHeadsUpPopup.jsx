@@ -6,32 +6,22 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logNotification } from '@/lib/notifyCenter';
 
 const GOLD = '#10b981';
 const RED = '#ef4444';
 const BLUE = '#60a5fa';
 const AMBER = '#f59e0b';
 
-function playAlertTone() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const playBeep = (freq, start, duration) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = freq;
-      osc.type = 'sine';
-      gain.gain.setValueAtTime(0, ctx.currentTime + start);
-      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + start + 0.02);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + start + duration);
-      osc.start(ctx.currentTime + start);
-      osc.stop(ctx.currentTime + start + duration);
-    };
-    playBeep(880, 0, 0.15);
-    playBeep(880, 0.25, 0.15);
-    playBeep(880, 0.5, 0.15);
-  } catch (e) { console.warn('Audio tone failed:', e); }
+// Silent — the transfer alert is recorded in the Notifications tab, no tone.
+function recordTransferAlerts(alerts) {
+  alerts.forEach((a) => logNotification({
+    title: `Transfer from ${a.fronterUsername || 'a fronter'}`,
+    body: a.leadName ? `Lead: ${a.leadName}` : 'A call is being transferred.',
+    type: 'transfer',
+    source: 'Fronter',
+    linkPath: '/fronter',
+  }));
 }
 
 export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLead, onGrab }) {
@@ -45,8 +35,8 @@ export default function FronterHeadsUpPopup({ adminUsername, onListen, onOpenLea
       const newAlerts = (active || []).filter(a => !dismissed.has(a.id));
       // Play tone only for genuinely new alerts (not seen before)
       const currentIds = new Set(newAlerts.map(a => a.id));
-      const hasNew = newAlerts.some(a => !prevIdsRef.current.has(a.id));
-      if (hasNew) playAlertTone();
+      const fresh = newAlerts.filter(a => !prevIdsRef.current.has(a.id));
+      if (fresh.length) recordTransferAlerts(fresh);
       prevIdsRef.current = currentIds;
       setAlerts(newAlerts);
     } catch {}

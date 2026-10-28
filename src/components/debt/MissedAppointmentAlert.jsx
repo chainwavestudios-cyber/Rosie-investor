@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
+import { logNotification } from '@/lib/notifyCenter';
 
 const RED = '#ef4444';
 const GOLD = '#10b981';
@@ -32,45 +33,23 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
   const [dismissed, setDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('missed_appt_dismissed') || '{}'); } catch { return {}; }
   });
-  const audioCtxRef = useRef(null);
-  const beepIntervalRef = useRef(null);
-
-  const startTone = useCallback(() => {
-    if (beepIntervalRef.current) return;
-    // Don't play beeps during a live call — the agent mic picks up the audio
-    // and sends it to Deepgram, polluting the transcript.
-    if (window.__debtCallActive) return;
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
-      const playBeep = () => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 660;
-        osc.type = 'square';
-        gain.gain.setValueAtTime(0, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.05);
-        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
-      };
-      playBeep();
-      beepIntervalRef.current = setInterval(playBeep, 1000);
-      // Auto-stop audio after 5 seconds
-      setTimeout(() => {
-        if (beepIntervalRef.current) { clearInterval(beepIntervalRef.current); beepIntervalRef.current = null; }
-      }, 5000);
-    } catch {}
+  // Silent by design — each missed appointment is recorded in the Notifications tab.
+  const loggedRef = useRef(new Set());
+  const startTone = useCallback((events) => {
+    (events || []).forEach((ev) => {
+      if (!ev?.id || loggedRef.current.has(ev.id)) return;
+      loggedRef.current.add(ev.id);
+      logNotification({
+        title: 'Missed appointment',
+        body: `${ev.title || 'Appointment'} — nobody has marked it complete.`,
+        type: 'missed_appointment',
+        source: 'Debt Call Coach',
+        linkPath: '/debt-call-coach',
+      });
+    });
   }, []);
 
-  const stopTone = useCallback(() => {
-    if (beepIntervalRef.current) { clearInterval(beepIntervalRef.current); beepIntervalRef.current = null; }
-  }, []);
+  const stopTone = useCallback(() => {}, []);
 
   const checkMissed = useCallback(async () => {
     if (!isWithinScheduleWindow()) return;
@@ -91,7 +70,7 @@ export default function MissedAppointmentAlert({ onOpenLead }) {
         }
       }
       setMissedEvents(missed);
-      if (missed.length > 0) startTone();
+      if (missed.length > 0) startTone(missed);
       else stopTone();
     } catch {}
   }, [completed, dismissed, startTone, stopTone]);

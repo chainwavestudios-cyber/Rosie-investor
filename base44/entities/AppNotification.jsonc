@@ -1,0 +1,95 @@
+{
+  "name": "AppNotification",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "body": {
+      "type": "string",
+      "title": "Detail",
+      "format": "textarea"
+    },
+    "type": {
+      "type": "string",
+      "title": "Kind",
+      "enum": [
+        "hot_lead",
+        "transfer",
+        "meeting",
+        "missed_appointment",
+        "sms",
+        "voicemail",
+        "call",
+        "system"
+      ],
+      "default": "system"
+    },
+    "source": {
+      "type": "string",
+      "title": "Where It Came From (page or feature label)"
+    },
+    "linkPath": {
+      "type": "string",
+      "title": "Where Clicking It Goes (app path)"
+    },
+    "read": {
+      "type": "boolean",
+      "title": "Seen",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ],
+  "rls": {
+    "create": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

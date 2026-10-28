@@ -45,6 +45,8 @@ import { PortalAuthProvider } from '@/lib/PortalAuthContext';
 import { TwilioDeviceProvider } from '@/lib/TwilioDeviceContext';
 import StoryDetail from '@/pages/StoryDetail';
 import AgentConsole from '@/components/agent/AgentConsole';
+import Notifications from '@/pages/Notifications';
+import NotificationsBell from '@/components/shared/NotificationsBell';
 import EvidenceReview from './pages/EvidenceReview';
 
 const PUBLIC_PATHS = ['/optin', '/optin/screenshot', '/email-optin', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage'];
@@ -130,10 +132,12 @@ function App() {
               <Route path="/email-engagement" element={<DebtCoachAuthProvider><EmailEngagementPage standalone /></DebtCoachAuthProvider>} />
               <Route path="/automations" element={<DebtCoachAuthProvider><AutomationCenter /></DebtCoachAuthProvider>} />
               <Route path="/evidence-review" element={<DebtCoachAuthProvider><EvidenceReview /></DebtCoachAuthProvider>} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="*" element={<PageNotFound />} />
             </Routes>
           </ProtectedShell>
           <AgentConsole />
+          <NotificationsBell />
         </Router>
       </PortalAuthProvider>
       <Toaster />
