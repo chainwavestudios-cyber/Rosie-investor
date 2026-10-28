@@ -27,7 +27,7 @@ import { campaignAssistants, normalizeAddress, recipientVars, renderEmail, sendi
 import { buildMime } from '../../shared/emailTracking.ts';
 import { sendViaGmail } from '../../shared/gmailSend.ts';
 import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
-import { daaTemplateIssue, DAA_WELCOME_URL, withDAAWelcomeCTA } from '../../shared/daaEmailPolicy.ts';
+import { daaTemplateIssue, withDAAWelcomeCTA, withDAAMailingFooter } from '../../shared/daaEmailPolicy.ts';
 import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 /** One queue of a campaign: how many emails it sends, and how long it then waits. */
@@ -226,7 +226,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     }
 
     const vars = recipientVars(recipient, assistants);
-    const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
+    const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml || '')) }, vars);
     const sendId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const templateName = clean(campaign.templateName) || clean(template.name);
 
@@ -403,7 +403,7 @@ export default async function (req: Request): Promise<Response> {
       if(issue)return Response.json({error:issue},{status:403});
       const firstName=String(body.testFirstName||'Test').replace(/[<>\r\n]/g,'').slice(0,60)||'Test';
       const vars=recipientVars({firstName,email:to},[]);
-      const rendered=renderEmail({...template,bodyHtml:withDAAWelcomeCTA(template.bodyHtml||'')},vars);
+      const rendered=renderEmail({...template,bodyHtml:withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml||''))},vars);
       const sent=await sendTrackedEmail(base44,{to,subject:`[TEST] ${rendered.subject}`,html:rendered.html,text:rendered.text,
         contactKind:'debt_lead',contactId:'',contactName:'DAA Gmail test',templateId:template.id,templateName:`[TEST] ${template.name}`,
         sentBy:'debt_coach',source:'template_test',allowDuplicate:true,track:true});
@@ -438,7 +438,7 @@ export default async function (req: Request): Promise<Response> {
       const recipient = await recipientFor(clean(body.recipientId) || undefined);
       if (!recipient) return Response.json({ error: 'There is no recipient to preview yet — import a list first.' });
       const vars = recipientVars(recipient, assistants);
-      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
+      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml || '')) }, vars);
       return Response.json({
         ok: true,
         recipient: {
@@ -474,7 +474,7 @@ export default async function (req: Request): Promise<Response> {
       if (!to) return Response.json({ error: 'Enter a valid address to send the test to.' });
       const recipient = await recipientFor(clean(body.recipientId) || undefined);
       const vars = recipientVars(recipient || { firstName: 'Friend', email: to }, assistants);
-      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAWelcomeCTA(template.bodyHtml || '') }, vars);
+      const rendered = renderEmail({ ...template, subject: subjectOverride || template.subject, bodyHtml: withDAAMailingFooter(withDAAWelcomeCTA(template.bodyHtml || '')) }, vars);
       const test=await sendTrackedEmail(base44,{
         to,subject:`[TEST] ${rendered.subject}`,html:rendered.html,text:rendered.text,
         contactKind:'debt_lead',contactId:'',contactName:'Gmail test recipient',
