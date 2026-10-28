@@ -327,18 +327,42 @@ Agent line: "${firstAgentLines}"`,
   const processorRef = useRef(null);
   const transcriptRef = useRef([]);
   const leadRef = useRef(lead);
+  // A manually edited email is authoritative for the active lead, including
+  // while it is still incomplete / unsaved. AI may fill empty untouched email
+  // fields but must never replace a human's draft or confirmed email.
+  const manualEmailDraftRef = useRef({ leadId: null, value: null });
+  const handleManualLeadField = useCallback((field, value) => {
+    if (field === 'email') {
+      manualEmailDraftRef.current = { leadId: leadRef.current?.id || null, value };
+    }
+    setLead(prev => {
+      const next = { ...prev, [field]: value };
+      leadRef.current = next;
+      return next;
+    });
+  }, []);
   useEffect(() => {
     const refresh = async (event) => {
       const id = leadRef.current?.id;
       const fields = Array.isArray(event.detail) ? event.detail : [];
       if (!id || !fields.length) return;
       const savedLead = await base44.entities.DebtLead.get(id);
-      setLead(current => current.id === id ? { ...current, ...Object.fromEntries(fields.filter(field => field in savedLead).map(field => [field, savedLead[field]])) } : current);
+      setLead(current => {
+        if (current.id !== id) return current;
+        const accepted = fields.filter(field => field in savedLead && !(field === 'email' && manualEmailDraftRef.current.leadId === id));
+        const next = { ...current, ...Object.fromEntries(accepted.map(field => [field, savedLead[field]])) };
+        leadRef.current = next;
+        return next;
+      });
     };
     window.addEventListener('lead_autosaved', refresh);
     return () => window.removeEventListener('lead_autosaved', refresh);
   }, []);
-  const { runFiller: runContactFiller } = useAIContactFiller({ leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live', getScriptContent: () => scriptPositionRef.current?.content || '' });
+  const { runFiller: runContactFiller } = useAIContactFiller({
+    leadId: lead?.id, leadType: 'debt', transcript, isActive: phase === 'live',
+    getScriptContent: () => scriptPositionRef.current?.content || '',
+    getProtectedFields: () => manualEmailDraftRef.current.leadId === leadRef.current?.id ? ['email'] : [],
+  });
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);
@@ -517,6 +541,7 @@ Agent line: "${firstAgentLines}"`,
   // Select a lead from the quick-search and start the call
   const selectLeadAndStartCall = useCallback(async (selectedLead) => {
     setLeadSearch(''); setLeadSearchResults([]); setLeadSearchFocus(false);
+    manualEmailDraftRef.current = { leadId: null, value: null };
     setLead(selectedLead);
     leadRef.current = selectedLead;
     setProfileData(selectedLead.profileJson ? (() => { try { return JSON.parse(selectedLead.profileJson); } catch { return null; } })() : null);
@@ -528,8 +553,12 @@ Agent line: "${firstAgentLines}"`,
 
   // After Save on the lead card: lead is persisted in the card; here we close the card and open the Client Profile
   const handleLeadSaved = useCallback((savedLead) => {
-    setLead(savedLead);
-    leadRef.current = savedLead;
+    setLead(prev => {
+      const draft = manualEmailDraftRef.current;
+      const next = { ...savedLead, ...(draft.leadId === savedLead.id ? { email: draft.value } : {}) };
+      leadRef.current = next;
+      return next;
+    });
     loadLeads();
     setShowProfile(true);
   }, [loadLeads]);
@@ -915,7 +944,9 @@ ${recentText}`,
         if (contact.firstName) updates.firstName = contact.firstName;
         if (contact.lastName) updates.lastName = contact.lastName;
         if (contact.phone) updates.phone = contact.phone;
-        if (contact.email) updates.email = contact.email;
+        // Do not replace a manually entered (possibly unsaved) email or an
+        // existing email. AI extraction is a blank-field suggestion only.
+        if (contact.email && !leadRef.current.email && manualEmailDraftRef.current.leadId !== leadRef.current.id) updates.email = contact.email;
         if (contact.address) updates.address = contact.address;
         if (contact.city) updates.city = contact.city;
         if (contact.state) updates.state = contact.state;
@@ -1313,6 +1344,7 @@ ${recentText}`,
           status: 'new', callCount: 0,
           leadNumber, debtCoachOwner: coachUser?.username || null,
         });
+        manualEmailDraftRef.current = { leadId: null, value: null };
         setLead(created); setProfileData(null); setMemories([]);
         leadRef.current = created;
         loadLeads();
@@ -2219,7 +2251,7 @@ ${recentText}`,
                     </div>
                   </div>
                   <div style={{ flex: 1, overflow: 'auto' }}>
-                    <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                    <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadFieldEdit={handleManualLeadField} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
                   </div>
                   {leadPanel.resizeHandles}
                 </div>
@@ -2232,7 +2264,7 @@ ${recentText}`,
                       <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
                     </div>
                   </div>
-                  <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
+                  <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadFieldEdit={handleManualLeadField} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
                 </div>
               ))}
 
@@ -2320,7 +2352,14 @@ ${recentText}`,
       </button>
 
       {showProfile && lead.id && (
-        <ClientProfileModal lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => setLead(updated)} />
+        <ClientProfileModal lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => {
+          if (updated?.id === leadRef.current?.id) manualEmailDraftRef.current = { leadId: updated.id, value: updated.email || '' };
+          setLead(prev => {
+            const next = { ...prev, ...updated };
+            leadRef.current = next;
+            return next;
+          });
+        }} />
       )}
 
       {/* End Call Dialog — asks keep or delete profile/lead contact card */}
