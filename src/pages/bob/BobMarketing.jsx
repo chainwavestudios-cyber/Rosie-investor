@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Headphones, GraduationCap, Users, ShieldCheck, AudioLines, ChartNoAxesCombined, BookOpen, CheckCircle2, Play, Layers3, GitBranch, PhoneForwarded, Mic2, UserRoundCog, FileText, LockKeyhole, MessagesSquare, CalendarClock } from 'lucide-react';
+import { ArrowRight, Headphones, GraduationCap, Users, ShieldCheck, AudioLines, ChartNoAxesCombined, BookOpen, CheckCircle2, Play, Layers3, GitBranch, PhoneForwarded, Mic2, FileText, LockKeyhole, MessagesSquare, CalendarClock } from 'lucide-react';
 import './BobSite.css';
 
 export function BobBrand() {
@@ -17,7 +17,7 @@ const features=[
   {Icon:PhoneForwarded,title:'Multi-agent handoff simulations',description:'Practice moving from a receptionist or transfer specialist to a simulated closer with voice and role changes.'},
   {Icon:FileText,title:'Private script and workflow studio',description:'Build structured scripts, insert contact-field variables, define role-play actions, and rehearse your company’s process.'},
   {Icon:CalendarClock,title:'Callbacks that remember the context',description:'Carry fictional prospect history forward into a second simulated conversation and continue where practice left off.'},
-  {Icon:BookOpen,title:'Your organization's own training brain',description:'Give BOB company-specific policies, approved responses, procedures and product knowledge—without sharing another tenant’s library.'},
+  {Icon:BookOpen,title:'Your organization’s own training brain',description:'Give BOB company-specific policies, approved responses, procedures and product knowledge—without sharing another tenant’s library.'},
   {Icon:Users,title:'Licensed seats and delegated roles',description:'Assign trainees, managers and admins. Organization administrators decide who can change the training environment.'},
   {Icon:Mic2,title:'Consent-aware manager coaching',description:'Monitor training progress and opt-in microphone sessions, and review permitted encrypted practice recordings.'},
   {Icon:ChartNoAxesCombined,title:'Transcript reviews and coaching',description:'Evaluate simulated sessions with an AI coaching scorecard and identify opportunities for improved conversations.'},
