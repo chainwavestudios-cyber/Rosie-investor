@@ -18,7 +18,7 @@ const answeredType = (s) => /\b(?:credit cards?|cards?|personal loans?|loans?|bo
 const warmQuestion = (s) => /\b(?:would|could)\b[\s\S]{0,250}\b(?:helpful|help|beneficial|make (?:things|the payments?) (?:easier|manageable))\b[\s\S]{0,100}\?/i.test(s);
 const queueAnnouncement = (s) => /\b(?:placing|putting|transfer(?:ring)?|patch(?:ing)?|connect(?:ing)?)\b[\s\S]{0,90}\b(?:queue|chris|advisor|specialist|line|over)\b/i.test(s);
 export const OUTBOUND_WARM_QUESTION =
-  "Understood. Depending on your situation, there may be legitimate ways to make your unsecured debt payments more manageable, with fees, interest terms, and risks explained before you decide. Would reviewing those options with Chris be helpful to your family?";
+  "Understood. Our debt-relief programs are designed to reduce qualifying unsecured debt balances by about thirty to forty percent and eliminate future interest under the applicable program terms. If that could help your family, would you like me to connect you with Chris, our senior debt advisor? He can explain the details.";
 export const OUTBOUND_QUEUE_NOTICE =
   "Thank you. I'm going to place you in Chris's queue now. There may be a few seconds of silence while I connect you.";
 export const OUTBOUND_DEBT_QUESTION =
