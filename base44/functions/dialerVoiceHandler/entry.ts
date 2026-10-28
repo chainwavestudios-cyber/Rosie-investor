@@ -79,10 +79,11 @@ function queueWaitPhrase(seconds: number): string {
 function buildQueueBrief(lead: any, secondsInQueue: number): string {
   const name = [String(lead?.firstName || '').trim(), String(lead?.lastName || '').trim()]
     .filter(Boolean).join(' ') || 'a new caller';
-  const amount = Number(lead?.debtAmount || 0) || 20000;
-  return `Hey, I have ${name} on the line with approximately ${amount.toLocaleString('en-US')} dollars ` +
-    `of unsecured debt, and they have been in the queue ${queueWaitPhrase(secondsInQueue)}. ` +
-    `Say "patch him through", or press 1, and I will connect you both.`;
+  const amount = Number(lead?.debtAmount || 0);
+  const debtBrief = amount > 0 ? `They reported approximately ${amount.toLocaleString('en-US')} dollars in debt.` : 'Their debt amount has not yet been confirmed.';
+  return `Chris, the AI agent has ${name} waiting in your queue. ${debtBrief} ` +
+    `They have been waiting ${queueWaitPhrase(secondsInQueue)}. ` +
+    `Say "patch them through", or press 1, to merge the call. Otherwise press 2.`;
 }
 
 // The closer's leg joins the queue conference; his join starts it, so the
@@ -92,7 +93,7 @@ function queueMergeTwiml(conf: string, mergeStatusUrl: string): string {
 <Response>
   <Dial>
     <Conference startConferenceOnEnter="true" endConferenceOnExit="true" beep="false"
-      statusCallback="${xmlEscape(mergeStatusUrl)}" statusCallbackEvent="start">
+      statusCallback="${xmlEscape(mergeStatusUrl)}" statusCallbackEvent="start join">
       ${xmlEscape(conf)}
     </Conference>
   </Dial>
@@ -446,6 +447,14 @@ export default async function(req) {
     if (params.get('Mode') === 'aiQueueBrief') {
       const briefLeadId = params.get('LeadId') || '';
       const conf = params.get('Conf') || '';
+      const answeredBy = (params.get('AnsweredBy') || '').toLowerCase();
+      const attemptType = (params.get('Attempt') || '1').toLowerCase();
+      // AMD distinguishes Chris from voicemail. An unknown result is not an
+      // affirmative human answer and should fall through to his next number.
+      if (attemptType !== 'browser' && answeredBy && answeredBy !== 'human') {
+        console.log('[AI Queue] Advisor leg went to machine/unknown:', answeredBy);
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', { headers: { 'Content-Type': 'text/xml' } });
+      }
       let briefConfig: any = {};
       let lead: any = null;
       try {
@@ -469,7 +478,7 @@ export default async function(req) {
       const approveUrl = `${baseUrl}/functions/dialerVoiceHandler?Mode=aiQueueApprove` +
         `&LeadId=${encodeURIComponent(briefLeadId)}&Conf=${encodeURIComponent(conf)}` +
         (callerCallSid ? `&CallerCallSid=${encodeURIComponent(callerCallSid)}` : '');
-      // Brief the closer, then listen for his approval before merging anything.
+      // Brief Chris, then listen for his approval before merging anything.
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech dtmf" numDigits="1" timeout="6" speechTimeout="auto" action="${xmlEscape(approveUrl)}" method="GET">
