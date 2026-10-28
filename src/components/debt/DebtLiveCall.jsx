@@ -5,14 +5,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import DebtLeadCard from '@/components/debt/DebtLeadCard';
-import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
-import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
+import { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import LiveTranscriptPanel from '@/components/debt/LiveTranscriptPanel';
 import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
-import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
+import { isLoopbackSource } from '@/lib/audioDevices';
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
