@@ -89,7 +89,7 @@ export function useObjectionEngine(transcript, active = true) {
   }, [active, transcript, objections, kbEntries]);
 
   const dismiss = useCallback(() => setActiveObjection(null), []);
-  const openMatch = useCallback(event => setActiveObjection(event), []);
+  const openMatch = useCallback(event => setActiveObjection({ ...event, manualOpenAt: Date.now() }), []);
   const clearRecent = useCallback(() => setRecentMatches([]), []);
   return { objections, activeObjection, dismiss, dismissObjection: dismiss,
     openMatch, recentMatches, clearRecent };
