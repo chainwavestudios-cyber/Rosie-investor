@@ -618,9 +618,8 @@ export default async function(req) {
     }
 
     // ── Mode 4: Inbound call → AI agent (all lines) or browser client fallback ──
-    // All incoming calls route to the AI agent Media Stream when the agent is active.
-    // Falls back to the assigned fronter's browser client only if the AI agent is off
-    // or the bridge is not configured.
+    // Only the selected AI line routes to the Media Stream when enabled.
+    // All other numbers keep their standard browser-dialer routing.
     const calledNumber = (called || to || '').replace(/\s/g, '');
     // Lines that must ring the /fronter dialer instead of being answered by the AI agent
     const ringFronterDialer = FRONTER_DIRECT_NUMBERS.includes(calledNumber);
@@ -634,6 +633,10 @@ export default async function(req) {
       // admin master) → connect Adam AI agent Media Stream.
       const configs = await base44.entities.AIAgentConfig.filter({ configName: 'default' });
       const aiConfig = configs?.[0];
+      const configuredAiNumber = aiConfig?.twilioLineKey ? lineNumber(aiConfig.twilioLineKey) : '';
+      const normalizeLine = (number: string) => String(number || '').replace(/\D/g, '');
+      const agentOwnsLine = !!(aiConfig?.isActive && configuredAiNumber &&
+        normalizeLine(configuredAiNumber) === normalizeLine(calledNumber));
 
       // ── First ring: the super admin's own phone ─────────────────────────
       // A call to a fronter-direct line rings the admin's browser handset and
@@ -641,7 +644,7 @@ export default async function(req) {
       // action re-enters this handler in takeover mode and the AI agent answers
       // on the third ring.
       const aiTakeover = params.get('Mode') === 'inboundAiTakeover';
-      if (aiConfig?.isActive && ringFronterDialer && !aiTakeover) {
+      if (agentOwnsLine && ringFronterDialer && !aiTakeover) {
         let firstRingIds: string[] = [];
         try {
           const assignments = await base44.entities.FronterLineAssignment.filter({ twilioNumber: calledNumber });
@@ -681,7 +684,7 @@ export default async function(req) {
       // pipeline (Prompt 1-2): lead lookup → dynamic audio clips (name + regional +
       // admin master) → connect Adam AI agent Media Stream. Takeover mode is the
       // third-ring fallback after the admin's phone rang twice.
-      if (aiConfig?.isActive && (!ringFronterDialer || aiTakeover)) {
+      if (agentOwnsLine && (!ringFronterDialer || aiTakeover)) {
         let streamUrl = '';
         let streamToken = '';
         try {
