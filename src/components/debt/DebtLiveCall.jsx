@@ -26,7 +26,9 @@ import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCre
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue, getDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
-import { liveWindowGeometry, LIVE_LAYOUT_KEY, LIVE_PANEL_KEYS } from '@/lib/liveWorkspaceLayout';
+import { liveWindowGeometry, LIVE_LAYOUT_KEY, LIVE_PROFILE_STORE, LIVE_MODE_KEY, LIVE_PANEL_KEYS,
+  getWorkspaceViewport, resolveDisplayProfile, displayProfileName,
+  createDisplayLayout, clampDisplayLayout } from '@/lib/liveWorkspaceLayout';
 import LiveWorkspaceToolbar from '@/components/debt/LiveWorkspaceToolbar';
 import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
@@ -239,101 +241,152 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
-  // A calm, non-overlapping first-run layout. Only the actual current user's
-  // saved geometry overrides these defaults; never alter audio/KB/AI engines.
-  const initialWindowsRef = useRef(null);
-  if (!initialWindowsRef.current) {
-    initialWindowsRef.current = Object.fromEntries(LIVE_PANEL_KEYS.map(key => [key, liveWindowGeometry(key)]));
-  }
-  const initialWindows = initialWindowsRef.current;
-  const transcriptPanel = usePopOutPanel('live_transcript', initialWindows.live_transcript.size, coachUser?.username, 9998, false,
-    { defaultPosition: initialWindows.live_transcript.position, minWidth: 320 });
-  const scriptsPanel = usePopOutPanel('live_scripts', initialWindows.live_scripts.size, coachUser?.username, 9998, false,
-    { defaultPosition: initialWindows.live_scripts.position, minWidth: 330 });
-  const aiPanel = usePopOutPanel('live_ai_panel', initialWindows.live_ai_panel.size, coachUser?.username, 15010, false,
-    { defaultPosition: initialWindows.live_ai_panel.position, minWidth: 350 });
-  const [showCustomerStats, setShowCustomerStats] = useState(false);
-  const allPoppedOut = transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
-  const [isInbound, setIsInbound] = useState(false);
-  const [layoutSavedMsg, setLayoutSavedMsg] = useState('');
-  const [layoutSaving, setLayoutSaving] = useState(false);
-
-  const saveDefaultLayout = async () => {
-    const username = coachUser?.username;
-    if (!username || layoutSaving) return;
-    setLayoutSaving(true);setLayoutSavedMsg('');
-    try {
-      // Snapshot currently displayed sizes and locations, including contact.
-      const savedSettings = await getAllDebtCoachValues(username);
-      const windows = {
-        popout_live_transcript: {poppedOut:transcriptPanel.poppedOut,position:transcriptPanel.position,size:transcriptPanel.size},
-        popout_live_scripts: {poppedOut:scriptsPanel.poppedOut,position:scriptsPanel.position,size:scriptsPanel.size},
-        popout_live_ai_panel: {poppedOut:aiPanel.poppedOut,position:aiPanel.position,size:aiPanel.size},
-        popout_live_contact_profile: savedSettings.popout_live_contact_profile ||
-          {...initialWindows.live_contact_profile,poppedOut:true}
-      };
-      const snapshot = {...windows,profileVisible:showProfile,version:1};
-      const confirmed = await setAllDebtCoachValues(username, {...windows,[LIVE_LAYOUT_KEY]:snapshot});
-      if(!confirmed)throw new Error('Settings database did not confirm the layout save.');
-      setLayoutSavedMsg('✓ Saved for every new call');
-    } catch(e){
-      setLayoutSavedMsg('Save failed: '+(e?.message||String(e)));
-    } finally{setLayoutSaving(false);}
-  };
-  const resetWorkspaceLayout = async () => {
-    const username=coachUser?.username;
-    const windows=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
-      'popout_'+key,{...liveWindowGeometry(key),poppedOut:true}
-    ]));
-    if(username){
-      const confirmed=await setAllDebtCoachValues(username,{
-        ...windows,[LIVE_LAYOUT_KEY]:{...windows,profileVisible:true,version:1}
-      });
-      if(!confirmed){setLayoutSavedMsg('Unable to save reset layout.');return;}
-      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
-    }else{
-      transcriptPanel.setPosition(windows.popout_live_transcript.position);
-      transcriptPanel.setSize(windows.popout_live_transcript.size);
-      scriptsPanel.setPosition(windows.popout_live_scripts.position);
-      scriptsPanel.setSize(windows.popout_live_scripts.size);
-      aiPanel.setPosition(windows.popout_live_ai_panel.position);
-      aiPanel.setSize(windows.popout_live_ai_panel.size);
-    }
-    transcriptPanel.openAtSavedPosition();
-    scriptsPanel.openAtSavedPosition();
-    aiPanel.openAtSavedPosition();
-    if(lead?.id)setShowProfile(true);
-    setLayoutSavedMsg('✓ Clean layout restored');
-  };
-
-  // A saved DEFAULT is replayed when a new live call starts, even if the user
-  // temporarily rearranged a window during the previous conversation.
+  // Per-desktop-size workspace profiles. Screen selection is independent
+  // from the Rodecaster multitrack and all live voice/AI settings.
+  const [layoutMode, setLayoutMode, layoutModeLoaded] = useDebtCoachValue(
+    coachUser?.username, LIVE_MODE_KEY, 'auto');
+  const [workspaceViewport, setWorkspaceViewport] = useState(getWorkspaceViewport);
+  const selectedLayoutProfile = resolveDisplayProfile(layoutMode, workspaceViewport);
+  const [savedLayoutProfiles, setSavedLayoutProfiles] = useState([]);
+  const workspaceRequestRef = useRef(0);
+  const [workspaceApplying, setWorkspaceApplying] = useState(false);
   useEffect(()=>{
-    if(phase!=='live'||!coachUser?.username)return;
-    let cancelled=false;
-    (async()=>{
-      const saved=await getDebtCoachValue(coachUser.username,LIVE_LAYOUT_KEY,null);
-      if(cancelled||!saved?.version)return;
-      const subset=Object.fromEntries(LIVE_PANEL_KEYS.filter(key=>saved['popout_'+key])
-        .map(key=>['popout_'+key,saved['popout_'+key]]));
-      if(!Object.keys(subset).length)return;
-      const done=await setAllDebtCoachValues(coachUser.username,subset);
-      if(cancelled||!done)return;
-      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
-      setShowProfile(saved.profileVisible!==false);
-    })().catch(e=>console.warn('[Live workspace] Could not restore default:',e?.message));
-    return()=>{cancelled=true;};
-  },[phase,coachUser?.username]);
+    let timer;
+    const onResize=()=>{
+      clearTimeout(timer);
+      timer=setTimeout(()=>setWorkspaceViewport(getWorkspaceViewport()),180);
+    };
+    window.addEventListener('resize',onResize);
+    return()=>{clearTimeout(timer);window.removeEventListener('resize',onResize);};
+  },[]);
 
-  // On call start show the existing FULL contact and full AI, plus scripts
-  // and transcript — only window geometry and visibility are controlled here.
-  useEffect(() => {
-    if (phase !== 'live') return;
+  // Start with an ultrawide-friendly layout when the browser occupies a
+  // 3840 × 1080 display. Saved geometry overrides it as soon as it loads.
+  const initialWindowsRef=useRef(null);
+  if(!initialWindowsRef.current){
+    const viewport=getWorkspaceViewport();
+    initialWindowsRef.current=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
+      key,liveWindowGeometry(key,viewport)
+    ]));
+  }
+  const initialWindows=initialWindowsRef.current;
+  const transcriptPanel=usePopOutPanel('live_transcript',initialWindows.live_transcript.size,
+    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_transcript.position,minWidth:320});
+  const scriptsPanel=usePopOutPanel('live_scripts',initialWindows.live_scripts.size,
+    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_scripts.position,minWidth:330});
+  const aiPanel=usePopOutPanel('live_ai_panel',initialWindows.live_ai_panel.size,
+    coachUser?.username,15010,false,{defaultPosition:initialWindows.live_ai_panel.position,minWidth:350});
+  const [showCustomerStats,setShowCustomerStats]=useState(false);
+  const allPoppedOut=transcriptPanel.poppedOut&&scriptsPanel.poppedOut&&aiPanel.poppedOut;
+  const [isInbound,setIsInbound]=useState(false);
+  const [layoutSavedMsg,setLayoutSavedMsg]=useState('');
+  const [layoutSaving,setLayoutSaving]=useState(false);
+
+  const applyDisplayProfile=useCallback(async(profileId, {showFeedback=false}={})=>{
+    const username=coachUser?.username;
+    if(!username || !layoutModeLoaded)return;
+    const requestId=++workspaceRequestRef.current;
+    setWorkspaceApplying(true);
+    try{
+      const settings=await getAllDebtCoachValues(username);
+      if(workspaceRequestRef.current!==requestId)return;
+      const profiles=settings[LIVE_PROFILE_STORE]||{};
+      const raw=profiles[profileId]||createDisplayLayout(profileId,workspaceViewport);
+      const layout=clampDisplayLayout({...raw,profileId},workspaceViewport);
+      const payload=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
+        'popout_'+key,layout['popout_'+key]
+      ]));
+      const saved=await setAllDebtCoachValues(username,payload);
+      if(workspaceRequestRef.current!==requestId)return;
+      if(!saved)throw new Error('Your layout could not be loaded from the settings database.');
+      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
+      setSavedLayoutProfiles(Object.keys(profiles));
+      setShowProfile(layout.profileVisible!==false && !!leadRef.current?.id);
+      if(showFeedback) setLayoutSavedMsg(
+        profiles[profileId]?'✓ Saved '+displayProfileName(profileId)+' layout loaded':'✓ Default '+displayProfileName(profileId)+' layout loaded');
+    }catch(e){
+      if(workspaceRequestRef.current===requestId){
+        console.warn('[Live workspace] Could not load display profile:',e?.message);
+        setLayoutSavedMsg('Layout load failed: '+(e?.message||String(e)));
+      }
+    }finally{if(workspaceRequestRef.current===requestId)setWorkspaceApplying(false);}
+  },[coachUser?.username,layoutModeLoaded,workspaceViewport.width,workspaceViewport.height]);
+
+  const saveDefaultLayout=async()=>{
+    const username=coachUser?.username;
+    if(!username||layoutSaving||workspaceApplying)return;
+    setLayoutSaving(true);setLayoutSavedMsg('');
+    try{
+      const settings=await getAllDebtCoachValues(username);
+      const defaultContact=createDisplayLayout(selectedLayoutProfile,workspaceViewport).popout_live_contact_profile;
+      const payload={
+        popout_live_transcript:{poppedOut:transcriptPanel.poppedOut,position:transcriptPanel.position,size:transcriptPanel.size},
+        popout_live_scripts:{poppedOut:scriptsPanel.poppedOut,position:scriptsPanel.position,size:scriptsPanel.size},
+        popout_live_ai_panel:{poppedOut:aiPanel.poppedOut,position:aiPanel.position,size:aiPanel.size},
+        popout_live_contact_profile:settings.popout_live_contact_profile||defaultContact
+      };
+      const snapshot={
+        version:2,profileId:selectedLayoutProfile,profileVisible:showProfile,
+        updatedAt:new Date().toISOString(),...payload
+      };
+      const profiles={...(settings[LIVE_PROFILE_STORE]||{}),[selectedLayoutProfile]:snapshot};
+      const result=await setAllDebtCoachValues(username,{
+        ...payload,[LIVE_LAYOUT_KEY]:snapshot,[LIVE_PROFILE_STORE]:profiles
+      });
+      if(!result)throw new Error('Your layout could not be saved to the settings database.');
+      setSavedLayoutProfiles(Object.keys(profiles));
+      setLayoutSavedMsg('✓ Saved '+displayProfileName(selectedLayoutProfile)+' for future calls');
+    }catch(e){
+      setLayoutSavedMsg('Save failed: '+(e?.message||String(e)));
+    }finally{setLayoutSaving(false);}
+  };
+
+  const resetWorkspaceLayout=async()=>{
+    const username=coachUser?.username;
+    if(!username||layoutSaving||workspaceApplying)return;
+    setLayoutSaving(true);setLayoutSavedMsg('');
+    try{
+      const layout=createDisplayLayout(selectedLayoutProfile,workspaceViewport);
+      const current=await getAllDebtCoachValues(username);
+      const profiles={...(current[LIVE_PROFILE_STORE]||{}),[selectedLayoutProfile]:{
+        ...layout,updatedAt:new Date().toISOString()
+      }};
+      const payload=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
+        'popout_'+key,layout['popout_'+key]
+      ]));
+      const result=await setAllDebtCoachValues(username,{
+        ...payload,[LIVE_PROFILE_STORE]:profiles,[LIVE_LAYOUT_KEY]:layout
+      });
+      if(!result)throw new Error('The default positions could not be saved.');
+      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
+      transcriptPanel.openAtSavedPosition();scriptsPanel.openAtSavedPosition();aiPanel.openAtSavedPosition();
+      if(leadRef.current?.id)setShowProfile(true);
+      setSavedLayoutProfiles(Object.keys(profiles));
+      setLayoutSavedMsg('✓ '+displayProfileName(selectedLayoutProfile)+' reset; other screens preserved');
+    }catch(e){setLayoutSavedMsg('Reset failed: '+(e?.message||String(e)));}
+    finally{setLayoutSaving(false);}
+  };
+
+  // Auto-detect by browser viewport. Switching displays loads THAT screen's
+  // separate profile. Moving a window within the same size class does not
+  // overwrite the stored default until the user explicitly clicks Save.
+  useEffect(()=>{
+    if(!layoutModeLoaded||!coachUser?.username)return;
+    void applyDisplayProfile(selectedLayoutProfile);
+  },[layoutModeLoaded,coachUser?.username,selectedLayoutProfile,applyDisplayProfile]);
+
+  // Each new call starts from the selected screen profile, even if the agent
+  // temporarily moved windows during their previous live conversation.
+  useEffect(()=>{
+    if(phase!=='live'||!layoutModeLoaded||!coachUser?.username)return;
+    void applyDisplayProfile(selectedLayoutProfile);
+  },[phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(()=>{
+    if(phase!=='live')return;
     setShowProfile(true);
-    scriptsPanel.openAtSavedPosition();
-    transcriptPanel.openAtSavedPosition();
-    aiPanel.openAtSavedPosition();
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+    scriptsPanel.openAtSavedPosition();transcriptPanel.openAtSavedPosition();aiPanel.openAtSavedPosition();
+  },[phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [micMuted, setMicMuted] = useState(false);
 
@@ -2291,7 +2344,10 @@ ${recentText}`,
 
       <LiveWorkspaceToolbar phase={phase} panels={{transcript:transcriptPanel,scripts:scriptsPanel,ai:aiPanel}}
         showProfile={showProfile} setShowProfile={setShowProfile} hasLead={!!lead?.id}
-        onSave={saveDefaultLayout} onReset={resetWorkspaceLayout} saving={layoutSaving} message={layoutSavedMsg} />
+        onSave={saveDefaultLayout} onReset={resetWorkspaceLayout} saving={layoutSaving||workspaceApplying}
+        message={layoutSavedMsg} layoutMode={layoutMode} onLayoutModeChange={setLayoutMode}
+        activeProfile={selectedLayoutProfile} availableProfiles={savedLayoutProfiles}
+        viewport={workspaceViewport} onApplyProfile={()=>applyDisplayProfile(selectedLayoutProfile,{showFeedback:true})} />
 
       {error && <div role="alert" style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px' }}>⚠ {error}</div>}
       {twilioWarning && <div role="status" style={{ marginBottom:12,padding:'9px 13px',borderRadius:8,background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.3)',color:'#fbd08b',fontSize:11 }}>Twilio audio: {twilioWarning}</div>}
