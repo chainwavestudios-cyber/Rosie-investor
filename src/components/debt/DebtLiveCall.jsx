@@ -873,7 +873,7 @@ Agent line: "${firstAgentLines}"`,
     recentQaRequestRef.current = { question: normalized, ts: startTime, id };
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
     logAI('qa');
-    invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.slice(-8), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
+    invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => {
         if (supersededQaIdsRef.current.has(id)) return;
         const responseMs = Date.now() - startTime;

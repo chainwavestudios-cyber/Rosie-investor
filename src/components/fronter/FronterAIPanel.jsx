@@ -64,8 +64,9 @@ export default function FronterAIPanel({
     [externalTranscript, transcriptFormat]
   );
 
-  // Keep transcriptRef in sync — real ref, stable object
-  useEffect(() => { transcriptRef.current = normalizedTranscript; }, [normalizedTranscript]);
+  // Keep transcriptRef in sync — real ref, stable object. Q&A context carries the
+  // prospect's own words only; agent lines are never sent to the AI.
+  useEffect(() => { transcriptRef.current = normalizedTranscript.filter(l => !l.interim && l.speaker === 0); }, [normalizedTranscript]);
 
   // Auto-scroll transcript
   const lineCount = externalTranscript.length;

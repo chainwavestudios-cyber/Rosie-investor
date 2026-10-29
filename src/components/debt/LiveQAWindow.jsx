@@ -19,8 +19,15 @@ export default function LiveQAWindow({
     ...line,
     speaker: line.speaker === 0 ? 1 : line.speaker === 1 ? 0 : line.speaker === 2 ? 1 : 0,
   })), [transcript]);
-  const transcriptRef = useRef(normalized);
-  transcriptRef.current = normalized;
+  // Q&A context sent to the AI: customer speech ONLY. Agent lines are dropped
+  // here too, so manual questions and expansions in this panel never process
+  // the agent's own transcript.
+  const customerOnly = useMemo(
+    () => transcript.filter(line => !line.interim && line.speaker === 1).map(line => ({ ...line, speaker: 0 })),
+    [transcript]
+  );
+  const transcriptRef = useRef(customerOnly);
+  transcriptRef.current = customerOnly;
   return (
     <LiveWindowChrome panel={panel} title="AI Assistant" subtitle="Live Q&A · Call Coach · Intent Engine" icon={BrainCircuit} onDock={panel.toggle}>
       <AIAssistantPopup

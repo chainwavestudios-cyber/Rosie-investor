@@ -154,7 +154,8 @@ export default function FronterContactCard({ lead, username, fronterFirstName, o
     sentiment: e.sentiment,
     interim: e.interim,
   }));
-  useEffect(() => { qaTranscriptRef.current = qaNormalizedTranscript; }, [qaNormalizedTranscript]);
+  // Q&A context: the prospect's own words only — agent lines are never sent to the AI.
+  useEffect(() => { qaTranscriptRef.current = qaNormalizedTranscript.filter(l => !l.interim && l.speaker === 0); }, [qaNormalizedTranscript]);
 
   // Call timer — ticks every second while a call is active
   useEffect(() => {
