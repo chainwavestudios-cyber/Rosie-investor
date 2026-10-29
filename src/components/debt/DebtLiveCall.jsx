@@ -263,18 +263,18 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   }
   const initialWindows=initialWindowsRef.current;
   const transcriptPanel=usePopOutPanel('live_transcript',initialWindows.live_transcript.size,
-    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_transcript.position,minWidth:320});
+    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_transcript.position,minWidth:320,persistChanges:false});
   const scriptsPanel=usePopOutPanel('live_scripts',initialWindows.live_scripts.size,
-    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_scripts.position,minWidth:330});
+    coachUser?.username,9998,false,{defaultPosition:initialWindows.live_scripts.position,minWidth:330,persistChanges:false});
   const aiPanel=usePopOutPanel('live_ai_panel',initialWindows.live_ai_panel.size,
-    coachUser?.username,15010,false,{defaultPosition:initialWindows.live_ai_panel.position,minWidth:350});
+    coachUser?.username,15010,false,{defaultPosition:initialWindows.live_ai_panel.position,minWidth:350,persistChanges:false});
   const [showCustomerStats,setShowCustomerStats]=useState(false);
   const allPoppedOut=transcriptPanel.poppedOut&&scriptsPanel.poppedOut&&aiPanel.poppedOut;
   const [isInbound,setIsInbound]=useState(false);
   const [layoutSavedMsg,setLayoutSavedMsg]=useState('');
   const [layoutSaving,setLayoutSaving]=useState(false);
 
-  const applyDisplayProfile=useCallback(async(profileId, {showFeedback=false}={})=>{
+  const applyDisplayProfile=useCallback(async(profileId, {showFeedback=false,openWindows=false}={})=>{
     const username=coachUser?.username;
     if(!username || !layoutModeLoaded)return;
     const requestId=++workspaceRequestRef.current;
@@ -286,15 +286,25 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       const viewport=viewportRef.current;
       const raw=profiles[profileId]||createDisplayLayout(profileId,viewport);
       const layout=clampDisplayLayout({...raw,profileId},viewport);
+      // The profile records positions and sizes, NOT whether a window was
+      // temporarily closed last call. On a NEW call all four must be visible.
       const payload=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
-        'popout_'+key,layout['popout_'+key]
+        'popout_'+key,{...layout['popout_'+key],poppedOut:!!openWindows}
       ]));
       const saved=await setAllDebtCoachValues(username,payload);
       if(workspaceRequestRef.current!==requestId)return;
       if(!saved)throw new Error('Your layout could not be loaded from the settings database.');
       window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
+      if(openWindows){
+        // Restore each floating panel, even when it was manually docked
+        // during the previous call. The contact modal opens as soon as a
+        // saved lead exists; its own panel loads the stored geometry.
+        transcriptPanel.openAtSavedPosition();
+        scriptsPanel.openAtSavedPosition();
+        aiPanel.openAtSavedPosition();
+        setShowProfile(true);
+      }
       setSavedLayoutProfiles(Object.keys(profiles));
-      setShowProfile(layout.profileVisible!==false && !!leadRef.current?.id);
       if(showFeedback) setLayoutSavedMsg(
         profiles[profileId]?'✓ Saved '+displayProfileName(profileId)+' layout loaded':'✓ Default '+displayProfileName(profileId)+' layout loaded');
     }catch(e){
@@ -353,7 +363,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       if(!result)throw new Error('The default positions could not be saved.');
       window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
       transcriptPanel.openAtSavedPosition();scriptsPanel.openAtSavedPosition();aiPanel.openAtSavedPosition();
-      if(leadRef.current?.id)setShowProfile(true);
+      setShowProfile(true);
       setSavedLayoutProfiles(Object.keys(profiles));
       setLayoutSavedMsg('✓ '+displayProfileName(selectedLayoutProfile)+' reset; other screens preserved');
     }catch(e){setLayoutSavedMsg('Reset failed: '+(e?.message||String(e)));}
@@ -365,14 +375,14 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // overwrite the stored default until the user explicitly clicks Save.
   useEffect(()=>{
     if(!layoutModeLoaded||!coachUser?.username)return;
-    void applyDisplayProfile(selectedLayoutProfile);
+    void applyDisplayProfile(selectedLayoutProfile,{openWindows:phaseRef.current==='live'});
   },[layoutModeLoaded,coachUser?.username,selectedLayoutProfile,applyDisplayProfile]);
 
   // Each new call starts from the selected screen profile, even if the agent
   // temporarily moved windows during their previous live conversation.
   useEffect(()=>{
     if(phase!=='live'||!layoutModeLoaded||!coachUser?.username)return;
-    void applyDisplayProfile(selectedLayoutProfile);
+    void applyDisplayProfile(selectedLayoutProfile,{openWindows:true});
   },[phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(()=>{
