@@ -38,11 +38,15 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     return () => { cancelled = true; };
   }, [storageKey, username, restoreOpenOnMount]);
 
-  // Persist layout to database whenever it changes (debounced via setDebtCoachValue)
+  // General windows preserve their existing autosave behavior. Live Call's
+  // four workspace windows explicitly opt out: dragging and resizing are
+  // temporary until Save Entire Layout is pressed. This prevents an old
+  // per-window debounced write from overwriting a saved display profile.
+  const persistChanges = options.persistChanges !== false;
   useEffect(() => {
-    if (!username || !loaded) return;
+    if (!username || !loaded || !persistChanges) return;
     setDebtCoachValue(username, `popout_${storageKey}`, { poppedOut, position, size });
-  }, [username, storageKey, poppedOut, position, size, loaded]);
+  }, [username, storageKey, poppedOut, position, size, loaded, persistChanges]);
 
   // Listen for layout_restored event (from "Open Layout") — re-read from database
   useEffect(() => {
