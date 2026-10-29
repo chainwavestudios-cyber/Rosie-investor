@@ -7,6 +7,7 @@
 // A selected dual-input setup stays dual: silence on the customer return must
 // never silently replace that return with the room microphone.
 import { createBleedSuppressor } from '@/lib/audioBleedSuppressor';
+import { channelSource } from '@/lib/audioChannels';
 
 // Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
 // that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
@@ -70,6 +71,7 @@ const RECONNECT_DELAY_MS = 1200;
  */
 export async function startLiveFeed({
   agentStream, customerStream, dualMode, dgKey, agentGain = 1, customerGain = 1,
+  agentChannel = 0, customerChannel = 0,
   onStatus, onOpen, onLine, onInterim, onError, onCreditExhaustion, onSocketClosed,
 }) {
   // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
@@ -153,16 +155,17 @@ export async function startLiveFeed({
         // Agent mic captures with echoCancellation enabled to reduce speaker
         // bleed; the agent channel stays live at all times so the agent can
         // speak over the customer when needed (no auto-muting gate).
-        const agentSrc = ctx.createMediaStreamSource(agentStream);
-        const customerSrc = ctx.createMediaStreamSource(customerStream);
+        // One isolated track each when the operator picked a track (mic 1 = track 3).
+        const agentSrc = channelSource(ctx, agentStream, agentChannel);
+        const customerSrc = channelSource(ctx, customerStream, customerChannel);
         const agentGainNode = ctx.createGain();
         agentGainNode.gain.value = agentGain;
         const customerGainNode = ctx.createGain();
         customerGainNode.gain.value = customerGain;
         const merger = ctx.createChannelMerger(2);
-        agentSrc.connect(agentGainNode);
+        agentSrc.node.connect(agentGainNode, agentSrc.output);
         agentGainNode.connect(merger, 0, 0);
-        customerSrc.connect(customerGainNode);
+        customerSrc.node.connect(customerGainNode, customerSrc.output);
         customerGainNode.connect(merger, 0, 1);
         const proc = ctx.createScriptProcessor(4096, 2, 2);
         processor = proc;
@@ -188,7 +191,7 @@ export async function startLiveFeed({
         proc.connect(silence); silence.connect(ctx.destination);
       } else {
         // Single feed with diarization
-        const source = ctx.createMediaStreamSource(agentStream);
+        const source = channelSource(ctx, agentStream, agentChannel);
         const agentGainNode = ctx.createGain();
         agentGainNode.gain.value = agentGain;
         const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -201,7 +204,7 @@ export async function startLiveFeed({
           ws.send(int16.buffer);
           lastAudioAt = Date.now();
         };
-        source.connect(agentGainNode);
+        source.node.connect(agentGainNode, source.output);
         agentGainNode.connect(proc);
         const silence = ctx.createGain(); silence.gain.value = 0;
         proc.connect(silence); silence.connect(ctx.destination);

@@ -1,17 +1,30 @@
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
 import LiveAudioInput from '@/components/debt/LiveAudioInput';
-import { isLoopbackSource } from '@/lib/audioDevices';
+import { findIsolatedInput, isLoopbackSource, isMasterMixInput } from '@/lib/audioDevices';
 const warning = { color: '#f59e0b', fontSize: 9, maxWidth: 260, lineHeight: 1.4 };
+const mixHint = { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b', borderRadius: 4, padding: '3px 8px', cursor: 'pointer', fontSize: 9, lineHeight: 1.4, textAlign: 'left', maxWidth: 260 };
+const okHint = { color: '#60a5fa', fontSize: 9, lineHeight: 1.4 };
+const TrackHint = ({ channel, tracks }) => tracks > 0 && (
+  tracks < channel
+    ? <span style={warning}>⚠ The browser returned {tracks} track{tracks === 1 ? '' : 's'} — track {channel} will be silent. Pick the multichannel device.</span>
+    : <span style={okHint}>Listening to track {channel} of {tracks} — isolated from the mix.</span>
+);
 export default function LiveAudioInputs({ phase, audio: a }) {
   const hardware = a.activeAudioMode?.transport !== 'twilio';
   const agentLabel = a.micDevices.find(d => d.deviceId === a.micDeviceId)?.label || '';
+  const customerLabel = a.micDevices.find(d => d.deviceId === a.customerMicId)?.label || '';
+  const isolated = findIsolatedInput(a.micDevices, [a.micDeviceId, a.customerMicId]);
   return <>
-    {hardware && <LiveAudioInput devices={a.micDevices} value={a.micDeviceId} onChange={a.setMicDeviceId} gain={a.agentGain} onGainChange={a.setAgentGain} testing={a.testingAgent} onTest={a.testingAgent ? a.stopAgentTest : a.startAgentTest} disabled={phase === 'live'}>
+    {hardware && <LiveAudioInput devices={a.micDevices} value={a.micDeviceId} onChange={a.setMicDeviceId} gain={a.agentGain} onGainChange={a.setAgentGain} testing={a.testingAgent} onTest={a.testingAgent ? a.stopAgentTest : a.startAgentTest} disabled={phase === 'live'} channel={a.agentChannel} onChannelChange={a.setAgentChannel}>
+      {a.agentChannel > 0 && <TrackHint channel={a.agentChannel} tracks={a.agentTracks} />}
+      {isMasterMixInput(agentLabel) && isolated && <button onClick={() => a.setMicDeviceId(isolated.deviceId)} disabled={phase === 'live'} style={mixHint}>⚠ “{agentLabel}” is the master mix (1-2) — both voices. Use “{isolated.label}” (isolated channel).</button>}
       {/rode|røde/i.test(agentLabel) && <span style={warning}>Fader down but still heard? Check the RØDECaster USB output is post-fader or linked to the main mix. Pre-fader audio ignores the physical slider.</span>}
     </LiveAudioInput>}
-    {hardware && <LiveAudioInput customer devices={a.customerInputs} value={a.customerMicId} onChange={a.setCustomerMicId} gain={a.customerGain} onGainChange={a.setCustomerGain} testing={a.testingCustomer} onTest={a.testingCustomer ? a.stopCustomerTest : a.startCustomerTest} disabled={phase === 'live'} onScan={() => a.loadDevices(true)} inputCount={a.micDevices.length}>
+    {hardware && <LiveAudioInput customer devices={a.customerInputs} value={a.customerMicId} onChange={a.setCustomerMicId} gain={a.customerGain} onGainChange={a.setCustomerGain} testing={a.testingCustomer} onTest={a.testingCustomer ? a.stopCustomerTest : a.startCustomerTest} disabled={phase === 'live'} onScan={() => a.loadDevices(true)} inputCount={a.micDevices.length} channel={a.customerChannel} onChannelChange={a.setCustomerChannel}>
+      {a.customerChannel > 0 && <TrackHint channel={a.customerChannel} tracks={a.customerTracks} />}
       {a.micDevices.length > 0 && a.customerInputs.length === 0 && <span style={warning}>⚠ No loopback input found. Enable “Stereo Mix” (or your virtual cable) in Windows sound settings, then re-scan. Microphones are not allowed on this channel.</span>}
       {a.customerMicId && a.customerLabelSelected && !isLoopbackSource(a.customerLabelSelected) && <span style={warning}>⚠ “{a.customerLabelSelected}” is a microphone. Pick a customer-only loopback input.</span>}
+      {isMasterMixInput(customerLabel) && isolated && <button onClick={() => a.setCustomerMicId(isolated.deviceId)} disabled={phase === 'live'} style={mixHint}>⚠ “{customerLabel}” is the master mix (1-2) — both voices. Use “{isolated.label}” (isolated channel).</button>}
     </LiveAudioInput>}
     <AudioSetupSwitcher setups={a.modes} activeIndex={a.activeSetupIndex} disabled={phase === 'live' || a.testingAgent || a.testingCustomer || a.savingAudioMode} loading={!a.audioModeReady} dirty={a.audioModeDirty} validation={a.audioModeValidation} message={a.audioModeDirty && a.activeAudioMode?.saved && !a.savingAudioMode ? '' : a.audioModeMessage} onUse={a.useAudioSetup} onRename={a.renameAudioSetup} onSave={a.saveAudioSetup} />
     {hardware && a.outputDevices.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

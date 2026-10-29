@@ -1,6 +1,7 @@
 const labelStyle = { display: 'block', color: '#8a9ab8', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 0 };
 const inputStyle = { width: '100%', minWidth: 220, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '8px 12px', color: '#e8e0d0', fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'Georgia, serif' };
-export default function LiveAudioInput({ customer = false, devices, value, onChange, gain, onGainChange, testing, onTest, disabled, onScan, inputCount, children }) {
+import { CHANNEL_LABELS } from '@/lib/audioChannels';
+export default function LiveAudioInput({ customer = false, devices, value, onChange, gain, onGainChange, testing, onTest, disabled, onScan, inputCount, channel = 0, onChannelChange, children }) {
   const color = customer ? '#f59e0b' : '#60a5fa';
   const unavailable = disabled || (customer && !value);
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -13,6 +14,12 @@ export default function LiveAudioInput({ customer = false, devices, value, onCha
       <option value="">{customer ? '— None (use diarization) —' : '— Select agent microphone —'}</option>
       {devices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Input ${device.deviceId.slice(0, 6)}`}</option>)}
     </select>
+    {onChannelChange && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ color: '#6b7280', fontSize: 9, whiteSpace: 'nowrap' }}>Track</span>
+      <select aria-label={customer ? 'Customer input track' : 'Agent input track'} value={channel} onChange={e => onChannelChange(Number(e.target.value))} disabled={disabled || !value} title="Multichannel inputs (RØDECaster) keep the isolated channels as tracks inside one device" style={{ ...inputStyle, minWidth: 0, flex: 1, padding: '5px 8px', fontSize: 11 }}>
+        {CHANNEL_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
+      </select>
+    </div>}
     {children}
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{ color: '#6b7280', fontSize: 9, whiteSpace: 'nowrap' }}>Gain</span>

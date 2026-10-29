@@ -11,7 +11,9 @@ import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
-import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
+import { findLoopback, findIsolatedInput, isLoopbackSource, isMasterMixInput } from '@/lib/audioDevices';
+import { audioConstraints, trackChannelCount } from '@/lib/audioChannels';
+import useInputLevelTest from '@/hooks/useInputLevelTest';
 import LiveCallControls from '@/components/debt/LiveCallControls';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
@@ -94,6 +96,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [micDevices, setMicDevices] = useState([]);
   const [micDeviceId, setMicDeviceId, micLoaded] = useDebtCoachValue(coachUser?.username, 'defaultMicDeviceId', '');
   const [customerMicId, setCustomerMicId, customerMicLoaded] = useDebtCoachValue(coachUser?.username, 'defaultCustomerMicId', '');
+  // A multichannel mixer keeps its isolated tracks inside one device (mic 1 = track 3).
+  const [agentChannel, setAgentChannel] = useDebtCoachValue(coachUser?.username, 'agentMicChannel', 0);
+  const [customerChannel, setCustomerChannel] = useDebtCoachValue(coachUser?.username, 'customerMicChannel', 0);
   // Two saved audio setups — e.g. computer + Rodecaster, and cell + Realtek.
   const [audioSetups, setAudioSetups, setupsLoaded] = useDebtCoachValue(coachUser?.username, 'audioSetupsJson', DEFAULT_AUDIO_SETUPS);
   const [activeSetupIndex, setActiveSetupIndex, activeSetupLoaded] = useDebtCoachValue(coachUser?.username, 'activeAudioSetup', 0);
@@ -132,12 +137,8 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   }, []);
   const [error, setError] = useState('');
   const [dgStatus, setDgStatus] = useState('idle');
-  const [testingAgent, setTestingAgent] = useState(false);
-  const [testingCustomer, setTestingCustomer] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [statsPaused, setStatsPaused] = useDebtCoachValue(coachUser?.username, 'statsPaused', true);
-  const [agentLevel, setAgentLevel] = useState(0);
-  const [customerLevel, setCustomerLevel] = useState(0);
   const [transcript, setTranscript] = useState([]);
   const { activeObjection, dismissObjection, recentMatches, openMatch, clearRecent } = useObjectionEngine(transcript, phase === 'live');
   const [kbEntries, setKbEntries] = useState([]);
@@ -445,12 +446,6 @@ Agent line: "${firstAgentLines}"`,
   const transferAgentDetectedRef = useRef(false); // true once regex extracts data from transfer agent's intro
   const callStartRef = useRef(null);
   const intentHistoryRef = useRef([]);
-  const testAgentCtxRef = useRef(null);
-  const testAgentStreamRef = useRef(null);
-  const testAgentAnimRef = useRef(null);
-  const testCustomerCtxRef = useRef(null);
-  const testCustomerStreamRef = useRef(null);
-  const testCustomerAnimRef = useRef(null);
   const customerBufferRef = useRef([]);
   const bufferTimeoutRef = useRef(null);
   // The caller's turn as last asked in Q&A — lets a turn that was flushed
@@ -549,9 +544,15 @@ Agent line: "${firstAgentLines}"`,
     // The preferred hardware is never assumed to be the same for Computer and Cell.
     if (!firstDeviceScanRef.current && !audioDeviceStateRef.current?.hasSavedMode) {
       const current = audioDeviceStateRef.current || {};
-      const rode = mics.find(m => !['default', 'communications'].includes(m.deviceId) && /rode|røde|rodecaster/i.test(m.label || ''));
-      const agentId = current.micDeviceId || (rode || mics[0])?.deviceId;
-      const loop = findLoopback(mics.filter(m => m.deviceId !== agentId && !['default', 'communications'].includes(m.deviceId)));
+      // The isolated channel (USB 3) carries one voice; the master mix (1-2)
+      // carries both, so the isolated pair is always preferred.
+      const isolated = findIsolatedInput(mics);
+      const rode = mics.find(m => !['default', 'communications'].includes(m.deviceId) && !isMasterMixInput(m.label || '') && /rode|røde|rodecaster/i.test(m.label || ''))
+        || mics.find(m => !['default', 'communications'].includes(m.deviceId) && /rode|røde|rodecaster/i.test(m.label || ''));
+      const agentId = current.micDeviceId || (isolated || rode || mics[0])?.deviceId;
+      const loop = findIsolatedInput(mics, [agentId])
+        || findLoopback(mics.filter(m => m.deviceId !== agentId && !isMasterMixInput(m.label || '')))
+        || findLoopback(mics.filter(m => m.deviceId !== agentId));
       if (!current.micDeviceId && mics.length) setMicDeviceId(agentId);
       if (!current.customerMicId && loop) setCustomerMicId(loop.deviceId);
       if (!current.outputDeviceId && outputs.length) setOutputDeviceId(outputs[0].deviceId);
@@ -1556,13 +1557,23 @@ ${recentText}`,
         streamRef.current = agentStream;
         customerStreamRef.current = customerStream;
       } else {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: false } : { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
+      agentStream = await navigator.mediaDevices.getUserMedia(
+        agentChannel > 0
+          ? audioConstraints(micDeviceId, agentChannel)
+          : audioConstraints(micDeviceId, 0, { echoCancellation: true, noiseSuppression: true, autoGainControl: false }),
+      );
+      if (agentChannel > 0 && trackChannelCount(agentStream) < agentChannel) {
+        const got = trackChannelCount(agentStream);
+        try { agentStream.getTracks().forEach(t => t.stop()); } catch {}
+        setError(`The browser only returned ${got} track${got === 1 ? '' : 's'} from this input, so track ${agentChannel} would be silent. Pick the multichannel device and press Test to confirm the track is live.`);
+        setPhase('idle'); setDgStatus('error'); return;
+      }
       streamRef.current = agentStream;
       if (dualMode) {
         // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
         // browser silently hand back the DEFAULT MICROPHONE, so the customer channel
         // ends up recording the agent's own voice — two voices on one channel.
-        const grab = (id) => navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id } } });
+        const grab = (id) => navigator.mediaDevices.getUserMedia(audioConstraints(id, customerChannel));
         customerStream = await grab(customerMicId).catch(async () => {
           // For a saved preset, never substitute an unrelated loopback device.
           // The agent must explicitly reselect and save the correct hardware.
@@ -1607,7 +1618,7 @@ ${recentText}`,
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
     const feed = await startLiveFeed({
-      agentStream, customerStream, dualMode: feedDual, dgKey, agentGain, customerGain,
+      agentStream, customerStream, dualMode: feedDual, dgKey, agentGain, customerGain, agentChannel, customerChannel,
       onStatus: setDgStatus,
       onError: setError,
       onLine: processNewEntry,
@@ -1647,7 +1658,7 @@ ${recentText}`,
     });
     feedRef.current = feed;
     ctxRef.current = feed.ctx;
-  }, [micDeviceId, customerMicId, micDevices, outputDevices, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
+  }, [micDeviceId, customerMicId, micDevices, outputDevices, audioSetups, activeSetupIndex, agentGain, customerGain, agentChannel, customerChannel, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
     // Clear the 45-second auto-save timer
@@ -2074,90 +2085,12 @@ ${recentText}`,
   }, [phase, coachUser?.username]);
 
   // ── Audio Test — independent level meter per input ─────────────────────
-  const startAgentTest = useCallback(async () => {
-    if (!micDeviceId) { setError('Select the actual agent microphone before testing.'); return; }
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') await ctx.resume();
-      testAgentCtxRef.current = ctx;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: false } : { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
-      testAgentStreamRef.current = stream;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      const gain = ctx.createGain();
-      gain.gain.value = agentGain;
-      ctx.createMediaStreamSource(stream).connect(gain);
-      gain.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        let mx = 0;
-        for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > mx) mx = v; }
-        setAgentLevel(Math.round(mx * 100));
-        testAgentAnimRef.current = requestAnimationFrame(tick);
-      };
-      tick();
-      setTestingAgent(true);
-    } catch (e) { setError('Agent mic test failed: ' + (e?.message || String(e))); }
-  }, [micDeviceId, agentGain]);
-
-  const stopAgentTest = useCallback(() => {
-    if (testAgentAnimRef.current) cancelAnimationFrame(testAgentAnimRef.current);
-    testAgentAnimRef.current = null;
-    if (testAgentStreamRef.current) testAgentStreamRef.current.getTracks().forEach(t => t.stop());
-    if (testAgentCtxRef.current) { try { testAgentCtxRef.current.close(); } catch {} }
-    testAgentCtxRef.current = null; testAgentStreamRef.current = null;
-    setTestingAgent(false); setAgentLevel(0);
-  }, []);
-
-  const startCustomerTest = useCallback(async () => {
-    if (!customerMicId) return;
-    // Never open a microphone here. Testing through a mic only proves the mic hears
-    // the room — the agent's own voice included — which is the bug this split exists
-    // to prevent. Only a loopback input can be tested as the customer channel.
-    const label = micDevices.find(m => m.deviceId === customerMicId)?.label || '';
-    if (label && !isLoopbackSource(label)) {
-      setError(`That input is a microphone (${label}), not the customer line. Pick Stereo Mix / What U Hear — a mic would capture your own voice on the customer channel.`);
-      return;
-    }
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      if (ctx.state === 'suspended') await ctx.resume();
-      testCustomerCtxRef.current = ctx;
-      // Must be `exact` — see startCall: an `ideal` match silently falls back to the
-      // default mic, which would make this test pass while the mic sits on that channel.
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: customerMicId } } })
-        .catch(() => { throw new Error('Customer device unavailable — re-scan and pick it again.'); });
-      testCustomerStreamRef.current = stream;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      const gain = ctx.createGain();
-      gain.gain.value = customerGain;
-      ctx.createMediaStreamSource(stream).connect(gain);
-      gain.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        let mx = 0;
-        for (let i = 0; i < data.length; i++) { const v = Math.abs(data[i] - 128) / 128; if (v > mx) mx = v; }
-        setCustomerLevel(Math.round(mx * 100));
-        testCustomerAnimRef.current = requestAnimationFrame(tick);
-      };
-      tick();
-      setTestingCustomer(true);
-    } catch (e) { setError('Customer input test failed: ' + (e?.message || String(e))); }
-  }, [customerMicId, customerGain, micDevices]);
-
-  const stopCustomerTest = useCallback(() => {
-    if (testCustomerAnimRef.current) cancelAnimationFrame(testCustomerAnimRef.current);
-    testCustomerAnimRef.current = null;
-    if (testCustomerStreamRef.current) testCustomerStreamRef.current.getTracks().forEach(t => t.stop());
-    if (testCustomerCtxRef.current) { try { testCustomerCtxRef.current.close(); } catch {} }
-    testCustomerCtxRef.current = null; testCustomerStreamRef.current = null;
-    setTestingCustomer(false); setCustomerLevel(0);
-  }, []);
-
-  useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
+  const {
+    testingAgent, agentLevel, agentTracks, startAgentTest, stopAgentTest,
+    testingCustomer, customerLevel, customerTracks, startCustomerTest, stopCustomerTest,
+  } = useInputLevelTest({
+    micDeviceId, agentChannel, customerMicId, customerChannel, agentGain, customerGain, micDevices, onError: setError,
+  });
 
   // The customer channel must be a loopback/line source, never an ordinary mic.
   const customerInputs = micDevices.filter(m => isLoopbackSource(m.label || ''));
@@ -2255,7 +2188,7 @@ ${recentText}`,
         @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
       `}</style>
       <LiveCallControls phase={phase} lead={lead} showCustomerStats={showCustomerStats} setShowCustomerStats={setShowCustomerStats} setShowProfile={setShowProfile}
-        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, customerInputs, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, loadDevices, customerLabelSelected, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
+        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, agentLevel, agentChannel, setAgentChannel, agentTracks, customerInputs, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, customerLevel, customerChannel, setCustomerChannel, customerTracks, loadDevices, customerLabelSelected, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
         tools={{ statsPaused, setStatsPaused, callType, handleCallTypeChange, autoQA, setAutoQA, autoCoach, setAutoCoach, autoIntent, setAutoIntent, canLiveAI, canLiveQA, agentQuestionActive, toggleAgentQuestion }}
         session={{ leadSearch, setLeadSearch, setLeadSearchFocus, leadSearchFocus, leadSearchResults, selectLeadAndStartCall, startCall, kbLoading, handleEndCallClick }}
         recorder={recorder} onRecord={async () => { if (recorder.isRecording) { const uri = await recorder.stop(); if (uri && transcriptRecordIdRef.current) base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {}); } else recorder.start(streamRef.current, customerStreamRef.current); }}
