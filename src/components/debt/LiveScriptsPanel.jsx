@@ -17,8 +17,8 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
 
   const tabs = (
     <div style={{ display: 'flex', gap: '4px' }}>
-      <button onClick={() => setTab('scripts')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'scripts' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'scripts' ? `${GOLD}18` : 'transparent', color: tab === 'scripts' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📝 Scripts</button>
-      <button onClick={() => setTab('pitches')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'pitches' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'pitches' ? `${GOLD}18` : 'transparent', color: tab === 'pitches' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>🎤 Pitches</button>
+      <button onClick={() => setTab('scripts')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'scripts' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'scripts' ? `${GOLD}18` : 'transparent', color: tab === 'scripts' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Scripts</button>
+      <button onClick={() => setTab('pitches')} style={{ padding: '4px 10px', borderRadius: '4px', border: `1px solid ${tab === 'pitches' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: tab === 'pitches' ? `${GOLD}18` : 'transparent', color: tab === 'pitches' ? GOLD : '#6b7280', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>Pitches</button>
     </div>
   );
 
