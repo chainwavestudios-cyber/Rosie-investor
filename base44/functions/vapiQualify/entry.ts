@@ -9,6 +9,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 import { secrets } from 'base44:runtime';
+import { loadObjections } from '../../shared/rosieObjections.ts';
 import {
   appBaseUrl,
   assistantList,
@@ -106,7 +107,7 @@ export default async function (req: Request) {
     if (action === 'syncAssistant') {
       const user = await base44.auth.me();
       if (!user || user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
-      const payload = buildAssistantPayload(cfg, base);
+      const payload = buildAssistantPayload(cfg, base, await loadObjections(base44.asServiceRole));
       const assistant = cfg.assistantId
         ? await vapiFetch(`/assistant/${cfg.assistantId}`, { method: 'PATCH', body: JSON.stringify(payload) })
         : await vapiFetch('/assistant', { method: 'POST', body: JSON.stringify(payload) });

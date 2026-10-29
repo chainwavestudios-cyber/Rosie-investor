@@ -8,6 +8,7 @@ import { toE164, twilioFetch, xmlEscape } from './twilioHelpers.ts';
 import { PROTOFACE_ID_RE } from './protofaceId.ts';
 import { getCalendarAuth, hasConflict, listEvents, nextBusinessSlot } from './googleCalendarHelpers.ts';
 import saveCalendarAppointment from './saveCalendarAppointment.ts';
+import { objectionSkillForPrompt } from './rosieObjections.ts';
 
 export const FALLBACK_APP_URL = 'https://rosieai-investorpage.base44.app';
 export const VAPI_API = 'https://api.vapi.ai';
@@ -66,7 +67,7 @@ function buildVoice(cfg: any) {
 }
 
 /** The assistant definition pushed to Vapi — the script content comes from the app's own config. */
-export function buildAssistantPayload(cfg: any, baseUrl: string) {
+export function buildAssistantPayload(cfg: any, baseUrl: string, objections: any[] = []) {
   return {
     name: ASSISTANT_NAME,
     firstMessage: cfg?.firstMessage || FIRST_MESSAGE,
@@ -75,7 +76,8 @@ export function buildAssistantPayload(cfg: any, baseUrl: string) {
       provider: 'openai',
       model: cfg?.llmModel || 'gpt-4o',
       temperature: typeof cfg?.temperature === 'number' ? cfg.temperature : 0.6,
-      messages: [{ role: 'system', content: cfg?.systemPrompt || SYSTEM_PROMPT }],
+      // Her script, plus the objection-handling skill and the objections on file.
+      messages: [{ role: 'system', content: `${cfg?.systemPrompt || SYSTEM_PROMPT}\n\n${objectionSkillForPrompt(objections)}` }],
       tools: [TRIGGER_TOOL],
     },
     voice: buildVoice(cfg),

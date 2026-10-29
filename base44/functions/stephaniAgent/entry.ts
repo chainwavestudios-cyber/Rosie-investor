@@ -19,6 +19,7 @@ import { getSpeechPcmBase64, PCM_SAMPLE_RATE } from '../../shared/elevenLabsTts.
 import { findRelevantKB, formatAnswers } from '../../shared/kbSearch.ts';
 import { toE164 } from '../../shared/twilioHelpers.ts';
 import { SYSTEM_PROMPT, findSession, leadView, loadConfig, resolveAssistant, speechTuning, voiceForAssistant } from '../../shared/videoQualify.ts';
+import { loadObjections, objectionPromptSection } from '../../shared/rosieObjections.ts';
 
 const PROTOFACE_API = 'https://api.protoface.com';
 const DEFAULT_VOICE_ID = 'ogwqBH5bbF03DSbNiRNN';
@@ -67,6 +68,7 @@ function replyPrompt(args: {
   text: string;
   history: any[];
   context: string;
+  objections: any[];
 }): string {
   const firstName = args.lead?.firstName || String(args.session?.leadName || '').split(' ')[0] || 'the prospect';
   const stateName = args.lead?.state || args.session?.state || 'unknown';
@@ -91,6 +93,8 @@ HARD RULES
 - Never invent programme details. If the knowledge base below does not cover something, say a specialist will go over it with them.
 - Say amounts as words, never symbols: "ten to twenty thousand dollars", "twenty to forty thousand", "more than forty thousand".
 - Ask for at most one thing in a reply, and never repeat a question they have already answered.
+
+${objectionPromptSection(args.text, args.objections)}
 
 KNOWLEDGE BASE EXCERPTS
 ${args.context || '(nothing matched what they said)'}
@@ -229,7 +233,10 @@ export default async function (req: Request): Promise<Response> {
       const lead = session.vaultLeadId
         ? await service.entities.LeadVaultEntry.get(session.vaultLeadId).catch(() => null)
         : null;
-      const context = await knowledgeContext(service, clean(cfg.kbName, 60) || DEFAULT_KB, text);
+      const [context, objections] = await Promise.all([
+        knowledgeContext(service, clean(cfg.kbName, 60) || DEFAULT_KB, text),
+        loadObjections(service),
+      ]);
 
       const result: any = await service.integrations.Core.InvokeLLM({
         prompt: replyPrompt({
@@ -240,6 +247,7 @@ export default async function (req: Request): Promise<Response> {
           text,
           history,
           context,
+          objections,
         }),
         response_json_schema: {
           type: 'object',
