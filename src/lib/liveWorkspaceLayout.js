@@ -43,10 +43,17 @@ export function detectDisplayProfile(viewport={}) {
 }
 
 export function resolveDisplayProfile(mode,viewport) {
-  return !mode||mode==='auto'?detectDisplayProfile(viewport):mode;
+  if(!mode||mode==='auto')return detectDisplayProfile(viewport);
+  if(mode==='custom'){
+    const width=Math.round((Number(viewport?.width)||1440)/50)*50;
+    const height=Math.round((Number(viewport?.height)||900)/50)*50;
+    return `custom_${width}x${height}`;
+  }
+  return mode;
 }
 
 export function displayProfileName(id) {
+  if(String(id||'').startsWith('custom_'))return `Custom ${String(id).slice(7).replace('x',' × ')}`;
   return DISPLAY_CHOICES.find(x=>x.id===id)?.name||'Custom display';
 }
 
