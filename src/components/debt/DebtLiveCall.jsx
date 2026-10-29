@@ -273,6 +273,12 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [isInbound,setIsInbound]=useState(false);
   const [layoutSavedMsg,setLayoutSavedMsg]=useState('');
   const [layoutSaving,setLayoutSaving]=useState(false);
+  // Latest contact geometry is held locally until explicitly saved. Closing
+  // the card or changing tabs must not discard the user's new arrangement.
+  const contactGeometryRef=useRef(null);
+  const rememberContactGeometry=useCallback(geometry=>{
+    if(geometry?.position && geometry?.size)contactGeometryRef.current=geometry;
+  },[]);
 
   const applyDisplayProfile=useCallback(async(profileId, {showFeedback=false,openWindows=false}={})=>{
     const username=coachUser?.username;
@@ -293,6 +299,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       ]));
       const saved=await setAllDebtCoachValues(username,payload);
       if(workspaceRequestRef.current!==requestId)return;
+      contactGeometryRef.current=payload.popout_live_contact_profile;
       if(!saved)throw new Error('Your layout could not be loaded from the settings database.');
       window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
       if(openWindows){
@@ -325,7 +332,8 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       // presses Save Entire Layout inside that window. The three sibling
       // panels are captured directly from their current React hook state.
       const currentContact = contactGeometry?.position && contactGeometry?.size
-        ? contactGeometry : null;
+        ? contactGeometry : contactGeometryRef.current;
+      if(currentContact)contactGeometryRef.current=currentContact;
       const snapshot = captureDisplayLayout(
         selectedLayoutProfile,viewportRef.current,
         {
@@ -369,6 +377,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
         ...payload,[LIVE_PROFILE_STORE]:profiles,[LIVE_LAYOUT_KEY]:layout
       });
       if(!result)throw new Error('The default positions could not be saved.');
+      contactGeometryRef.current=payload.popout_live_contact_profile;
       window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
       transcriptPanel.openAtSavedPosition();scriptsPanel.openAtSavedPosition();aiPanel.openAtSavedPosition();
       setShowProfile(true);
@@ -2440,7 +2449,12 @@ ${recentText}`,
       {/* Client Profile is opened from the Live Call toolbar, never a fixed launcher. */}
 
       {showProfile && lead.id && (
-        <ClientProfileModal liveWorkspace lead={lead} username={coachUser?.username} onClose={() => setShowProfile(false)} onSave={(updated) => {
+        <ClientProfileModal liveWorkspace lead={lead} username={coachUser?.username}
+          onSaveWorkspaceLayout={saveDefaultLayout}
+          onWorkspaceGeometryChange={rememberContactGeometry}
+          workspaceSaving={layoutSaving||workspaceApplying}
+          workspaceSaveMessage={layoutSavedMsg}
+          onClose={() => setShowProfile(false)} onSave={(updated) => {
           if (updated?.id === leadRef.current?.id) manualEmailDraftRef.current = { leadId: updated.id, value: updated.email || '' };
           setLead(prev => {
             const next = { ...prev, ...updated };
