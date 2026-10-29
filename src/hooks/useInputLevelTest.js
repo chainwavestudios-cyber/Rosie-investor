@@ -21,7 +21,13 @@ export default function useInputLevelTest({
   useEffect(() => { setAgentLevel(0); }, [micDeviceId]);
   useEffect(() => { setCustomerLevel(0); }, [customerMicId]);
 
-  const meter = (analyser, onLevel, animRef) => {
+  // Chrome only renders a branch that reaches the destination, so the analyser
+  // gets a muted sink. Without it a device carrying real signal meters flat.
+  const meter = (ctx, analyser, onLevel, animRef) => {
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    analyser.connect(sink);
+    sink.connect(ctx.destination);
     const data = new Uint8Array(analyser.frequencyBinCount);
     const tick = () => {
       analyser.getByteTimeDomainData(data);
@@ -47,7 +53,7 @@ export default function useInputLevelTest({
       gain.gain.value = agentGain;
       ctx.createMediaStreamSource(stream).connect(gain);
       gain.connect(analyser);
-      meter(analyser, setAgentLevel, agentAnimRef);
+      meter(ctx, analyser, setAgentLevel, agentAnimRef);
       setTestingAgent(true);
     } catch (e) {
       agentStreamRef.current?.getTracks().forEach(t=>t.stop());
@@ -80,7 +86,7 @@ export default function useInputLevelTest({
       gain.gain.value = customerGain;
       ctx.createMediaStreamSource(stream).connect(gain);
       gain.connect(analyser);
-      meter(analyser, setCustomerLevel, customerAnimRef);
+      meter(ctx, analyser, setCustomerLevel, customerAnimRef);
       setTestingCustomer(true);
     } catch (e) {
       customerStreamRef.current?.getTracks().forEach(t=>t.stop());
