@@ -1,0 +1,40 @@
+
+/* Consistent, restrained workstation chrome for live call movable windows. */
+.dcc-window-shell{box-sizing:border-box;isolation:isolate;color:#e5eee9;background:linear-gradient(150deg,#111e2b,#0c1721 74%)!important;border:1px solid rgba(179,195,175,.37)!important;border-radius:12px!important;box-shadow:0 20px 74px rgba(0,0,0,.78),0 0 0 1px rgba(225,195,139,.07),inset 0 1px rgba(255,255,255,.06)!important;min-width:0;overflow:hidden;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+.dcc-window-shell:focus-within{border-color:rgba(221,188,124,.75)!important}
+.dcc-window-heading,.dcc-profile-workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:49px;padding:8px 12px;background:linear-gradient(100deg,#223c39,#14232e 70%,#101a24);border-bottom:1px solid rgba(216,183,121,.28);flex-shrink:0;user-select:none;cursor:grab;min-width:0}
+.dcc-window-heading:active,.dcc-profile-workspace-bar:active{cursor:grabbing}
+.dcc-window-heading-title{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+.dcc-window-grip{color:#819b95;flex-shrink:0}
+.dcc-window-icon{color:#e2c184;flex-shrink:0}
+.dcc-window-heading-text{min-width:0;display:flex;flex-direction:column;gap:2px}
+.dcc-window-heading-text strong{color:#f6ead3;font-size:12px;letter-spacing:.04em;font-weight:800;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.dcc-window-heading-text small{color:#91b2a9;font-size:10px;letter-spacing:.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dcc-window-actions{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;flex-shrink:0}
+.dcc-window-size-label{color:#8ca6a4;font-size:9px;letter-spacing:.08em;padding:0 3px}
+.dcc-window-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:#ffffff08;border:1px solid #c9b17b3c;color:#bfd0c7;border-radius:6px;min-width:28px;height:28px;padding:0 7px;cursor:pointer;font:700 10px/1 Inter,system-ui,sans-serif;transition:background .16s,border-color .16s}
+.dcc-window-btn:hover{background:#dfbe7d1c;border-color:#d9b87894;color:#f9e4b8}
+.dcc-window-btn:focus-visible{outline:2px solid #dbbc80;outline-offset:1px}
+.dcc-window-close{color:#e8d4b4}
+.dcc-window-content{flex:1;min-height:0;min-width:0;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.dcc-window-content>div{min-width:0}
+.dcc-window-shell .dcc-live-transcript-header{border-bottom:1px solid #ffffff11;padding:9px 13px;color:#9bb3b0;font-size:10px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.dcc-live-workspace button:focus-visible{outline:2px solid #dbc383;outline-offset:2px}
+.dcc-window-shell ::-webkit-scrollbar,.dcc-profile-shell ::-webkit-scrollbar{width:8px;height:8px}
+.dcc-window-shell ::-webkit-scrollbar-thumb,.dcc-profile-shell ::-webkit-scrollbar-thumb{background:#36564d;border-radius:8px}
+.dcc-window-shell ::-webkit-scrollbar-track,.dcc-profile-shell ::-webkit-scrollbar-track{background:transparent}
+.dcc-workspace-layout-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;margin-bottom:11px;border:1px solid #42625699;border-radius:10px;background:linear-gradient(100deg,#14292d,#0c1c2a)}
+.dcc-workspace-layout-actions .dcc-layout-heading{font-size:10px;color:#e5c184;font-weight:850;letter-spacing:.11em;margin-right:3px}
+.dcc-workspace-layout-actions button{display:inline-flex;align-items:center;gap:5px;padding:8px 10px;border:1px solid #7c957c68;color:#c4d4ce;background:#152b2c;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}
+.dcc-workspace-layout-actions button:hover{border-color:#d8bf80;color:#f0d5a6;background:#2b4038}
+.dcc-workspace-layout-actions button[aria-pressed="true"]{background:#415037;border-color:#d4b678;color:#f5ddb4}
+.dcc-workspace-layout-actions button:disabled{opacity:.52;cursor:not-allowed}
+.dcc-workspace-layout-actions .dcc-layout-save{background:linear-gradient(125deg,#e9d09a,#b99761);color:#15201a;border-color:#e4ce9d}
+.dcc-workspace-layout-actions .dcc-layout-save:hover{filter:brightness(1.07);color:#15201a}
+.dcc-workspace-layout-actions .dcc-layout-msg{color:#bbd8c3;font-size:10px}
+.dcc-profile-shell.dcc-live-contact{border:1px solid #d0b57a73!important;border-radius:12px!important;box-shadow:0 20px 74px #000b!important;}
+.dcc-profile-workspace-bar{min-height:43px!important;padding:6px 11px!important;border-radius:11px 11px 0 0;position:relative;z-index:2}
+.dcc-profile-workspace-bar>span{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:850;letter-spacing:.11em;color:#ebd3a4}
+.dcc-profile-shell.dcc-live-contact .dcc-profile-header{background:#142831!important}
+@media(max-width:780px){.dcc-window-heading{padding:8px;gap:5px}.dcc-window-actions{gap:3px}.dcc-window-heading-text small{display:none}.dcc-window-close span{display:none}.dcc-window-size-label{display:none}.dcc-workspace-layout-actions{padding:8px}}
+@media(prefers-reduced-motion:reduce){.dcc-window-shell *{transition:none!important}}
