@@ -76,7 +76,7 @@ export default function VirtualCableDiagnostics({
     if(ctxRef.current)void ctxRef.current.close().catch(()=>{});
   },[]);
   useEffect(()=>{if(status!=='idle')stop();setDetail(null);},[selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(()=>{if(disabled&&!twilioMode)stop();},[disabled,twilioMode,stop]);
+  useEffect(()=>{if(disabled)stop();},[disabled,stop]);
 
   const test=async()=>{
     if(!selectedId){setStatus('error');setMessage('No selectable recording endpoint was found. Press Refresh Inputs and allow microphone access.');return;}
@@ -200,6 +200,9 @@ export default function VirtualCableDiagnostics({
             <option value="">— Select an actual recording input —</option>
             {micDevices.filter(d=>d.deviceId).map(d=><option key={d.deviceId} value={d.deviceId}>{d.label||'Unnamed microphone '+d.deviceId.slice(0,6)}</option>)}
           </select>
+          {selectedId && agentId===selectedId && customerId===selectedId && <p style={{...text.hint,color:'#ffc394',margin:'8px 0'}}>
+        The same cable is selected for Agent and Customer. Use separate audio sources for distinct transcription channels.
+      </p>}
           {selectedDevice&&<p style={{...text.hint,margin:'8px 0'}}>
             {CABLE_OUT.test(selectedDevice.label||'')?'✓ Likely cable recording endpoint.':CABLE_IN.test(selectedDevice.label||'')?'Check endpoint direction: this name usually means the playback side.':'The input will be captured by its exact Chrome device ID.'}
           </p>}
