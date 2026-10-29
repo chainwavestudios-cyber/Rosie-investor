@@ -7,16 +7,16 @@ export default function LiveAudioInput({ customer = false, devices, value, onCha
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <label style={labelStyle}>{customer ? '🎧 Customer Audio (Split Input)' : '🎙 Agent Mic'}</label>
-      {customer && <button onClick={onScan} disabled={disabled} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 11, padding: 0 }}>🔄</button>}
+      {onScan && <button type="button" onClick={onScan} disabled={disabled || testing} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 11, padding: 0 }}>🔄</button>}
       {customer && inputCount > 0 && <span style={{ color: '#4a5568', fontSize: 9 }}>{inputCount} input{inputCount === 1 ? '' : 's'}</span>}
     </div>
-    <select aria-label={customer ? 'Customer audio input' : 'Agent microphone'} value={value} onChange={e => onChange(e.target.value)} disabled={disabled} style={{ ...inputStyle, cursor: 'pointer' }}>
+    <select aria-label={customer ? 'Customer audio input' : 'Agent microphone'} value={value} onChange={e => onChange(e.target.value)} disabled={disabled || testing} style={{ ...inputStyle, cursor: 'pointer' }}>
       <option value="">{customer ? '— None (use diarization) —' : '— Select agent microphone —'}</option>
       {devices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Input ${device.deviceId.slice(0, 6)}`}</option>)}
     </select>
     {onChannelChange && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ color: '#6b7280', fontSize: 9, whiteSpace: 'nowrap' }}>Track</span>
-      <select aria-label={customer ? 'Customer input track' : 'Agent input track'} value={channel} onChange={e => onChannelChange(Number(e.target.value))} disabled={disabled || !value} title="Multichannel inputs (RØDECaster) keep the isolated channels as tracks inside one device" style={{ ...inputStyle, minWidth: 0, flex: 1, padding: '5px 8px', fontSize: 11 }}>
+      <span style={{ color: '#d4ba83', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap' }}>USB CHANNEL</span>
+      <select aria-label={customer ? 'Customer input track' : 'Agent input track'} value={channel} onChange={e => onChannelChange(Number(e.target.value))} disabled={disabled || testing || !value} title="Multichannel inputs (RØDECaster) keep the isolated channels as tracks inside one device" style={{ ...inputStyle, minWidth: 0, flex: 1, padding: '5px 8px', fontSize: 11 }}>
         {CHANNEL_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
       </select>
     </div>}
