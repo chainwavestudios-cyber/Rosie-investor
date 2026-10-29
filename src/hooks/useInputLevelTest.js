@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { audioConstraints, channelSource, trackChannelCount } from '@/lib/audioChannels';
+import { audioConstraints, channelSource, trackChannelCount, captureChannelInfo } from '@/lib/audioChannels';
 import { isLoopbackSource } from '@/lib/audioDevices';
 
 /**
@@ -14,9 +14,11 @@ export default function useInputLevelTest({
   const [testingAgent, setTestingAgent] = useState(false);
   const [agentLevel, setAgentLevel] = useState(0);
   const [agentTracks, setAgentTracks] = useState(0);
+  const [agentCapture, setAgentCapture] = useState(null);
   const [testingCustomer, setTestingCustomer] = useState(false);
   const [customerLevel, setCustomerLevel] = useState(0);
   const [customerTracks, setCustomerTracks] = useState(0);
+  const [customerCapture, setCustomerCapture] = useState(null);
   const agentCtxRef = useRef(null);
   const agentStreamRef = useRef(null);
   const agentAnimRef = useRef(null);
@@ -48,7 +50,16 @@ export default function useInputLevelTest({
           : audioConstraints(micDeviceId, 0, { echoCancellation: true, noiseSuppression: true, autoGainControl: false }),
       );
       agentStreamRef.current = stream;
-      setAgentTracks(trackChannelCount(stream));
+      const info = captureChannelInfo(stream, agentChannel);
+      setAgentCapture(info);
+      setAgentTracks(info.actual);
+      if (agentChannel > 0 && !info.supported) {
+        stream.getTracks().forEach(t=>t.stop());
+        agentStreamRef.current = null;
+        void ctx.close(); agentCtxRef.current = null;
+        onError(info.reason + ' USB multitrack can be enabled in the RØDECaster while Chrome still captures only stereo. On Windows, use the RØDECaster Virtual Devices Driver to expose an individual fader as an input device.');
+        return;
+      }
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       const gain = ctx.createGain();
@@ -89,7 +100,16 @@ export default function useInputLevelTest({
       const stream = await navigator.mediaDevices.getUserMedia(audioConstraints(customerMicId, customerChannel))
         .catch(() => { throw new Error('Customer device unavailable — re-scan and pick it again.'); });
       customerStreamRef.current = stream;
-      setCustomerTracks(trackChannelCount(stream));
+      const info = captureChannelInfo(stream, customerChannel);
+      setCustomerCapture(info);
+      setCustomerTracks(info.actual);
+      if(customerChannel>0 && !info.supported){
+        stream.getTracks().forEach(t=>t.stop());
+        customerStreamRef.current=null;
+        void ctx.close();customerCtxRef.current=null;
+        onError(info.reason + ' Select the individual customer virtual input, or use a stereo loopback source.');
+        return;
+      }
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       const gain = ctx.createGain();
@@ -114,7 +134,7 @@ export default function useInputLevelTest({
   useEffect(() => () => { stopAgentTest(); stopCustomerTest(); }, [stopAgentTest, stopCustomerTest]);
 
   return {
-    testingAgent, agentLevel, agentTracks, startAgentTest, stopAgentTest,
-    testingCustomer, customerLevel, customerTracks, startCustomerTest, stopCustomerTest,
+    testingAgent, agentLevel, agentTracks, agentCapture, startAgentTest, stopAgentTest,
+    testingCustomer, customerLevel, customerTracks, customerCapture, startCustomerTest, stopCustomerTest,
   };
 }
