@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { audioConstraints, channelSource, trackChannelCount, captureChannelInfo } from '@/lib/audioChannels';
+import { audioConstraints, channelSource, captureChannelInfo } from '@/lib/audioChannels';
 import { isLoopbackSource } from '@/lib/audioDevices';
 
 /**
@@ -25,6 +25,10 @@ export default function useInputLevelTest({
   const customerCtxRef = useRef(null);
   const customerStreamRef = useRef(null);
   const customerAnimRef = useRef(null);
+
+  // Never display diagnostic results measured on a previously selected input.
+  useEffect(() => { setAgentCapture(null); setAgentTracks(0); setAgentLevel(0); }, [micDeviceId, agentChannel]);
+  useEffect(() => { setCustomerCapture(null); setCustomerTracks(0); setCustomerLevel(0); }, [customerMicId, customerChannel]);
 
   const meter = (analyser, onLevel, animRef) => {
     const data = new Uint8Array(analyser.frequencyBinCount);
@@ -69,7 +73,12 @@ export default function useInputLevelTest({
       gain.connect(analyser);
       meter(analyser, setAgentLevel, agentAnimRef);
       setTestingAgent(true);
-    } catch (e) { onError('Agent mic test failed: ' + (e?.message || String(e))); }
+    } catch (e) {
+      agentStreamRef.current?.getTracks().forEach(t=>t.stop());
+      agentStreamRef.current = null;
+      if(agentCtxRef.current){void agentCtxRef.current.close().catch(()=>{});agentCtxRef.current=null;}
+      onError('Agent mic test failed: ' + (e?.message || String(e)));
+    }
   }, [micDeviceId, agentChannel, agentGain, onError]);
 
   const stopAgentTest = useCallback(() => {
@@ -119,7 +128,12 @@ export default function useInputLevelTest({
       gain.connect(analyser);
       meter(analyser, setCustomerLevel, customerAnimRef);
       setTestingCustomer(true);
-    } catch (e) { onError('Customer input test failed: ' + (e?.message || String(e))); }
+    } catch (e) {
+      customerStreamRef.current?.getTracks().forEach(t=>t.stop());
+      customerStreamRef.current=null;
+      if(customerCtxRef.current){void customerCtxRef.current.close().catch(()=>{});customerCtxRef.current=null;}
+      onError('Customer input test failed: ' + (e?.message || String(e)));
+    }
   }, [customerMicId, customerChannel, customerGain, micDevices, onError]);
 
   const stopCustomerTest = useCallback(() => {
