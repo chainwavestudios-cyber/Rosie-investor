@@ -33,7 +33,7 @@ export function findAudioDevice(devices = [], savedId = '', savedLabel = '') {
   return null;
 }
 
-export function resolveAudioMode(preset, inputs = [], outputs = [], isLoopback = () => false) {
+export function resolveAudioMode(preset, inputs = [], outputs = []) {
   if (preset?.transport === 'twilio') return { valid: true, problems: [], micId: '', customerId: '', outputId: '', agentGain: 1, customerGain: 1 };
   if (!preset?.saved) return { valid: false, problems: ['Choose and save the devices for this mode first.'], micId: '', customerId: '', outputId: '' };
   const problems = [];
@@ -41,8 +41,8 @@ export function resolveAudioMode(preset, inputs = [], outputs = [], isLoopback =
   if (!agent) problems.push('Saved agent microphone is disconnected or cannot be identified. Re-scan and select it.');
   const needsCustomer = !!(preset.customerDeviceId || preset.customerLabel);
   const customer = needsCustomer ? findAudioDevice(inputs, preset.customerDeviceId, preset.customerLabel) : null;
-  if (needsCustomer && !customer) problems.push('Saved customer/loopback input is disconnected or cannot be identified.');
-  if (customer && (!customer.label || !isLoopback(customer.label))) problems.push('Saved customer input could not be verified as a loopback/line input.');
+  if (needsCustomer && !customer) problems.push('Saved customer input is disconnected or cannot be identified.');
+  if (agent && customer && agent.deviceId === customer.deviceId) problems.push('Choose separate agent and customer inputs.');
   const needsOutput = !!(preset.outputDeviceId || preset.outputLabel);
   const output = needsOutput ? findAudioDevice(outputs, preset.outputDeviceId, preset.outputLabel) : null;
   if (needsOutput && !output) problems.push('Saved preferred output is unavailable.');
@@ -50,20 +50,20 @@ export function resolveAudioMode(preset, inputs = [], outputs = [], isLoopback =
     valid: problems.length === 0,
     problems,
     micId: agent?.deviceId || '',
-    customerId: customer && customer.label && isLoopback(customer.label) ? customer.deviceId : '',
+    customerId: customer?.deviceId || '',
     outputId: output?.deviceId || '',
     agentGain: Number.isFinite(Number(preset.agentGain)) ? Number(preset.agentGain) : 1,
     customerGain: Number.isFinite(Number(preset.customerGain)) ? Number(preset.customerGain) : 1,
   };
 }
 
-export function captureAudioMode(preset, selection, inputs = [], outputs = [], isLoopback = () => false) {
+export function captureAudioMode(preset, selection, inputs = [], outputs = []) {
   const problems = [];
   const agent = inputs.find(d => d.deviceId === selection.micDeviceId);
   if (!agent) problems.push('Select a connected agent microphone before saving.');
   const customer = selection.customerMicId ? inputs.find(d => d.deviceId === selection.customerMicId) : null;
   if (selection.customerMicId && !customer) problems.push('The customer input is not connected.');
-  if (customer && (!customer.label || !isLoopback(customer.label))) problems.push('Customer input must be a verified loopback or line source.');
+  if (agent && customer && agent.deviceId === customer.deviceId) problems.push('Choose separate agent and customer inputs.');
   const output = selection.outputDeviceId ? outputs.find(d => d.deviceId === selection.outputDeviceId) : null;
   if (selection.outputDeviceId && !output) problems.push('The selected preferred output is not connected.');
   const agentGain = Number(selection.agentGain), customerGain = Number(selection.customerGain);

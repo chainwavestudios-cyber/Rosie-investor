@@ -6,8 +6,6 @@
 //
 // A selected dual-input setup stays dual: silence on the customer return must
 // never silently replace that return with the room microphone.
-import { createBleedSuppressor } from '@/lib/audioBleedSuppressor';
-import { channelSource } from '@/lib/audioChannels';
 
 // Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
 // that the model mishears (e.g. "pay" → "training"). Nova-3 uses repeated keyterm= params.
@@ -71,7 +69,6 @@ const RECONNECT_DELAY_MS = 1200;
  */
 export async function startLiveFeed({
   agentStream, customerStream, dualMode, dgKey, agentGain = 1, customerGain = 1,
-  agentChannel = 0, customerChannel = 0,
   onStatus, onOpen, onLine, onInterim, onError, onCreditExhaustion, onSocketClosed,
 }) {
   // Pin AudioContext to 16kHz — Deepgram nova-3 is trained on 16kHz audio.
@@ -151,33 +148,25 @@ export async function startLiveFeed({
       onOpen?.();
 
       if (mode === 'dual') {
-        // Multichannel: channel 0 = agent (left), channel 1 = customer (right).
-        // Agent mic captures with echoCancellation enabled to reduce speaker
-        // bleed; the agent channel stays live at all times so the agent can
-        // speak over the customer when needed (no auto-muting gate).
-        // One isolated track each when the operator picked a track (mic 1 = track 3).
-        const agentSrc = channelSource(ctx, agentStream, agentChannel);
-        const customerSrc = channelSource(ctx, customerStream, customerChannel);
+        // Keep the two selected inputs separate: agent left, customer right.
+        const agentSrc = ctx.createMediaStreamSource(agentStream);
+        const customerSrc = ctx.createMediaStreamSource(customerStream);
         const agentGainNode = ctx.createGain();
         agentGainNode.gain.value = agentGain;
         const customerGainNode = ctx.createGain();
         customerGainNode.gain.value = customerGain;
         const merger = ctx.createChannelMerger(2);
-        agentSrc.node.connect(agentGainNode, agentSrc.output);
+        agentSrc.connect(agentGainNode);
         agentGainNode.connect(merger, 0, 0);
-        customerSrc.node.connect(customerGainNode, customerSrc.output);
+        customerSrc.connect(customerGainNode);
         customerGainNode.connect(merger, 0, 1);
         const proc = ctx.createScriptProcessor(4096, 2, 2);
         processor = proc;
-        // Speaker bleed: the caller's voice plays out of the speakers and the mic
-        // hears it, so the clean Stereo Mix channel is used as the reference and
-        // the bleed is stripped off the agent channel before it goes to Deepgram.
-        const suppressBleed = createBleedSuppressor();
+
         proc.onaudioprocess = (ev) => {
           if (ws.readyState !== WebSocket.OPEN) return;
           const left = ev.inputBuffer.getChannelData(0);
           const right = ev.inputBuffer.getChannelData(1);
-          suppressBleed(left, right);
           const int16 = new Int16Array(left.length * 2);
           for (let i = 0; i < left.length; i++) {
             int16[i * 2] = Math.max(-1, Math.min(1, left[i])) * 0x7FFF;
@@ -191,7 +180,7 @@ export async function startLiveFeed({
         proc.connect(silence); silence.connect(ctx.destination);
       } else {
         // Single feed with diarization
-        const source = channelSource(ctx, agentStream, agentChannel);
+        const source = ctx.createMediaStreamSource(agentStream);
         const agentGainNode = ctx.createGain();
         agentGainNode.gain.value = agentGain;
         const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -204,7 +193,7 @@ export async function startLiveFeed({
           ws.send(int16.buffer);
           lastAudioAt = Date.now();
         };
-        source.node.connect(agentGainNode, source.output);
+        source.connect(agentGainNode);
         agentGainNode.connect(proc);
         const silence = ctx.createGain(); silence.gain.value = 0;
         proc.connect(silence); silence.connect(ctx.destination);
@@ -311,7 +300,7 @@ export async function startLiveFeed({
       if (closedByUser || !liveWs) return;
       watchdogChecks++;
       if (feedMode === 'dual' && feedCounts.customer === 0 && feedCounts.mic >= MIN_MIC_LINES) {
-        onError('No customer speech detected on the selected return. Check the mixer USB routing; inputs remain separate and the room mic is not substituted.');
+        onError('No customer speech detected. Check the selected customer input; the app will not switch devices automatically.');
         return;
       }
       if (feedMode === 'dual' && watchdogChecks < WATCHDOG_CHECKS) armWatchdog();
