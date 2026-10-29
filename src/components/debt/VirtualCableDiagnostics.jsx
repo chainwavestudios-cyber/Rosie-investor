@@ -37,7 +37,7 @@ function PercentMeter({value,label}){
 
 export default function VirtualCableDiagnostics({
   micDevices=[],outputDevices=[],agentId='',customerId='',
-  onAgentSelect,onCustomerSelect,onRescan,disabled=false,twilioMode=false,
+  onAgentSelect,onCustomerSelect,onRescan,deviceScanMessage='',disabled=false,twilioMode=false,
 }) {
   const [open,setOpen]=useState(false);
   const candidates=useMemo(()=>micDevices.filter(d=>d.kind==='audioinput'&&CABLE.test(d.label||'')),[micDevices]);
@@ -75,7 +75,7 @@ export default function VirtualCableDiagnostics({
     streamRef.current?.getTracks?.().forEach(t=>t.stop());
     if(ctxRef.current)void ctxRef.current.close().catch(()=>{});
   },[]);
-  useEffect(()=>{if(status!=='idle')stop();setDetail(null);setMessage('');},[selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(status!=='idle')stop();setDetail(null);},[selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{if(disabled&&!twilioMode)stop();},[disabled,twilioMode,stop]);
 
   const test=async()=>{
@@ -127,7 +127,7 @@ export default function VirtualCableDiagnostics({
       const tick=now=>{
         if(token!==tokenRef.current)return;
         if(!track || track.readyState==='ended'){
-          setStatus('error');setMessage('Chrome closed this audio input. Reconnect the cable and test again.');stop();return;
+          stop();setStatus('error');setMessage('Chrome closed this audio input. Reconnect the cable and test again.');return;
         }
         const l=rmsPercent(analyserL,dataL);
         const r=rmsPercent(analyserR,dataR);
@@ -185,6 +185,7 @@ export default function VirtualCableDiagnostics({
           <RefreshCw size={15}/> Refresh Inputs
         </button>
       </div>
+      {deviceScanMessage&&<div role="status" style={{...text.hint,border:'1px solid #50776666',borderRadius:6,padding:'8px 10px',marginBottom:10,background:'#182e31'}}>{deviceScanMessage}</div>}
       {twilioMode&&<p style={{...text.hint,color:'#ffc889',margin:'9px 0'}}>
         <CircleAlert size={15} style={{verticalAlign:'middle',marginRight:6}}/>
         Your selected <b>Twilio Stream</b> mode uses Twilio WebRTC audio instead of the local cable.
