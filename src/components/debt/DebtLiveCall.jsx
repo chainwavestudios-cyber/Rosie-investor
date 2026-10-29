@@ -1709,7 +1709,11 @@ ${recentText}`,
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
     const feed = await startLiveFeed({
-      agentStream, customerStream, dualMode: feedDual, dgKey, agentGain, customerGain, agentChannel, customerChannel,
+      // Saved RØDECaster USB channel offsets must never be applied to Twilio's
+      // separate WebRTC mono tracks: doing so would select silent channels.
+      agentStream, customerStream, dualMode: feedDual, dgKey, agentGain, customerGain,
+      agentChannel: twilioStreams ? 0 : agentChannel,
+      customerChannel: twilioStreams ? 0 : customerChannel,
       onStatus: setDgStatus,
       onError: setError,
       onLine: processNewEntry,
