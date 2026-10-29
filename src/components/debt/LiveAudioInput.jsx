@@ -4,9 +4,10 @@ export default function LiveAudioInput({ customer = false, devices, value, onCha
   const color = customer ? '#f59e0b' : '#60a5fa';
   const unavailable = disabled || !value;
   // Voicemeeter Out A1..A5 and CABLE Input are playback buses: they only carry
-  // audio routed to that output, so picking one as a microphone meters flat.
+  // audio routed to that output, so picking one as an input meters flat.
+  // B-bus outputs, Stereo Mix and microphones are real recording devices.
   const selectedLabel = devices.find(d => d.deviceId === value)?.label || '';
-  const outputBus = /voicemeeter out [ab]\d|cable input|speakers|headphones/i.test(selectedLabel);
+  const outputBus = /voicemeeter out a\d|cable input/i.test(selectedLabel);
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <label style={labelStyle}>{customer ? 'Customer Audio' : 'Agent Mic'}</label>
@@ -16,7 +17,7 @@ export default function LiveAudioInput({ customer = false, devices, value, onCha
       <option value="">{customer ? '— None (use diarization) —' : '— Select agent microphone —'}</option>
       {devices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Input ${device.deviceId.slice(0, 6)}`}</option>)}
     </select>
-    {outputBus && <span style={{ color: '#f59e0b', fontSize: 10, lineHeight: 1.35 }}>That is a playback bus, not a recording device — it stays silent unless audio is routed to it. Pick the actual microphone, or a “Voicemeeter Out B1/B2”.</span>}
+    {outputBus && <span style={{ color: '#f59e0b', fontSize: 10, lineHeight: 1.35 }}>That is a playback bus, not a recording device — it stays silent. Pick a microphone, Stereo Mix, or a “Voicemeeter Out B1/B2”.</span>}
 
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{ color: '#6b7280', fontSize: 9, whiteSpace: 'nowrap' }}>Gain</span>
