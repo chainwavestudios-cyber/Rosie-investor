@@ -22,9 +22,10 @@ export function findAudioDevice(devices = [], savedId = '', savedLabel = '') {
   const items = Array.isArray(devices) ? devices : [];
   if (savedId) {
     const byId = items.find(d => d.deviceId === savedId);
-    // A previously named device cannot be verified from an unlabeled entry.
-    // Ask for a permission-granting re-scan rather than guessing.
-    if (byId && (!savedLabel || byId.label === savedLabel)) return byId;
+    // Exact browser device IDs are authoritative even if a Windows virtual
+    // cable driver changes the display label between sessions. Previously,
+    // any label change silently cleared the selected cable on restoration.
+    if (byId) return byId;
   }
   if (savedLabel) {
     const byLabel = items.filter(d => d.label && d.label === savedLabel);
@@ -85,6 +86,7 @@ export function captureAudioMode(preset, selection, inputs = [], outputs = []) {
 function sameSelectedDevice(devices, id, savedId, savedLabel) {
   if (!id && !savedId && !savedLabel) return true;
   const selected = devices.find(d => d.deviceId === id);
+  if (id && savedId && id === savedId && selected) return true;
   if (selected?.label && savedLabel) return selected.label === savedLabel;
   return id === (savedId || '');
 }
