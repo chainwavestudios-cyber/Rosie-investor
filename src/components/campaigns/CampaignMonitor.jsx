@@ -154,7 +154,7 @@ export default function CampaignMonitor({ campaignId, onBack, onChanged, embedde
         {running
           ? <Btn tone="ghost" onClick={() => setStatus('paused')}>⏸ Pause</Btn>
           : <Btn tone={campaign.status === 'paused' ? 'gold' : 'ghost'} onClick={() => setStatus('running')} disabled={campaign.status === 'completed' || campaign.status === 'cancelled'}>▶ Resume</Btn>}
-        <Btn tone="ghost" onClick={() => tick(true)} disabled={ticking || !running} title="Send now, without waiting for the random gap">{ticking ? 'Sending…' : '⚡ Send now'}</Btn>
+        <Btn tone="ghost" onClick={() => tick(true)} disabled={ticking || !running} title="Send now — ignores the random wait, the sending window and the daily limit">{ticking ? 'Sending…' : '⚡ Send now'}</Btn>
         <Btn tone="ghost" onClick={exportResults} disabled={exporting}>{exporting ? 'Exporting…' : '⬇ Export results'}</Btn>
         {!['completed', 'cancelled'].includes(campaign.status) && <Btn tone="danger" onClick={() => setStatus('cancelled')}>✕ Cancel</Btn>}
         {embedded && <Btn tone="ghost" onClick={onBack}>Done</Btn>}

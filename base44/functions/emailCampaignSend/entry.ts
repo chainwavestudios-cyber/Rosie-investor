@@ -92,7 +92,7 @@ function pickQueue(queues: CampaignQueue[]): CampaignQueue {
  * rather than throwing, so the monitor and the scheduler can both report why
  * nothing went out.
  */
-async function runQueue(base44: any, campaign: any, options: { respectDue?: boolean; assistants?: any[] } = {}) {
+async function runQueue(base44: any, campaign: any, options: { respectDue?: boolean; manual?: boolean; assistants?: any[] } = {}) {
   const campaignId = campaign.id;
 
   const template = campaign.templateId
@@ -131,8 +131,11 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     };
   }
 
+  // A manual "Send now" overrides the campaign's own schedule: the window and the
+  // daily cap exist to pace the automatic queue, not to stop a person deliberately
+  // pressing send. The queue's burst size still applies, so one click is one burst.
   const window_ = sendingWindow(campaign);
-  if (!window_.open) {
+  if (!window_.open && !options.manual) {
     return {
       ok: false,
       waiting: true,
@@ -145,7 +148,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     .count({ campaignId, status: 'sent', sentAt: { $gte: dayStart } })
     .catch(() => 0);
   const dailyLimit = Math.max(1, Number(campaign.dailyLimit || 500));
-  if (sentToday >= dailyLimit) {
+  if (sentToday >= dailyLimit && !options.manual) {
     return {
       ok: false,
       waiting: true,
@@ -153,7 +156,9 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     };
   }
 
-  const batchSize = Math.max(1, Math.min(lane.perBurst, dailyLimit - sentToday, 100));
+  const batchSize = options.manual
+    ? Math.max(1, Math.min(lane.perBurst, 100))
+    : Math.max(1, Math.min(lane.perBurst, dailyLimit - sentToday, 100));
   const pending = await base44.asServiceRole.entities.EmailCampaignRecipient
     .filter({ campaignId, status: 'pending' }, { sort: 'created_date', limit: batchSize })
     .catch(() => null);
@@ -500,7 +505,7 @@ export default async function (req: Request): Promise<Response> {
     // ── The queue ───────────────────────────────────────────────────────────
     // A click on "Run next batch" sends straight away; the automatic pace is what
     // holds a send back until its own wait has passed.
-    return Response.json(await runQueue(base44, campaign, { respectDue: body.force !== true, assistants }));
+    return Response.json(await runQueue(base44, campaign, { respectDue: body.force !== true, manual: body.force === true, assistants }));
   } catch (error) {
     return Response.json(
       { error: (error && (error as Error).message) || 'The send queue could not run.' },
