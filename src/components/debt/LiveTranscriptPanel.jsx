@@ -6,7 +6,7 @@
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { Captions } from 'lucide-react';
+import { Captions, MessageCircleQuestion } from 'lucide-react';
 import LiveWindowChrome from './LiveWindowChrome';
 
 const GOLD = '#10b981';
@@ -40,7 +40,7 @@ const TranscriptLine = memo(function TranscriptLine({ msg, index, isSelected, on
               color: '#f59e0b', fontSize: '14px', cursor: 'pointer', display: 'flex',
               alignItems: 'center', justifyContent: 'center', lineHeight: 1,
             }}
-          >💡</button>
+          ><MessageCircleQuestion size={15} strokeWidth={2} /></button>
           <button
             onClick={() => onToggleSelect(index)}
             title={isSelected ? 'Remove from selection' : 'Select for combined Q&A'}
@@ -56,7 +56,7 @@ const TranscriptLine = memo(function TranscriptLine({ msg, index, isSelected, on
       )}
       <div style={{ maxWidth: '85%', background: isAgent ? 'rgba(96,165,250,0.1)' : isTransferAgent ? 'rgba(167,139,250,0.1)' : isSelected ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.1)', border: `1px solid ${isAgent ? 'rgba(96,165,250,0.2)' : isTransferAgent ? 'rgba(167,139,250,0.2)' : isSelected ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.2)'}`, borderRadius: isAgent ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '8px 12px' }}>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '3px' }}>
-          <span style={{ color: isAgent ? '#60a5fa' : isTransferAgent ? '#a78bfa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? '🎙 Agent' : isTransferAgent ? '🔀 Transfer Agent' : '👤 Customer'}</span>
+          <span style={{ color: isAgent ? '#60a5fa' : isTransferAgent ? '#a78bfa' : GOLD, fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }}>{isAgent ? 'AGENT' : isTransferAgent ? 'TRANSFER' : 'CUSTOMER'}</span>
           {msg.classification && (
             <span style={{ color: CLASS_COLORS[msg.classification] || '#6b7280', fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '1px 5px', borderRadius: '2px', background: `${CLASS_COLORS[msg.classification] || '#6b7280'}18` }}>{msg.classification}</span>
           )}
@@ -118,7 +118,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
   const renderTranscript = () => (
     <>
       <div className="dcc-live-transcript-header" style={{ flexShrink: 0 }}>
-        <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: '#a78bfa' }}>● Transfer</span> · <span style={{ color: GOLD }}>● Customer</span></div>
+        <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span><span style={{ margin: '0 8px', opacity: .5 }}>·</span><span style={{ color: '#a78bfa' }}>● Transfer</span><span style={{ margin: '0 8px', opacity: .5 }}>·</span><span style={{ color: GOLD }}>● Customer</span></div>
         <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines{selectedCount > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {selectedCount} selected</span>}</div>
       </div>
       <div ref={scrollRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', paddingBottom: selectedCount > 0 ? '64px' : '14px' }}>
@@ -140,14 +140,14 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
           <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 'bold' }}>{selectedCount} line{selectedCount !== 1 ? 's' : ''} selected</span>
           <div style={{ display: 'flex', gap: '6px' }}>
             <button onClick={clearSelected} style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '11px' }}>Clear</button>
-            <button onClick={sendSelected} style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '6px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>💡 Send to Q&A</button>
+            <button onClick={sendSelected} style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: '#0a0f1e', border: 'none', borderRadius: '4px', padding: '6px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>Send to Q&A</button>
           </div>
         </div>
       )}
     </>
   );
 
-  const header = <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 Live Transcript</span>;
+  const header = <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>Live Transcript</span>;
 
   // The live transcript is the SAME instance whether docked or floating.
   // No second transcription subscription; just responsive window chrome.
