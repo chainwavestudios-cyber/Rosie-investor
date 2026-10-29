@@ -12,7 +12,9 @@ import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer, updateProfileTimerSound } from '@/components/debt/ProfileTimerWatcher';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import { PROFILE_TIMER_SOUNDS, isValidProfileTimerSoundFile, normalizeProfileTimerSound, primeProfileTimerAudio, playProfileTimerSound } from '@/components/debt/profileTimerSounds';
-import { Bell, Volume2, UploadCloud, Clock3 } from 'lucide-react';
+import { Bell, Volume2, UploadCloud, Clock3, GripHorizontal } from 'lucide-react';
+import { WindowSizeActions } from './LiveWindowChrome';
+import { liveWindowGeometry } from '@/lib/liveWorkspaceLayout';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
 import { fullStateName } from '@/lib/usStates';
 import DebtCallBar from '@/components/debt/DebtCallBar';
@@ -67,7 +69,7 @@ const TABS = [
   { id: 'ai_populate', label: '🤖 AI Populate' },
 ];
 
-export default function ClientProfileModal({ lead, username, onClose, onSave, initialTab = 'overview' }) {
+export default function ClientProfileModal({ lead, username, onClose, onSave, initialTab = 'overview', liveWorkspace = false }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(initialTab);
   // The card reads the state in full — a stored "CA" opens as "California".
@@ -107,7 +109,11 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   const [emailOpens, setEmailOpens] = useState(new Set());
   const [emailSending, setEmailSending] = useState(null);
   const [intentReport, setIntentReport] = useState(null);
-  const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username, 15000);
+  const liveGeometry = useMemo(() => liveWindowGeometry('live_contact_profile'), []);
+  const panel = usePopOutPanel(liveWorkspace ? 'live_contact_profile' : 'client_profile',
+    liveWorkspace ? liveGeometry.size : { width: 900, height: 700 },
+    username, 15000, false,
+    liveWorkspace ? { defaultPosition: liveGeometry.position, minWidth: 340, minHeight: 310 } : {});
   // This card is always floating: enable its eight resize handles on every open.
   useEffect(() => { panel.openAtSavedPosition(); }, [panel.openAtSavedPosition]);
 
@@ -466,7 +472,13 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   };
 
   return (
-    <div className="dcc-profile-shell" style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+    <div className={"dcc-profile-shell" + (liveWorkspace ? " dcc-live-contact" : "")} onMouseDownCapture={panel.bringToFront} style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+      {liveWorkspace && (
+        <div className="dcc-profile-workspace-bar" onMouseDown={panel.onDragStart} aria-label="Moveable, resizable contact card">
+          <span><GripHorizontal size={16} color="#a3bbb0" /> CONTACT CARD · LIVE WORKSPACE</span>
+          <WindowSizeActions panel={panel} showSave label="Contact Card" />
+        </div>
+      )}
       {/* Header — draggable */}
       <div className="dcc-profile-header" onMouseDown={e => { if (!e.target.closest('button,input,select,textarea,a')) panel.onDragStart(e); }} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
         <div className="dcc-profile-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
