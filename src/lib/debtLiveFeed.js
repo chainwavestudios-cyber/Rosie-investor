@@ -4,13 +4,8 @@
 //  • dual   — mic on channel 0 (agent), the customer device on channel 1 (caller).
 //  • single — one feed, Deepgram separates the voices itself (diarization).
 //
-// Dual only makes sense when the customer device really carries the caller. A dead
-// customer slot (a Stereo Mix with nothing playing, a phone heard only through the
-// room mic) leaves BOTH voices on the mic — and channel mapping then files the
-// caller's words under the agent while the agent is never separated out at all.
-// So the feed is watched: if the customer channel stays silent while the mic carries
-// speech, the transcript re-opens in single-feed mode and the voices are separated
-// by speaker instead of by channel.
+// A selected dual-input setup stays dual: silence on the customer return must
+// never silently replace that return with the room microphone.
 import { createBleedSuppressor } from '@/lib/audioBleedSuppressor';
 
 // Deepgram Nova-3 keyterm prompting — boosts recognition of debt settlement vocabulary
@@ -313,9 +308,7 @@ export async function startLiveFeed({
       if (closedByUser || !liveWs) return;
       watchdogChecks++;
       if (feedMode === 'dual' && feedCounts.customer === 0 && feedCounts.mic >= MIN_MIC_LINES) {
-        // Only the mic is carrying the call — separate the voices by speaker.
-        feedMode = 'single';
-        open('single');
+        onError('No customer speech detected on the selected return. Check the mixer USB routing; inputs remain separate and the room mic is not substituted.');
         return;
       }
       if (feedMode === 'dual' && watchdogChecks < WATCHDOG_CHECKS) armWatchdog();

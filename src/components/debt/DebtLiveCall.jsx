@@ -12,12 +12,11 @@ import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { findLoopback, isLoopbackSource } from '@/lib/audioDevices';
-import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
+import LiveCallControls from '@/components/debt/LiveCallControls';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
 import LiveComplianceWidget from '@/components/compliance/LiveComplianceWidget';
 import CustomerStatsPopup from '@/components/debt/CustomerStatsPopup';
 import { buildIntentReport } from '@/components/debt/intentReport';
-import NoMissedMeetingsButton from '@/components/debt/NoMissedMeetingsButton';
 import AppointmentPreviewModal from '@/components/debt/AppointmentPreviewModal';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
 import { startLiveFeed } from '@/lib/debtLiveFeed';
@@ -233,25 +232,24 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [apptPreview, setApptPreview] = useState(null);
   const leadPersistedRef = useRef(false);
   const transcriptRecordIdRef = useRef(null);
-  // The client profile is always opened explicitly by the agent, never by timer/name detection.
+  // The full contact profile opens automatically for the live call.
   const [showProfile, setShowProfile] = useState(false);
   const [showEndDialog, setShowEndDialog] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState(null);
-  const leadPanel = usePopOutPanel('live_lead_card', { width: 420, height: 600 }, coachUser?.username, 9998, false);
   const transcriptPanel = usePopOutPanel('live_transcript', { width: 520, height: 600 }, coachUser?.username, 9998, false);
   const scriptsPanel = usePopOutPanel('live_scripts', { width: 480, height: 600 }, coachUser?.username, 9998, false);
-  const aiPanel = usePopOutPanel('live_ai_panel', { width: 420, height: 600 }, coachUser?.username, 9998, false);
+  const aiPanel = usePopOutPanel('live_ai_panel', { width: 700, height: 600 }, coachUser?.username, 15010, false);
   const [showCustomerStats, setShowCustomerStats] = useState(false);
   const allPoppedOut = transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
-  // Open the three Live Call floating tools at the operator's stored positions.
-  // Contact cards stay docked/open, and Smart Close opens from the parent workspace.
+  // Open the original full contact and Q&A-only panels. Smart Close stays current.
   useEffect(() => {
     if (phase !== 'live') return;
+    setShowProfile(true);
     scriptsPanel.openAtSavedPosition();
     transcriptPanel.openAtSavedPosition();
-    aiPanel.openAtSavedPosition(); leadPanel.openAtSavedPosition();
+    aiPanel.openAtSavedPosition();
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [micMuted, setMicMuted] = useState(false);
@@ -264,7 +262,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
     if (tracks.length === 0) return;
     const anyEnabled = tracks.some(t => t.enabled);
     tracks.forEach(t => { t.enabled = !anyEnabled; });
-    setMicMuted(!anyEnabled);
+    setMicMuted(anyEnabled);
   }, []);
 
   // 🔥 Hot Call Tracker — turbo intent engine; writes HotCallAlerts for the manager portal
@@ -551,9 +549,10 @@ Agent line: "${firstAgentLines}"`,
     // The preferred hardware is never assumed to be the same for Computer and Cell.
     if (!firstDeviceScanRef.current && !audioDeviceStateRef.current?.hasSavedMode) {
       const current = audioDeviceStateRef.current || {};
-      const rode = mics.find(m => /rode|røde|rodecaster/i.test(m.label || ''));
-      const loop = findLoopback(mics);
-      if (!current.micDeviceId && mics.length) setMicDeviceId((rode || mics[0]).deviceId);
+      const rode = mics.find(m => !['default', 'communications'].includes(m.deviceId) && /rode|røde|rodecaster/i.test(m.label || ''));
+      const agentId = current.micDeviceId || (rode || mics[0])?.deviceId;
+      const loop = findLoopback(mics.filter(m => m.deviceId !== agentId && !['default', 'communications'].includes(m.deviceId)));
+      if (!current.micDeviceId && mics.length) setMicDeviceId(agentId);
       if (!current.customerMicId && loop) setCustomerMicId(loop.deviceId);
       if (!current.outputDeviceId && outputs.length) setOutputDeviceId(outputs[0].deviceId);
     }
@@ -738,6 +737,14 @@ Agent line: "${firstAgentLines}"`,
       })
       .catch(() => { if (!supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
   }, [kbEntries]);
+
+  // Handle pushed questions once, regardless of whether the panel is popped out.
+  const handledPendingQuestionRef = useRef(null);
+  useEffect(() => {
+    if (!pendingQuestion?.question || handledPendingQuestionRef.current === pendingQuestion.ts) return;
+    handledPendingQuestionRef.current = pendingQuestion.ts;
+    handleQa(pendingQuestion.question);
+  }, [pendingQuestion, handleQa]);
 
   // Auto-flush the agent question buffer — combines captured lines and sends
   // as a single Q&A question. Called by the silence timeout, customer-speech
@@ -1432,6 +1439,14 @@ ${recentText}`,
         return;
       }
     }
+    if (!twilioStreams && !micDeviceId) {
+      setError('Select the actual agent microphone before starting. The default room microphone will not be substituted.');
+      return;
+    }
+    if (!twilioStreams && !testModeArg && customerMicId && customerMicId === micDeviceId) {
+      setError('Agent and customer are using the same input. Choose a separate customer-only loopback/USB return, or select None for single-input mode.');
+      return;
+    }
     // Ensure we have a lead — always create a brand new one for new/inbound calls
     if (forceNew || !leadRef.current?.id) {
       // Persist the lead to the database immediately so transcript + auto-extraction
@@ -1541,7 +1556,7 @@ ${recentText}`,
         streamRef.current = agentStream;
         customerStreamRef.current = customerStream;
       } else {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: false } : { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
       streamRef.current = agentStream;
       if (dualMode) {
         // `exact` is deliberate. With `ideal`, a stale or missing device id makes the
@@ -2060,11 +2075,12 @@ ${recentText}`,
 
   // ── Audio Test — independent level meter per input ─────────────────────
   const startAgentTest = useCallback(async () => {
+    if (!micDeviceId) { setError('Select the actual agent microphone before testing.'); return; }
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (ctx.state === 'suspended') await ctx.resume();
       testAgentCtxRef.current = ctx;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } : { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: false } : { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
       testAgentStreamRef.current = stream;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -2231,8 +2247,6 @@ ${recentText}`,
     } finally { setSavingAudioMode(false); }
   };
 
-  const phaseColor = { idle: '#6b7280', live: '#ef4444', ended: '#8a9ab8' }[phase];
-  const phaseLabel = { idle: 'Ready', live: '● LIVE', ended: 'Ended' }[phase];
 
   return (
     <div className="dcc-live-workspace" style={{minWidth:0}}>
@@ -2240,240 +2254,12 @@ ${recentText}`,
         .dcc-live-workspace .dcc-live-control{transition:background .15s,border-color .15s}
         @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
       `}</style>
-      <div className="dcc-live-utility" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap',padding:'9px 12px',margin:'0 0 9px',border:'1px solid rgba(148,188,176,.20)',borderRadius:9,background:'linear-gradient(110deg,#12242e,#142b2d 55%,#101e2d)'}}>
-        <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
-          <span style={{fontSize:10,fontWeight:820,letterSpacing:1.4,color:'#d8b56d'}}>LIVE CALL CONTROL</span>
-          <span style={{fontSize:10,color:'#91b0ac'}}>{phase==='live'?'Audio and coaching active · panels docked':'Devices and call tools ready when you are'}</span>
-        </div>
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}}>
-          <button type="button" className="dcc-live-control" onClick={()=>setShowCustomerStats(s=>!s)} aria-pressed={showCustomerStats} style={{cursor:'pointer',padding:'7px 10px',border:'1px solid '+(showCustomerStats?'#64d5ab':'#3b6b64'),background:showCustomerStats?'#184a3d':'#18302f',color:'#c6f2de',borderRadius:8,fontWeight:750,fontSize:11}}>◈ {showCustomerStats?'Hide':'Open'} Customer Insights</button>
-          <button type="button" className="dcc-live-control" onClick={()=>setShowProfile(true)} disabled={!lead.id} style={{cursor:lead.id?'pointer':'not-allowed',padding:'7px 10px',border:'1px solid rgba(116,191,160,.44)',background:'rgba(24,100,78,.13)',color:lead.id?'#c6f2de':'#657f84',borderRadius:8,fontWeight:750,fontSize:11}}>▣ Client Profile</button>
-          <span style={{fontSize:10,letterSpacing:'.3px',color:phase==='live'?'#ffaf9f':'#9bdabe',padding:'6px 9px',background:phase==='live'?'#352222':'#18392e',border:'1px solid '+(phase==='live'?'#97504e':'#376b58'),borderRadius:99,fontWeight:850}}>{phase==='live'?'● LIVE CALL':phase==='ended'?'CALL ENDED':'● READY'}</span>
-        </div>
-      </div>
-      {/* Call controls stay in the page, without floating panels. */}
-      <div className="dcc-live-setup-bar" style={{ marginBottom:11,padding:'10px 12px',background:'linear-gradient(115deg,rgba(15,38,46,.88),rgba(15,26,41,.9))',border:'1px solid rgba(122,184,163,.24)',borderRadius:10,display:'flex',gap:9,alignItems:'center',flexWrap:'wrap' }}>
-        <div style={{ display: activeAudioMode?.transport === 'twilio' ? 'none' : 'flex', flexDirection: 'column', gap: '3px' }}>
-          <label style={{ ...ls, marginBottom: 0 }}>🎙 Agent Mic</label>
-          <select value={micDeviceId} onChange={e => setMicDeviceId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
-            <option value="">— Select agent microphone —</option>
-            {micDevices.length === 0 && <option>Default microphone</option>}
-            {micDevices.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.slice(0, 6)}`}</option>)}
-          </select>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
-            <input type="range" min="0" max="3" step="0.1" value={agentGain} onChange={e => setAgentGain(Number(e.target.value))} disabled={phase === 'live'} style={{ flex: 1, cursor: 'pointer', accentColor: '#60a5fa' }} />
-            <span style={{ color: '#60a5fa', fontSize: '9px', fontWeight: 'bold', minWidth: '28px' }}>{Math.round(agentGain * 100)}%</span>
-            <button onClick={testingAgent ? stopAgentTest : startAgentTest} disabled={phase === 'live'} title="Test agent mic only" style={{ background: testingAgent ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.05)', color: testingAgent ? '#60a5fa' : '#8a9ab8', border: `1px solid ${testingAgent ? 'rgba(96,165,250,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '4px 8px', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' ? 0.5 : 1 }}>
-              {testingAgent ? '⏹ Stop' : '🔊 Test'}
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: activeAudioMode?.transport === 'twilio' ? 'none' : 'flex', flexDirection: 'column', gap: '3px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label style={{ ...ls, marginBottom: 0 }}>🎧 Customer Audio (Split Input)</label>
-            <button onClick={() => loadDevices(true)} disabled={phase === 'live'} title="Re-scan inputs and request microphone access if needed" style={{ background: 'transparent', border: 'none', color: '#8a9ab8', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', padding: 0, opacity: phase === 'live' ? 0.5 : 1 }}>🔄</button>
-            {micDevices.length > 0 && <span style={{ color: '#4a5568', fontSize: '9px', whiteSpace: 'nowrap' }}>{micDevices.length} input{micDevices.length === 1 ? '' : 's'}</span>}
-          </div>
-          <select value={customerMicId} onChange={e => setCustomerMicId(e.target.value)} disabled={phase === 'live'} style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
-            <option value="">— None (use diarization) —</option>
-            {customerInputs.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Input ${m.deviceId.slice(0, 6)}`}</option>)}
-          </select>
-          {micDevices.length > 0 && customerInputs.length === 0 && (
-            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ No loopback input found. Enable “Stereo Mix” (or your virtual cable) in Windows sound settings, then 🔄 re-scan. Microphones are not allowed on this channel.</span>
-          )}
-          {customerMicId && customerLabelSelected && !isLoopbackSource(customerLabelSelected) && (
-            <span style={{ color: '#f59e0b', fontSize: '9px', maxWidth: '240px', lineHeight: 1.3 }}>⚠ “{customerLabelSelected}” is a microphone — it would record your own voice on the customer channel. Pick Stereo Mix.</span>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#6b7280', fontSize: '9px', whiteSpace: 'nowrap' }}>Gain</span>
-            <input type="range" min="0" max="3" step="0.1" value={customerGain} onChange={e => setCustomerGain(Number(e.target.value))} disabled={phase === 'live' || !customerMicId} style={{ flex: 1, cursor: 'pointer', accentColor: '#f59e0b', opacity: !customerMicId ? 0.4 : 1 }} />
-            <span style={{ color: '#f59e0b', fontSize: '9px', fontWeight: 'bold', minWidth: '28px' }}>{Math.round(customerGain * 100)}%</span>
-            <button onClick={testingCustomer ? stopCustomerTest : startCustomerTest} disabled={phase === 'live' || !customerMicId} title="Test customer input only" style={{ background: testingCustomer ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)', color: testingCustomer ? '#f59e0b' : '#8a9ab8', border: `1px solid ${testingCustomer ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '4px', padding: '4px 8px', cursor: phase === 'live' || !customerMicId ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: phase === 'live' || !customerMicId ? 0.5 : 1 }}>
-              {testingCustomer ? '⏹ Stop' : '🔊 Test'}
-            </button>
-          </div>
-        </div>
-
-        <AudioSetupSwitcher
-          setups={modes}
-          activeIndex={activeSetupIndex}
-          disabled={phase === 'live' || testingAgent || testingCustomer || savingAudioMode}
-          loading={!audioModeReady}
-          dirty={audioModeDirty}
-          validation={audioModeValidation}
-          message={audioModeDirty && activeAudioMode?.saved && !savingAudioMode ? '' : audioModeMessage}
-          onUse={useAudioSetup}
-          onRename={renameAudioSetup}
-          onSave={saveAudioSetup}
-        />
-
-        {activeAudioMode?.transport !== 'twilio' && outputDevices.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            <label style={{ ...ls, marginBottom: 0 }}>🔊 Preferred Output</label>
-            <select value={outputDeviceId} onChange={e => setOutputDeviceId(e.target.value)} disabled={phase==='live'} title="Stored as a preferred playback device; browser/system output routing remains in effect" style={{ ...inp, minWidth: '220px', cursor: 'pointer' }}>
-              <option value="">— System default output —</option>
-              {outputDevices.map(o => <option key={o.deviceId} value={o.deviceId}>{o.label || `Speaker ${o.deviceId.slice(0, 6)}`}</option>)}
-            </select>
-          </div>
-        )}
-
-        {testMode ? (
-          <span style={{ padding: '4px 10px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: '4px', color: '#f59e0b', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>🧪 TEST MODE — Single Feed</span>
-        ) : activeAudioMode?.transport!=='twilio' && customerMicId && micDeviceId ? (
-          <span style={{ padding: '4px 10px', background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '4px', color: '#60a5fa', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px' }}>DUAL CHANNEL</span>
-        ) : null}
-
-        <button onClick={() => setStatsPaused(p => !p)} title="Pause/resume auto customer stats extraction during calls" style={{ padding: '8px 14px', borderRadius: '4px', border: `1px solid ${statsPaused ? 'rgba(107,113,128,0.2)' : 'rgba(16,185,129,0.3)'}`, background: statsPaused ? 'rgba(255,255,255,0.03)' : `${GOLD}18`, color: statsPaused ? '#6b7280' : GOLD, cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-          {statsPaused ? '⏸ Stats Paused' : '▶ Stats On'}
-        </button>
-
-        {/* Call Type selector — Front to Back / Open Only / Cold Call / Closer Call */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth:0 }}>
-          <label style={{ ...ls, marginBottom: 0 }}>Call Type</label>
-          <div className="dcc-call-type-options" style={{ display: 'flex', gap: 4, flexWrap:'wrap' }}>
-            <button onClick={() => handleCallTypeChange('front_to_back')} disabled={phase === 'live'} title="Inbound transfer — full open + close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'front_to_back' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'front_to_back' ? `${GOLD}18` : 'transparent', color: callType === 'front_to_back' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Front → Back</button>
-            <button onClick={() => handleCallTypeChange('open_only')} disabled={phase === 'live'} title="Inbound transfer — open only, transfer at SSN" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'open_only' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'open_only' ? `${GOLD}18` : 'transparent', color: callType === 'open_only' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Open Only</button>
-            <button onClick={() => handleCallTypeChange('cold_call')} disabled={phase === 'live'} title="Outgoing cold call — ask for name, save on interest" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'cold_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'cold_call' ? `${GOLD}18` : 'transparent', color: callType === 'cold_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Cold Call</button>
-            <button onClick={() => handleCallTypeChange('closer_call')} disabled={phase === 'live'} title="Inbound — opener got SSN, transferred to you (account manager) for the close" style={{ padding: '8px 12px', borderRadius: '4px', border: `1px solid ${callType === 'closer_call' ? GOLD + '66' : 'rgba(255,255,255,0.1)'}`, background: callType === 'closer_call' ? `${GOLD}18` : 'transparent', color: callType === 'closer_call' ? GOLD : '#6b7280', cursor: phase === 'live' ? 'not-allowed' : 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Closer Call</button>
-          </div>
-        </div>
-
-        {/* AI Feature auto-enable checkboxes — saved with layout */}
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center', padding: '4px 10px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px' }}>
-          <span style={{ color: '#8a9ab8', fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', marginRight: '4px' }}>🤖 Auto:</span>
-          {[
-            { label: '❓ Q&A', value: autoQA, setter: setAutoQA, color: '#f59e0b' },
-            { label: '🎯 Coach', value: autoCoach, setter: setAutoCoach, color: '#a78bfa' },
-            { label: '🦆 Intent', value: autoIntent, setter: setAutoIntent, color: '#60a5fa' },
-          ].filter(f => canLiveAI).map(({ label, value, setter, color }) => (
-            <label key={label} style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }} title={`Auto-enable ${label} on call start (saved in layout)`}>
-              <input type="checkbox" checked={value} onChange={e => setter(e.target.checked)} style={{ cursor: 'pointer', accentColor: color }} />
-              <span style={{ color: value ? color : '#6b7280', fontSize: '10px', fontWeight: value ? 'bold' : 'normal' }}>{label}</span>
-            </label>
-          ))}
-        </div>
-
-        <NoMissedMeetingsButton />
-
-        {/* Agent Question mode — toggle ON, ask question, toggle OFF to auto-answer in popup */}
-        {phase === 'live' && canLiveAI && canLiveQA && (
-          <button
-            onClick={toggleAgentQuestion}
-            title="Press once, ask your question — it auto-answers when you stop speaking (Alt+Q)"
-            style={{
-              padding: '8px 14px', borderRadius: '4px',
-              border: `1px solid ${agentQuestionActive ? 'rgba(239,68,68,0.5)' : 'rgba(245,158,11,0.3)'}`,
-              background: agentQuestionActive ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.08)',
-              color: agentQuestionActive ? '#ef4444' : '#f59e0b',
-              cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              animation: agentQuestionActive ? 'pulse 1s infinite' : 'none',
-            }}
-          >
-            {agentQuestionActive ? '🔴 Listening… (auto-answers when you stop)' : '🎤 Agent Question (Alt+Q)'}
-          </button>
-        )}
-
-        {/* Audio recording — record the live call (agent + customer mixed) to a private file */}
-        {phase === 'live' && (
-          <button
-            onClick={async () => {
-              if (recorder.isRecording) {
-                const uri = await recorder.stop();
-                if (uri && transcriptRecordIdRef.current) {
-                  base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {});
-                }
-              } else {
-                recorder.start(streamRef.current, customerStreamRef.current);
-              }
-            }}
-            title={recorder.isRecording ? 'Stop recording the call audio' : 'Record the call audio (agent + customer)'}
-            style={{
-              padding: '8px 14px', borderRadius: '4px',
-              border: `1px solid ${recorder.isRecording ? 'rgba(239,68,68,0.5)' : 'rgba(239,68,68,0.3)'}`,
-              background: recorder.isRecording ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)',
-              color: '#ef4444',
-              cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap',
-              display: 'flex', alignItems: 'center', gap: '5px',
-              animation: recorder.isRecording ? 'pulse 1.5s infinite' : 'none',
-            }}
-          >
-            {recorder.isRecording ? '⏹ Stop Recording' : '● Record Call'}
-          </button>
-        )}
-        {recorder.recordingError && phase === 'live' && (
-          <span style={{ color: '#ef4444', fontSize: '10px' }}>⚠ {recorder.recordingError}</span>
-        )}
-
-        {/* Quick lead search + Start Live Call (2/3 smaller) */}
-        {phase !== 'live' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative' }}>
-            <label style={{ ...ls, marginBottom: 0 }}>👤 Search Client Profile</label>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <input
-                value={leadSearch}
-                onChange={e => setLeadSearch(e.target.value)}
-                onFocus={() => setLeadSearchFocus(true)}
-                onBlur={() => setTimeout(() => setLeadSearchFocus(false), 200)}
-                placeholder="Type name, phone, or email…"
-                style={{ ...inp, width: '200px', fontSize: '11px', padding: '6px 10px' }}
-              />
-              <button onClick={() => startCall(false)} disabled={kbLoading} style={{ background: 'linear-gradient(135deg,#10b981,#22c55e)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                {kbLoading ? 'Loading…' : '🔴 Live Call (Alt+L)'}
-              </button>
-              <button onClick={() => startCall(false, true)} disabled={kbLoading} title="Single-mic test mode — play a pre-recorded call through speakers, no dual-channel duplicates" style={{ background: 'linear-gradient(135deg,#f59e0b,#f97316)', color: DARK, border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: kbLoading ? 'not-allowed' : 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: kbLoading ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                🧪 Test Call
-              </button>
-            </div>
-            {/* Search results dropdown */}
-            {leadSearchFocus && leadSearchResults.length > 0 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '2px', background: DARK, border: `1px solid ${GOLD}44`, borderRadius: '4px', maxHeight: '240px', overflowY: 'auto', zIndex: 10000, boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}>
-                {leadSearchResults.map(l => (
-                  <button key={l.id} onClick={() => selectLeadAndStartCall(l)} style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)', padding: '8px 12px', cursor: 'pointer', textAlign: 'left', color: '#c4cdd8', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{l.firstName} {l.lastName}</span>
-                    <span style={{ color: '#6b7280', fontSize: '9px' }}>{l.phone || l.email || l.leadNumber || ''}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <button onClick={handleEndCallClick} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.5px', textTransform: 'uppercase' }}>⏹ End</button>
-        )}
-
-        {phase === 'ended' && (
-          <button onClick={startCall} style={{ background: 'rgba(255,255,255,0.05)', color: '#c4cdd8', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '10px 20px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>🔄 New Call</button>
-        )}
-
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: `${phaseColor}18`, border: `1px solid ${phaseColor}44`, borderRadius: '20px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phaseColor, animation: phase === 'live' ? 'pulse 1s infinite' : 'none' }} />
-          <span style={{ color: phaseColor, fontSize: '11px', fontWeight: 'bold' }}>{phaseLabel}</span>
-        </span>
-        {phase === 'live' && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: dgStatus === 'connected' ? 'rgba(74,222,128,0.12)' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'rgba(245,158,11,0.12)' : dgStatus === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(107,114,128,0.12)', border: `1px solid ${dgStatus === 'connected' ? 'rgba(74,222,128,0.3)' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'rgba(245,158,11,0.3)' : dgStatus === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(107,114,128,0.2)'}`, borderRadius: '20px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', animation: dgStatus === 'connecting' || dgStatus === 'reconnecting' ? 'pulse 0.8s infinite' : 'none' }} />
-            <span style={{ color: dgStatus === 'connected' ? '#4ade80' : dgStatus === 'connecting' || dgStatus === 'reconnecting' ? '#f59e0b' : dgStatus === 'error' ? '#ef4444' : '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>Deepgram: {dgStatus}</span>
-          </span>
-        )}
-        <span style={{ color: '#6b7280', fontSize: '11px' }}>{transcript.length} lines</span>
-
-        {allPoppedOut && phase === 'live' && (
-          <button
-            onClick={() => {
-              transcriptPanel.saveLayout();
-              scriptsPanel.saveLayout();
-              aiPanel.saveLayout();
-              setLayoutSavedMsg(true);
-              setTimeout(() => setLayoutSavedMsg(false), 2000);
-            }}
-            style={{ background: layoutSavedMsg ? 'rgba(74,222,128,0.2)' : `${GOLD}18`, color: layoutSavedMsg ? '#4ade80' : GOLD, border: `1px solid ${layoutSavedMsg ? 'rgba(74,222,128,0.4)' : GOLD + '44'}`, borderRadius: '4px', padding: '8px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
-          >
-            {layoutSavedMsg ? '✓ Layout Saved' : '💾 Save Layout'}
-          </button>
-        )}
-      </div>
+      <LiveCallControls phase={phase} lead={lead} showCustomerStats={showCustomerStats} setShowCustomerStats={setShowCustomerStats} setShowProfile={setShowProfile}
+        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, customerInputs, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, loadDevices, customerLabelSelected, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
+        tools={{ statsPaused, setStatsPaused, callType, handleCallTypeChange, autoQA, setAutoQA, autoCoach, setAutoCoach, autoIntent, setAutoIntent, canLiveAI, canLiveQA, agentQuestionActive, toggleAgentQuestion }}
+        session={{ leadSearch, setLeadSearch, setLeadSearchFocus, leadSearchFocus, leadSearchResults, selectLeadAndStartCall, startCall, kbLoading, handleEndCallClick }}
+        recorder={recorder} onRecord={async () => { if (recorder.isRecording) { const uri = await recorder.stop(); if (uri && transcriptRecordIdRef.current) base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {}); } else recorder.start(streamRef.current, customerStreamRef.current); }}
+        layout={{ allPoppedOut, saved: layoutSavedMsg, onSave: () => { transcriptPanel.saveLayout(); scriptsPanel.saveLayout(); aiPanel.saveLayout(); setLayoutSavedMsg(true); setTimeout(() => setLayoutSavedMsg(false), 2000); } }} dgStatus={dgStatus} lineCount={transcript.length} />
 
       {error && <div role="alert" style={{ marginBottom: '12px', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', color: '#ef4444', fontSize: '12px' }}>⚠ {error}</div>}
       {twilioWarning && <div role="status" style={{ marginBottom:12,padding:'9px 13px',borderRadius:8,background:'rgba(245,158,11,.1)',border:'1px solid rgba(245,158,11,.3)',color:'#fbd08b',fontSize:11 }}>Twilio audio: {twilioWarning}</div>}
@@ -2571,33 +2357,19 @@ ${recentText}`,
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: gridCols, gap: '16px', alignItems: 'start' }}>
-              {/* Lead contact card — hidden when Client Profile is open */}
-              {!showProfile && (leadPanel.poppedOut ? (
-                <div style={{ ...leadPanel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-                  <div onMouseDown={leadPanel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-                    <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</span>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
-                      <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-                    </div>
-                  </div>
-                  <div style={{ flex: 1, overflow: 'auto' }}>
-                    <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadFieldEdit={handleManualLeadField} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
-                  </div>
-                  {leadPanel.resizeHandles}
-                </div>
-              ) : (
+              {/* Compact editor is only for setup; the pop-out is the full profile. */}
+              {!showProfile && phase !== 'live' && (
                 <div style={{ position: 'relative' }}>
                   <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>💳 Lead Contact Card</div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setShowLeadPicker(p => !p)} style={{ background: 'rgba(16,185,129,0.1)', color: GOLD, border: '1px solid rgba(16,185,129,0.2)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px' }}>{lead.id ? 'Switch' : 'Select'}</button>
-                      <button onClick={leadPanel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Pop Out</button>
+                      <button onClick={() => setShowProfile(true)} disabled={!lead.id} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬆ Full Contact Card</button>
                     </div>
                   </div>
                   <DebtLeadCard lead={lead} onLeadChange={setLead} onLeadFieldEdit={handleManualLeadField} onLeadSaved={handleLeadSaved} transcript={transcript} intentScore={intentScore} animalType={profileData?.animalType} profileData={profileData} />
                 </div>
-              ))}
+              )}
 
               {/* Transcript — pop-out enabled (transcript only) */}
               <LiveTranscriptPanel transcript={transcript} phase={phase} panel={transcriptPanel} onAnswerQuestion={handleAnswerQuestion} lead={lead} micLabel={micDevices.find(m => m.deviceId === micDeviceId)?.label || 'Agent Mic'} username={coachUser?.username} onScriptPositionChange={(pos) => { scriptPositionRef.current = pos; }} />
@@ -2607,7 +2379,7 @@ ${recentText}`,
 
               {/* AI Tools Panel — pop-out enabled */}
               {aiPanel.poppedOut ? (
-                <LiveQAWindow panel={aiPanel} qaItems={qaItems} pendingQuestion={pendingQuestion} onAsk={handleQa} />
+                <LiveQAWindow panel={aiPanel} qaItems={qaItems} transcript={transcript} kbEntries={kbEntries} lead={lead} qaActive={qaActive} onToggleQA={toggleQaActive} />
               ) : (
                 <div style={{ position: 'relative' }}>
                   <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2617,7 +2389,7 @@ ${recentText}`,
                   <DebtAIPanel
                     transcript={transcript} kbEntries={kbEntries} isActive={phase === 'live'}
                     profileData={profileData} intentScore={intentScore} ledgerExtracting={ledgerExtracting}
-                    memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} pendingQuestion={pendingQuestion} liveQAItems={qaItems} liveCoachTips={coachTips}
+                    memories={memories} lead={lead} micDeviceId={micDeviceId} customerMicId={customerMicId} liveQAItems={qaItems} liveCoachTips={coachTips}
                     canAIAssistant={canLiveAI} canQA={canLiveQA} canCoach={canLiveCoach} canIntent={canLiveIntent}
                     username={coachUser?.username}
                     activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}

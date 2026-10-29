@@ -108,6 +108,8 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   const [emailSending, setEmailSending] = useState(null);
   const [intentReport, setIntentReport] = useState(null);
   const panel = usePopOutPanel('client_profile', { width: 900, height: 700 }, username, 15000);
+  // This card is always floating: enable its eight resize handles on every open.
+  useEffect(() => { panel.openAtSavedPosition(); }, [panel.openAtSavedPosition]);
 
   // Load Q&A history for this lead
   useEffect(() => {
@@ -466,7 +468,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   return (
     <div className="dcc-profile-shell" style={{ ...panel.floatingStyle, background: '#0a0f1e', border: `1px solid ${GOLD}44`, borderRadius: '8px', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
       {/* Header — draggable */}
-      <div className="dcc-profile-header" onMouseDown={panel.onDragStart} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
+      <div className="dcc-profile-header" onMouseDown={e => { if (!e.target.closest('button,input,select,textarea,a')) panel.onDragStart(e); }} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
         <div className="dcc-profile-heading" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div className="dcc-profile-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', background: `linear-gradient(135deg,${GOLD},#22c55e)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0a0f1e', fontSize: '15px', fontWeight: 'bold', flexShrink: 0, textTransform: 'uppercase' }}>
             {(local.firstName?.[0] || '?')}{(local.lastName?.[0] || '')}

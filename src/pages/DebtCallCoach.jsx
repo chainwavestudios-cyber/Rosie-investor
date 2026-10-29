@@ -67,6 +67,8 @@ export default function DebtCallCoach() {
     const launch = (event) => {
       const { leadId, mode } = event.detail || {};
       if (!leadId || !['listen','dial','office'].includes(mode)) return;
+      // Live Call opens the same full card; don't leave a duplicate over it.
+      setTimerLead(null); setHotLead(null); setPipelineLead(null);
       setLiveLaunch({ leadId, mode, token: Date.now() });
       setTab('live');
     };
