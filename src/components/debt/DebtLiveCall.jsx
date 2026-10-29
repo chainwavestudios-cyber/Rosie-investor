@@ -27,7 +27,7 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { useDebtCoachValue, getDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 import { liveWindowGeometry, LIVE_LAYOUT_KEY, LIVE_PROFILE_STORE, LIVE_MODE_KEY, LIVE_PANEL_KEYS,
   getWorkspaceViewport, resolveDisplayProfile, displayProfileName,
-  createDisplayLayout, clampDisplayLayout } from '@/lib/liveWorkspaceLayout';
+  createDisplayLayout, clampDisplayLayout, captureDisplayLayout } from '@/lib/liveWorkspaceLayout';
 import LiveWorkspaceToolbar from '@/components/debt/LiveWorkspaceToolbar';
 import EndCallDialog from '@/components/debt/EndCallDialog';
 import { useCallRecorder } from '@/hooks/useCallRecorder';
@@ -315,32 +315,40 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
     }finally{if(workspaceRequestRef.current===requestId)setWorkspaceApplying(false);}
   },[coachUser?.username,layoutModeLoaded]);
 
-  const saveDefaultLayout=async()=>{
+  const saveDefaultLayout=async(contactGeometry=null)=>{
     const username=coachUser?.username;
-    if(!username||layoutSaving||workspaceApplying)return;
+    if(!username||layoutSaving||workspaceApplying)return false;
     setLayoutSaving(true);setLayoutSavedMsg('');
     try{
       const settings=await getAllDebtCoachValues(username);
-      const defaultContact=createDisplayLayout(selectedLayoutProfile,workspaceViewport).popout_live_contact_profile;
-      const payload={
-        popout_live_transcript:{poppedOut:transcriptPanel.poppedOut,position:transcriptPanel.position,size:transcriptPanel.size},
-        popout_live_scripts:{poppedOut:scriptsPanel.poppedOut,position:scriptsPanel.position,size:scriptsPanel.size},
-        popout_live_ai_panel:{poppedOut:aiPanel.poppedOut,position:aiPanel.position,size:aiPanel.size},
-        popout_live_contact_profile:settings.popout_live_contact_profile||defaultContact
-      };
-      const snapshot={
-        version:2,profileId:selectedLayoutProfile,profileVisible:showProfile,
-        updatedAt:new Date().toISOString(),...payload
-      };
+      // Contact Card sends its REAL current position and size when the user
+      // presses Save Entire Layout inside that window. The three sibling
+      // panels are captured directly from their current React hook state.
+      const currentContact = contactGeometry?.position && contactGeometry?.size
+        ? contactGeometry : null;
+      const snapshot = captureDisplayLayout(
+        selectedLayoutProfile,viewportRef.current,
+        {
+          transcript:{position:transcriptPanel.position,size:transcriptPanel.size},
+          scripts:{position:scriptsPanel.position,size:scriptsPanel.size},
+          ai:{position:aiPanel.position,size:aiPanel.size},
+        },
+        currentContact,settings.popout_live_contact_profile
+      );
+      const payload=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
+        'popout_'+key,snapshot['popout_'+key]
+      ]));
       const profiles={...(settings[LIVE_PROFILE_STORE]||{}),[selectedLayoutProfile]:snapshot};
       const result=await setAllDebtCoachValues(username,{
         ...payload,[LIVE_LAYOUT_KEY]:snapshot,[LIVE_PROFILE_STORE]:profiles
       });
       if(!result)throw new Error('Your layout could not be saved to the settings database.');
       setSavedLayoutProfiles(Object.keys(profiles));
-      setLayoutSavedMsg('✓ Saved '+displayProfileName(selectedLayoutProfile)+' for future calls');
+      setLayoutSavedMsg('✓ All four windows saved for '+displayProfileName(selectedLayoutProfile));
+      return true;
     }catch(e){
       setLayoutSavedMsg('Save failed: '+(e?.message||String(e)));
+      return false;
     }finally{setLayoutSaving(false);}
   };
 
