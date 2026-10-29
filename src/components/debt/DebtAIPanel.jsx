@@ -42,10 +42,17 @@ export default function DebtAIPanel({
   onToggleCoach = null,
   onToggleIntent = null,
   autoOpenPopup = false,
+  onOpenWorkspaceAI = null,
 }) {
 
   const [rightTab, setRightTab] = useState(canAIAssistant ? 'ai' : 'pitches');
   const [showPopup, setShowPopup] = useState(false);
+  // Live Call uses the already-existing unified AI window. Do not spawn a
+  // second independent floating assistant over the operator's saved layout.
+  const requestPopup = useCallback(() => {
+    if (onOpenWorkspaceAI) onOpenWorkspaceAI();
+    else setShowPopup(true);
+  }, [onOpenWorkspaceAI]);
   // Local fallback state (used only when not controlled by DebtLiveCall)
   const [localQaActive, setLocalQaActive] = useState(false);
   const [localCoachActive, setLocalCoachActive] = useState(false);
@@ -235,30 +242,30 @@ export default function DebtAIPanel({
     const n = !qaActive;
     if (onToggleQA) onToggleQA();
     else setLocalQaActive(n);
-    if (n) setShowPopup(true);
+    if (n) requestPopup();
   };
   const toggleCoach = () => {
     const n = !coachActive;
     if (onToggleCoach) onToggleCoach();
     else setLocalCoachActive(n);
-    if (n) setShowPopup(true);
+    if (n) requestPopup();
   };
   const toggleIntent = () => {
     const n = !intentActive;
     if (onToggleIntent) onToggleIntent();
     else setLocalIntentActive(n);
-    if (n) setShowPopup(true);
+    if (n) requestPopup();
   };
 
   // Auto-open popup when parent (DebtLiveCall) activates tools via startCall
   useEffect(() => {
-    if (autoOpenPopup && (qaActive || coachActive || intentActive)) setShowPopup(true);
+    if (autoOpenPopup && (qaActive || coachActive || intentActive)) requestPopup();
   }, [autoOpenPopup, qaActive, coachActive, intentActive]);
 
   // Auto-open popup when the Agent Question feature sends a pending question —
   // if the popup is closed the question would be lost (QASection never mounts).
   useEffect(() => {
-    if (pendingQuestion?.question) setShowPopup(true);
+    if (pendingQuestion?.question) requestPopup();
   }, [pendingQuestion?.ts]);
 
   const streamStatusLight = { idle: '#4a5568', connecting: '#f59e0b', connected: '#4ade80', error: '#ef4444' }[streamStatus];
@@ -308,7 +315,7 @@ export default function DebtAIPanel({
                   </button>
                 ))}
                 {(qaActive || coachActive || intentActive) && (
-                  <button onClick={() => setShowPopup(true)} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Open Popup</button>
+                  <button onClick={requestPopup} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>↗ Open Popup</button>
                 )}
               </div>
             </div>
@@ -332,7 +339,7 @@ export default function DebtAIPanel({
                     {liveQAItems[liveQAItems.length - 1].source === 'kb_direct' ? 'Verified KB' : 'Live Q&A'} · { (liveQAItems[liveQAItems.length - 1].responseMs / 1000).toFixed(1) }s
                   </div>
                 )}
-                <button onClick={() => setShowPopup(true)} style={{ marginTop: 7, background: 'transparent', border: 'none', padding: 0, color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>View Q&A history and full answers</button>
+                <button onClick={requestPopup} style={{ marginTop: 7, background: 'transparent', border: 'none', padding: 0, color: '#f59e0b', cursor: 'pointer', fontSize: 11 }}>View Q&A history and full answers</button>
               </div>
             )}
             {coachActive && Array.isArray(liveCoachTips) && liveCoachTips.length > 0 && (
@@ -396,7 +403,7 @@ export default function DebtAIPanel({
       </div>
 
       {/* AI Assistant Popup — identical to admin panel: draggable, resizable, collapsible sections */}
-      {showPopup && (
+      {showPopup && !onOpenWorkspaceAI && (
         <AIAssistantPopup
           lead={lead}
           transcript={normalizedTranscript}

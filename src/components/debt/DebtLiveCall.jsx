@@ -2430,6 +2430,7 @@ ${recentText}`,
                     activeQA={qaActive} activeCoach={coachActive} activeIntent={intentActive}
                     onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
                     autoOpenPopup={false}
+                    onOpenWorkspaceAI={aiPanel.openAtSavedPosition}
                   />
                 </div>
               )}
