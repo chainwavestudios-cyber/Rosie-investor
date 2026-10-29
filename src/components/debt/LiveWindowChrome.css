@@ -38,3 +38,40 @@
 .dcc-profile-shell.dcc-live-contact .dcc-profile-header{background:#142831!important}
 @media(max-width:780px){.dcc-window-heading{padding:8px;gap:5px}.dcc-window-actions{gap:3px}.dcc-window-heading-text small{display:none}.dcc-window-close span{display:none}.dcc-window-size-label{display:none}.dcc-workspace-layout-actions{padding:8px}}
 @media(prefers-reduced-motion:reduce){.dcc-window-shell *{transition:none!important}}
+
+/* Named, per-user resolution layouts. Controls never interfere with live audio. */
+.dcc-workspace-layout-actions .dcc-layout-screen-btn{border-color:#ba9a6188;background:#2c332b;color:#f3dcaf;}
+.dcc-workspace-layout-actions .dcc-layout-screen-btn[aria-expanded=true]{background:#4a4531;color:#f9e7c8;border-color:#e0c385;}
+.dcc-display-settings{flex:0 0 100%;box-sizing:border-box;min-width:0;margin-top:6px;padding:18px 20px 15px;background:linear-gradient(125deg,#0f202b,#112e2a);border:1px solid #95774b88;border-radius:9px;box-shadow:0 12px 26px #0004;}
+.dcc-display-settings-header{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;flex-wrap:wrap;}
+.dcc-display-settings-header strong{display:flex;align-items:center;gap:9px;color:#f2dfb6;font-size:14px;font-weight:850;}
+.dcc-display-settings-header strong svg{color:#dbb977}
+.dcc-display-settings-header p{color:#a8c1b9;font-size:11px;line-height:1.6;margin:7px 0 0;}
+.dcc-display-save-state{display:inline-flex;align-items:center;white-space:nowrap;border-radius:99px;border:1px solid #607879;color:#acb8b6;background:#1e3434;padding:6px 12px;font-size:10px;letter-spacing:.06em;font-weight:800;}
+.dcc-display-save-state.is-saved{color:#92ddb0;border-color:#468a71;background:#183c2f;}
+.dcc-display-settings-main{display:grid;grid-template-columns:minmax(270px, .9fr) minmax(350px, 2fr);gap:18px;margin-top:19px;align-items:end;}
+.dcc-display-settings-main label{display:flex;flex-direction:column;gap:8px;min-width:0;}
+.dcc-display-settings-main label>span{font-size:10px;color:#d0b983;letter-spacing:.08em;text-transform:uppercase;font-weight:850;}
+.dcc-display-settings-main select{box-sizing:border-box;max-width:100%;width:100%;background:#10232d;color:#e6e8de;border:1px solid #697b6b;border-radius:7px;padding:10px 34px 10px 12px;font-size:12px;min-height:39px;cursor:pointer;}
+.dcc-display-settings-main select:focus-visible{outline:2px solid #e5c48b;}
+.dcc-display-readout{display:grid;grid-template-columns:.9fr .9fr 1.3fr;gap:8px;min-width:0;}
+.dcc-display-readout>span{background:#0719206b;border:1px solid #57786a66;border-radius:7px;min-width:0;padding:9px 11px;display:flex;flex-direction:column;gap:6px;}
+.dcc-display-readout small{font-size:9px;color:#91b1a9;font-weight:800;letter-spacing:.08em;}
+.dcc-display-readout strong{color:#ead09f;font-size:12px;white-space:normal;overflow-wrap:break-word;line-height:1.4;}
+.dcc-display-profile-actions{margin-top:18px;display:flex;align-items:center;flex-wrap:wrap;gap:9px;}
+.dcc-display-profile-actions button{display:inline-flex;gap:8px;align-items:center;justify-content:center;border:1px solid #b69a65;color:#efdeb6;background:#293e37;border-radius:7px;padding:10px 13px;font-size:11px;font-weight:800;cursor:pointer;}
+.dcc-display-profile-actions button:hover:not(:disabled){background:#3b5749;}
+.dcc-display-profile-actions button.dcc-layout-save{color:#182019;background:linear-gradient(120deg,#ead49d,#c6a16b);}
+.dcc-display-profile-actions>span{font-size:11px;color:#b0c7bd;line-height:1.6;flex:1;min-width:240px;}
+.dcc-display-settings-footer{font-size:10px;color:#89a29d;line-height:1.7;border-top:1px solid #617b653b;margin:16px 0 0;padding-top:13px;}
+@media(max-width:1050px){
+ .dcc-display-settings-main{grid-template-columns:1fr;gap:12px;}
+ .dcc-display-readout{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media(max-width:610px){
+ .dcc-display-settings{padding:14px 12px}
+ .dcc-display-readout{grid-template-columns:1fr}
+ .dcc-display-readout>span{padding:8px 10px}
+ .dcc-display-profile-actions>span{min-width:100%}
+}
+
