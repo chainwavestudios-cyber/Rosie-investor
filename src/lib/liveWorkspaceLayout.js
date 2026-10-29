@@ -38,7 +38,7 @@ export function detectDisplayProfile(viewport={}) {
   if(width>=2900 && width/height>=2.1)return 'ultrawide1440';
   if(width>=2400)return 'wide2560';
   if(width>=1700)return 'fullhd';
-  if(width>=1150)return 'laptop';
+  if(width>=1380)return 'laptop';
   return 'compact';
 }
 
