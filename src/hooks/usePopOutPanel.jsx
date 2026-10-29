@@ -56,7 +56,14 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
       });
     };
     window.addEventListener('layout_restored', handler);
-    return () => window.removeEventListener('layout_restored', handler);
+    // Live Call's Save/Reset is scoped to its four windows; it must not
+    // unexpectedly reopen unrelated Smart Close, scripts-tab or stats tools.
+    const isLiveWindow = ['live_transcript','live_scripts','live_ai_panel','live_contact_profile'].includes(storageKey);
+    if(isLiveWindow)window.addEventListener('live_workspace_layout_restored',handler);
+    return () => {
+      window.removeEventListener('layout_restored',handler);
+      if(isLiveWindow)window.removeEventListener('live_workspace_layout_restored',handler);
+    };
   }, [storageKey, username]);
 
   // Global mouse handlers for drag / resize
