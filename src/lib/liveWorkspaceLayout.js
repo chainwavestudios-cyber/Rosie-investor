@@ -141,3 +141,34 @@ export function clampDisplayLayout(layout,viewport){
     ]))
   };
 }
+
+/**
+ * Explicitly save the complete Live Call arrangement. A contact-card save
+ * passes its live geometry directly rather than relying on asynchronous
+ * per-window persistence that could still hold yesterday's coordinates.
+ *
+ * Open/closed state is deliberately NOT part of the user's saved default:
+ * the entire workspace always opens again when the next call starts.
+ */
+export function captureDisplayLayout(profileId, viewport, panels = {}, contactGeometry = null, previousContact = null) {
+  const defaults = createDisplayLayout(profileId, viewport);
+  const current = {
+    live_transcript: panels.transcript,
+    live_scripts: panels.scripts,
+    live_ai_panel: panels.ai,
+    live_contact_profile: contactGeometry || previousContact,
+  };
+  const entries = Object.fromEntries(LIVE_PANEL_KEYS.map(key => [
+    'popout_' + key,
+    clampWindowGeometry(current[key] || defaults['popout_' + key], viewport),
+  ]));
+  return {
+    version: 2,
+    profileId,
+    profileVisible: true,
+    updatedAt: new Date().toISOString(),
+    ...Object.fromEntries(Object.entries(entries).map(([key, geometry]) => [
+      key, { ...geometry, poppedOut: true },
+    ])),
+  };
+}
