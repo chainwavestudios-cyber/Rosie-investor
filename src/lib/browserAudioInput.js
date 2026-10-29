@@ -6,7 +6,8 @@
 export function audioInputConstraints(deviceId) {
   return {
     audio: {
-      ...(deviceId ? {deviceId:{exact:deviceId}} : {}),
+      // Never silently capture the system default if no specific input was selected.
+      deviceId:{exact:deviceId},
       echoCancellation:false,
       noiseSuppression:false,
       autoGainControl:false,
