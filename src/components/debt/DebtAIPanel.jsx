@@ -10,6 +10,7 @@ import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import DebtIntentSignals, { DEBT_INTENT_RULES } from '@/components/debt/DebtIntentSignals';
 import AIAssistantPopup from '@/components/leads/AIAssistantPopup';
 import CommonQuestionsTab from '@/components/debt/CommonQuestionsTab';
+import { audioInputConstraints } from '@/lib/browserAudioInput';
 
 const GOLD = '#10b981';
 const DEBT_KB_CATEGORIES = ['debt_kb', 'debt_faq', 'debt_agent', 'debt_customer', 'debt_doc', 'debt_web', 'debt_call', 'debt_hotpoints', 'debt_objections', 'debt_open_scenario', 'debt_close_scenario', 'debt_disqualify'];
@@ -130,10 +131,11 @@ export default function DebtAIPanel({
 
     let agentStream, customerStream;
     try {
-      agentStream = await navigator.mediaDevices.getUserMedia({ audio: micDeviceId ? { deviceId: { ideal: micDeviceId } } : true });
+      // The selected device itself — never a silent fallback to the default mic.
+      agentStream = await navigator.mediaDevices.getUserMedia(micDeviceId ? audioInputConstraints(micDeviceId) : { audio: true });
       streamRef.current = agentStream;
       if (dualMode) {
-        customerStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { ideal: customerMicId } } });
+        customerStream = await navigator.mediaDevices.getUserMedia(audioInputConstraints(customerMicId));
         customerStreamRef.current = customerStream;
       }
     } catch (e) { setError(`Audio access denied: ${e.message}`); setStreamStatus('error'); return; }
