@@ -288,7 +288,7 @@ function MyScriptsTab({ liveTranscript, phase, clientFirstName, clientLastName, 
       const res = await base44.functions.invoke('sendDebtEmail', { leadId: lead.id, templateId: template.id });
       if (res?.data?.error) throw new Error(res.data.error);
       setActionMsg(`📧 ${template.name} sent to ${lead.email}`);
-    } catch (e) { const message = 'Email failed: ' + (e?.message || String(e)); setActionMsg(message); return { success: false, message }; }
+    } catch (e) { const reason = e?.response?.data?.error || e?.data?.error || e?.message || String(e); const message = 'Email failed: ' + reason; setActionMsg(message); return { success: false, message }; }
     finally { setSendingEmail(false); }
   };
 

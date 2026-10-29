@@ -192,7 +192,7 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
       const res = await base44.functions.invoke('sendDebtEmail', { templateId: tpl.id, leadId: lead.id });
       const data = res?.data || res;
       if (data?.error) throw new Error(data.error);
-    } catch (e) { alert('Send failed: ' + (e?.message || String(e))); }
+    } catch (e) { alert('Send failed: ' + (e?.response?.data?.error || e?.data?.error || e?.message || String(e))); }
     setEmailSending(null);
   };
 
