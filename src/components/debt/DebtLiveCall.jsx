@@ -391,16 +391,19 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // separate profile. Moving a window within the same size class does not
   // overwrite the stored default until the user explicitly clicks Save.
   useEffect(()=>{
-    if(!layoutModeLoaded||!coachUser?.username)return;
-    void applyDisplayProfile(selectedLayoutProfile,{openWindows:phaseRef.current==='live'});
+    if(!layoutModeLoaded||!coachUser?.username||phaseRef.current==='live')return;
+    // Load the selected screen's positions while idle without launching
+    // detached windows before a call actually starts.
+    void applyDisplayProfile(selectedLayoutProfile,{openWindows:false});
   },[layoutModeLoaded,coachUser?.username,selectedLayoutProfile,applyDisplayProfile]);
 
-  // Each new call starts from the selected screen profile, even if the agent
-  // temporarily moved windows during their previous live conversation.
+  // On EVERY new live call, restore the last explicitly saved arrangement
+  // and open the complete four-window workspace. This also covers calls that
+  // start before the user's layout settings finish loading.
   useEffect(()=>{
     if(phase!=='live'||!layoutModeLoaded||!coachUser?.username)return;
     void applyDisplayProfile(selectedLayoutProfile,{openWindows:true});
-  },[phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[phase,layoutModeLoaded,coachUser?.username,selectedLayoutProfile,applyDisplayProfile]);
 
   useEffect(()=>{
     if(phase!=='live')return;
