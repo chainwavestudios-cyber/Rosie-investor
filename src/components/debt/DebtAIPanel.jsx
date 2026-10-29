@@ -173,7 +173,10 @@ export default function DebtAIPanel({
           }
           ws.send(pcm.buffer);
         };
-        merger.connect(proc); proc.connect(ctx.destination);
+        merger.connect(proc);
+        // Monitor off: keep the processor alive through a silent sink, never the speakers.
+        const silence = ctx.createGain(); silence.gain.value = 0;
+        proc.connect(silence); silence.connect(ctx.destination);
       } else {
         const src = ctx.createMediaStreamSource(agentStream);
         const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -185,7 +188,9 @@ export default function DebtAIPanel({
           for (let i = 0; i < input.length; i++) { pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768)); }
           ws.send(pcm.buffer);
         };
-        src.connect(proc); proc.connect(ctx.destination);
+        src.connect(proc);
+        const silence = ctx.createGain(); silence.gain.value = 0;
+        proc.connect(silence); silence.connect(ctx.destination);
       }
     };
 
