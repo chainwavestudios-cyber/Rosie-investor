@@ -4,6 +4,7 @@
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
 import { FileText } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import LiveWindowChrome from './LiveWindowChrome';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
@@ -34,11 +35,14 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
   );
 
   if (panel.poppedOut) {
-    return (
+    // Detach the floating script from the Live Call grid. An ancestor can be
+    // hidden or reflowed while a new call initializes; the script must survive.
+    return createPortal(
       <LiveWindowChrome panel={panel} title="Live Scripts" subtitle="Teleprompter and approved pitches" icon={FileText} onDock={panel.toggle}>
         <div style={{ flexShrink: 0, padding: '8px 12px', display: 'flex', gap: 7, background: '#101f2a', borderBottom: '1px solid #ffffff12' }}>{tabs}</div>
         {tab === 'scripts' ? renderScripts() : renderPitches()}
-      </LiveWindowChrome>
+      </LiveWindowChrome>,
+      document.body
     );
   }
 
