@@ -6,9 +6,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getDebtCoachValue, setDebtCoachValue } from '@/lib/debtCoachStorage';
 
-export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null, zIndex = 9998, restoreOpenOnMount = true) {
+let topFloatingZ = 16500;
+function nextFloatingZ() { topFloatingZ += 1; if (topFloatingZ > 28000) topFloatingZ = 16500; return topFloatingZ; }
+
+export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 600 }, username = null, zIndex = 9998, restoreOpenOnMount = true, options = {}) {
   const [poppedOut, setPoppedOut] = useState(false);
-  const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [position, setPosition] = useState(() => options.defaultPosition || { x: 100, y: 100 });
+  const [frontZ, setFrontZ] = useState(zIndex);
+  const bringToFront = useCallback(() => setFrontZ(nextFloatingZ()), []);
   const [size, setSize] = useState(defaultSize);
   const [dragging, setDragging] = useState(false);
   const [resizingEdge, setResizingEdge] = useState(null);
@@ -60,15 +65,16 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     const onMove = (e) => {
       if (dragging) {
         setPosition({
-          x: Math.max(0, Math.min(window.innerWidth - 80, e.clientX - offset.x)),
-          y: Math.max(0, Math.min(window.innerHeight - 40, e.clientY - offset.y)),
+          x: Math.max(0, Math.min(Math.max(0, window.innerWidth - Math.min(size.width, window.innerWidth)), e.clientX - offset.x)),
+          y: Math.max(0, Math.min(Math.max(0, window.innerHeight - 44), e.clientY - offset.y)),
         });
       }
       if (resizingEdge && resizeStart.current) {
         const { edge, mouseX, mouseY, x, y, w, h } = resizeStart.current;
         const dx = e.clientX - mouseX;
         const dy = e.clientY - mouseY;
-        const minW = 280, minH = 220;
+        const minW = Math.min(options.minWidth || 280, Math.max(260, window.innerWidth - 12));
+        const minH = Math.min(options.minHeight || 220, Math.max(230, window.innerHeight - 12));
         let newX = x, newY = y, newW = w, newH = h;
 
         if (edge.includes('e')) newW = Math.max(minW, w + dx);
@@ -81,10 +87,10 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
           newH = Math.max(minH, h - dy);
           newY = y + (h - newH);
         }
-        newX = Math.max(0, newX);
-        newY = Math.max(0, newY);
-        if (newX + newW > window.innerWidth) newW = window.innerWidth - newX;
-        if (newY + newH > window.innerHeight) newH = window.innerHeight - newY;
+        newX = Math.max(0, Math.min(newX, window.innerWidth - minW));
+        newY = Math.max(0, Math.min(newY, window.innerHeight - minH));
+        if (newX + newW > window.innerWidth) newW = Math.max(minW, window.innerWidth - newX);
+        if (newY + newH > window.innerHeight) newH = Math.max(minH, window.innerHeight - newY);
         setPosition({ x: newX, y: newY });
         setSize({ width: newW, height: newH });
       }
@@ -96,9 +102,10 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, [dragging, resizingEdge, offset]);
+  }, [dragging, resizingEdge, offset, size.width, options.minWidth, options.minHeight]);
 
   const toggle = useCallback(() => {
+    bringToFront();
     setPoppedOut(prev => {
       if (!prev) {
         setPosition(p => ({
@@ -108,9 +115,10 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
       }
       return !prev;
     });
-  }, [size.width]);
+  }, [size.width, bringToFront]);
 
   const popOut = useCallback(() => {
+    bringToFront();
     setPoppedOut(prev => {
       if (prev) return prev;
       setPosition(p => ({
@@ -119,10 +127,10 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
       }));
       return true;
     });
-  }, [size.width]);
+  }, [size.width, bringToFront]);
 
   // Open without changing restored coordinates; used by Live Call auto-layout.
-  const openAtSavedPosition = useCallback(() => setPoppedOut(true), []);
+  const openAtSavedPosition = useCallback(() => { setPoppedOut(true); }, []);
   const [layoutSaved, setLayoutSaved] = useState(false);
   const saveLayout = useCallback(() => {
     if (!username) return false;
@@ -133,13 +141,17 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
   }, [username, storageKey, poppedOut, position, size]);
 
   const onDragStart = useCallback((e) => {
+    if (e.button !== 0 || e.target.closest('button,input,select,textarea,a,[data-no-drag]')) return;
+    e.preventDefault();
+    bringToFront();
     setDragging(true);
     setOffset({ x: e.clientX - position.x, y: e.clientY - position.y });
-  }, [position]);
+  }, [position, bringToFront]);
 
   const onResizeStart = useCallback((edge) => (e) => {
     e.stopPropagation();
     e.preventDefault();
+    bringToFront();
     resizeStart.current = {
       edge,
       mouseX: e.clientX,
@@ -150,20 +162,20 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
       h: size.height,
     };
     setResizingEdge(edge);
-  }, [position, size]);
+  }, [position, size, bringToFront]);
 
   // Clamp to the current viewport so a layout saved on a larger screen never renders off-screen
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const clampedW = Math.min(size.width, vw - 10);
-  const clampedH = Math.min(size.height, vh - 10);
+  const clampedW = Math.max(270, Math.min(size.width, vw - 10));
+  const clampedH = Math.max(230, Math.min(size.height, vh - 10));
   const floatingStyle = {
     position: 'fixed',
     left: Math.max(0, Math.min(position.x, vw - clampedW)),
     top: Math.max(0, Math.min(position.y, vh - clampedH)),
     width: clampedW,
     height: clampedH,
-    zIndex: zIndex,
+    zIndex: frontZ,
     display: 'flex',
     flexDirection: 'column',
     boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -176,18 +188,26 @@ export function usePopOutPanel(storageKey, defaultSize = { width: 420, height: 6
     });
   }, [size.width, size.height]);
 
+  // Handles sit INSIDE the window so the card's rounded/overflow-hidden
+  // container cannot swallow pointer hits (the old contact-card resize bug).
   const resizeHandles = poppedOut && (
     <>
-      <div onMouseDown={onResizeStart('n')} style={{ position: 'absolute', top: -3, left: 18, right: 18, height: 7, cursor: 'ns-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderTop: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
-      <div onMouseDown={onResizeStart('s')} style={{ position: 'absolute', bottom: -3, left: 18, right: 18, height: 7, cursor: 'ns-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderBottom: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
-      <div onMouseDown={onResizeStart('w')} style={{ position: 'absolute', left: -3, top: 18, bottom: 18, width: 7, cursor: 'ew-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderLeft: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
-      <div onMouseDown={onResizeStart('e')} style={{ position: 'absolute', right: -3, top: 18, bottom: 18, width: 7, cursor: 'ew-resize', zIndex: 10, background: 'rgba(16,185,129,0.0)', borderRight: '2px solid rgba(16,185,129,0.25)', borderRadius: '3px' }} />
-      <div onMouseDown={onResizeStart('nw')} style={{ position: 'absolute', top: -3, left: -3, width: 16, height: 16, cursor: 'nwse-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '3px 0 0 0' }} />
-      <div onMouseDown={onResizeStart('ne')} style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, cursor: 'nesw-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 3px 0 0' }} />
-      <div onMouseDown={onResizeStart('sw')} style={{ position: 'absolute', bottom: -3, left: -3, width: 16, height: 16, cursor: 'nesw-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 0 0 3px' }} />
-      <div onMouseDown={onResizeStart('se')} style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, cursor: 'nwse-resize', zIndex: 11, background: 'rgba(16,185,129,0.2)', border: '1px solid rgba(16,185,129,0.5)', borderRadius: '0 0 3px 0' }} />
+      {[
+        ['n', {top:0,left:17,right:17,height:9,cursor:'ns-resize'}],
+        ['s', {bottom:0,left:17,right:17,height:9,cursor:'ns-resize'}],
+        ['w', {left:0,top:17,bottom:17,width:9,cursor:'ew-resize'}],
+        ['e', {right:0,top:17,bottom:17,width:9,cursor:'ew-resize'}],
+        ['nw', {top:0,left:0,width:16,height:16,cursor:'nwse-resize'}],
+        ['ne', {top:0,right:0,width:16,height:16,cursor:'nesw-resize'}],
+        ['sw', {bottom:0,left:0,width:16,height:16,cursor:'nesw-resize'}],
+        ['se', {bottom:0,right:0,width:19,height:19,cursor:'nwse-resize',borderRight:'3px solid #e7c785',borderBottom:'3px solid #e7c785',borderBottomRightRadius:7,background:'rgba(200,169,112,.08)'}]
+      ].map(([edge, style]) => (
+        <div key={edge} role="separator" aria-label={'Resize window ' + edge}
+          title="Drag to resize" onMouseDown={onResizeStart(edge)}
+          style={{position:'absolute',zIndex:30,touchAction:'none',...style}} />
+      ))}
     </>
   );
 
-  return { poppedOut, toggle, popOut, openAtSavedPosition, onDragStart, onResizeStart, floatingStyle, size, setSize, setPosition, center, resizeHandles, saveLayout, layoutSaved };
+  return { poppedOut, toggle, popOut, openAtSavedPosition, onDragStart, onResizeStart, floatingStyle, size, position, setSize, setPosition, setPoppedOut, bringToFront, center, resizeHandles, saveLayout, layoutSaved, loaded };
 }
