@@ -1251,7 +1251,7 @@ export default function AIAssistantPopup({
 
   // ── Load saved position/size from localStorage (admin panel — no username) ──
   useEffect(() => {
-    if (username) return; // DB handles it
+    if (embedded || username) return; // External Live Call window owns geometry; otherwise DB handles it
     if (!lsSaved) return;
     if (lsSaved.x !== undefined) setPos({ x: lsSaved.x, y: lsSaved.y });
     if (lsSaved.w) setWidth(lsSaved.w);
@@ -1263,7 +1263,7 @@ export default function AIAssistantPopup({
   // ── Load saved position/size from DB (Debt Call Coach — username provided) ──
   const lastAppliedSig = useRef('');
   useEffect(() => {
-    if (!username || !dbLoaded || !dbSaved) return;
+    if (embedded || !username || !dbLoaded || !dbSaved) return;
     const sig = JSON.stringify(dbSaved);
     if (sig === lastAppliedSig.current) return;
     lastAppliedSig.current = sig;
@@ -1284,7 +1284,7 @@ export default function AIAssistantPopup({
 
   // ── Auto-save position/size to DB (debounced via setDebtCoachValue) ──
   useEffect(() => {
-    if (!username || !dbLoaded) return;
+    if (embedded || !username || !dbLoaded) return;
     const next = { x: pos.x, y: pos.y, w: width, h: height, rpw: rightPanelWidth, sh: scriptH, qaOnly, qaPoppedOut };
     const sig = JSON.stringify(next);
     if (sig === lastAppliedSig.current) return; // nothing changed — don't write
