@@ -34,6 +34,7 @@ export default function LiveAudioInputs({ phase, audio: a }) {
       agentId={a.micDeviceId} customerId={a.customerMicId}
       onAgentSelect={a.setMicDeviceId} onCustomerSelect={a.setCustomerMicId}
       onRescan={()=>a.loadDevices(true)} disabled={disabled}
+      deviceScanMessage={a.deviceScanMessage}
       twilioMode={!hardware}
     />
   </>;
