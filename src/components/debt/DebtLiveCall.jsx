@@ -11,7 +11,7 @@ import LiveScriptsPanel from '@/components/debt/LiveScriptsPanel';
 import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
-import { audioInputConstraints } from '@/lib/browserAudioInput';
+import { audioInputConstraints, explainCaptureError } from '@/lib/browserAudioInput';
 import useInputLevelTest from '@/hooks/useInputLevelTest';
 import LiveCallControls from '@/components/debt/LiveCallControls';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
@@ -107,6 +107,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [agentGain, setAgentGain, agentGainLoaded] = useDebtCoachValue(coachUser?.username, 'agentMicGain', 1);
   const [customerGain, setCustomerGain, customerGainLoaded] = useDebtCoachValue(coachUser?.username, 'customerMicGain', 1);
   const [deviceScanCompleted, setDeviceScanCompleted] = useState(false);
+  const [deviceScanMessage, setDeviceScanMessage] = useState('');
   const restoredAudioModeRef = useRef('');
   const [audioModeMessage, setAudioModeMessage] = useState('');
   const [savingAudioMode, setSavingAudioMode] = useState(false);
@@ -676,6 +677,11 @@ Agent line: "${firstAgentLines}"`,
   // only after an explicit Re-scan / Test / Start Call action.
   // List only browser-detected devices; never guess hardware routing.
   const loadDevices = useCallback(async (requestPermission = false) => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setDeviceScanMessage('Chrome audio enumeration is unavailable. Open the secure HTTPS site and allow microphone access.');
+      setDeviceScanCompleted(true);
+      return;
+    }
     // List what Windows reports FIRST — before any permission grab — so a denied
     // or busy mic can never leave the dropdowns completely empty.
     const scan = async () => {
@@ -689,7 +695,15 @@ Agent line: "${firstAgentLines}"`,
     let { mics, outputs } = await scan();
     // Labels (and some loopback/virtual inputs) only appear after a permission
     // grant — grab the mic once, release it, then list again for the full set.
-    const stream = requestPermission ? await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null) : null;
+    let stream = null;
+    let scanPermissionError = '';
+    if (requestPermission) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      } catch(e) {
+        scanPermissionError = explainCaptureError(e);
+      }
+    }
     if (stream) {
       // Release the mic immediately — we only grabbed it to populate device labels.
       // Keeping it open leaves Chrome showing "using mic" and can cause the later
@@ -697,6 +711,9 @@ Agent line: "${firstAgentLines}"`,
       stream.getTracks().forEach(t => t.stop());
       ({ mics, outputs } = await scan());
     }
+    const cables = mics.filter(d => /cable|virtual|voicemeeter|loopback|blackhole|rode|røde|rodecaster/i.test(d.label||''));
+    const report = `Chrome found ${mics.length} recording input(s), ${outputs.length} playback output(s), and ${cables.length} labeled virtual/mixer input(s).`;
+    setDeviceScanMessage(scanPermissionError ? scanPermissionError + ' ' + report : report);
     setDeviceScanCompleted(true);
   }, []);
 
@@ -2275,7 +2292,7 @@ ${recentText}`,
         @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
       `}</style>
       <LiveCallControls phase={phase} lead={lead} showCustomerStats={showCustomerStats} setShowCustomerStats={setShowCustomerStats} setShowProfile={setShowProfile}
-        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, agentLevel, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, customerLevel, loadDevices, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
+        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, agentLevel, deviceScanMessage, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, customerLevel, loadDevices, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
         tools={{ statsPaused, setStatsPaused, callType, handleCallTypeChange, autoQA, setAutoQA, autoCoach, setAutoCoach, autoIntent, setAutoIntent, canLiveAI, canLiveQA, agentQuestionActive, toggleAgentQuestion }}
         session={{ leadSearch, setLeadSearch, setLeadSearchFocus, leadSearchFocus, leadSearchResults, selectLeadAndStartCall, startCall, kbLoading, handleEndCallClick }}
         recorder={recorder} onRecord={async () => { if (recorder.isRecording) { const uri = await recorder.stop(); if (uri && transcriptRecordIdRef.current) base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {}); } else recorder.start(streamRef.current, customerStreamRef.current); }}
