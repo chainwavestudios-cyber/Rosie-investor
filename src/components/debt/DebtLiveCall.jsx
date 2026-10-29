@@ -246,6 +246,8 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const [layoutMode, setLayoutMode, layoutModeLoaded] = useDebtCoachValue(
     coachUser?.username, LIVE_MODE_KEY, 'auto');
   const [workspaceViewport, setWorkspaceViewport] = useState(getWorkspaceViewport);
+  const viewportRef = useRef(workspaceViewport);
+  viewportRef.current = workspaceViewport;
   const selectedLayoutProfile = resolveDisplayProfile(layoutMode, workspaceViewport);
   const [savedLayoutProfiles, setSavedLayoutProfiles] = useState([]);
   const workspaceRequestRef = useRef(0);
@@ -291,8 +293,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       const settings=await getAllDebtCoachValues(username);
       if(workspaceRequestRef.current!==requestId)return;
       const profiles=settings[LIVE_PROFILE_STORE]||{};
-      const raw=profiles[profileId]||createDisplayLayout(profileId,workspaceViewport);
-      const layout=clampDisplayLayout({...raw,profileId},workspaceViewport);
+      const viewport=viewportRef.current;
+      const raw=profiles[profileId]||createDisplayLayout(profileId,viewport);
+      const layout=clampDisplayLayout({...raw,profileId},viewport);
       const payload=Object.fromEntries(LIVE_PANEL_KEYS.map(key=>[
         'popout_'+key,layout['popout_'+key]
       ]));
@@ -310,7 +313,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
         setLayoutSavedMsg('Layout load failed: '+(e?.message||String(e)));
       }
     }finally{if(workspaceRequestRef.current===requestId)setWorkspaceApplying(false);}
-  },[coachUser?.username,layoutModeLoaded,workspaceViewport.width,workspaceViewport.height]);
+  },[coachUser?.username,layoutModeLoaded]);
 
   const saveDefaultLayout=async()=>{
     const username=coachUser?.username;
