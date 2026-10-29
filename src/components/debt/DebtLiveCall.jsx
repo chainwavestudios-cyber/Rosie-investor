@@ -290,7 +290,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
         ...windows,[LIVE_LAYOUT_KEY]:{...windows,profileVisible:true,version:1}
       });
       if(!confirmed){setLayoutSavedMsg('Unable to save reset layout.');return;}
-      window.dispatchEvent(new CustomEvent('layout_restored'));
+      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
     }else{
       transcriptPanel.setPosition(windows.popout_live_transcript.position);
       transcriptPanel.setSize(windows.popout_live_transcript.size);
@@ -319,7 +319,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
       if(!Object.keys(subset).length)return;
       const done=await setAllDebtCoachValues(coachUser.username,subset);
       if(cancelled||!done)return;
-      window.dispatchEvent(new CustomEvent('layout_restored'));
+      window.dispatchEvent(new CustomEvent('live_workspace_layout_restored'));
       setShowProfile(saved.profileVisible!==false);
     })().catch(e=>console.warn('[Live workspace] Could not restore default:',e?.message));
     return()=>{cancelled=true;};
