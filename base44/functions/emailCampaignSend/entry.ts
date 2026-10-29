@@ -195,6 +195,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let held = 0;
   const errors: string[] = [];
 
   for (const recipient of queue) {
@@ -294,6 +295,17 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
       }
     } catch (error) {
       const message = clean((error as Error)?.message) || 'The message could not be sent.';
+      // A dropped Google connection is not the recipient's fault: hold the row so
+      // the queue mails them again once the connection is back, instead of losing them.
+      if (/expired|reconnect|connection/i.test(message)) {
+        held += 1;
+        if (errors.length < 5) errors.push(`${address}: ${message}`);
+        await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
+          status: 'pending',
+          error: message,
+        }).catch(() => {});
+        continue;
+      }
       failed += 1;
       if (errors.length < 5) errors.push(`${address}: ${message}`);
       await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
@@ -327,6 +339,7 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
     sent,
     failed,
     skipped,
+    held,
     remaining: remaining ? 1 : 0,
     errors,
     queue: lane.label,
@@ -382,7 +395,7 @@ export default async function (req: Request): Promise<Response> {
       for (const campaign of campaigns) {
         const result = await runQueue(base44, campaign, { respectDue: true, assistants });
         // Only campaigns that did something (or are waiting on their own pace) are reported.
-        if (result?.sent || result?.failed || result?.skipped || result?.error || result?.pacing) {
+        if (result?.sent || result?.failed || result?.skipped || result?.held || result?.error || result?.pacing || result?.waiting) {
           results.push({ campaign: clean(campaign.name), ...result });
         }
       }
