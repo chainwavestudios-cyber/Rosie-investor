@@ -1213,6 +1213,7 @@ export default function AIAssistantPopup({
   liveQAItems = null,
   liveCoachTips = null,
   username = null,
+  embedded = false,
 }) {
   // DB-backed layout storage (used when username is provided — Debt Call Coach).
   // Falls back to localStorage for admin panel usage (no username).
@@ -1392,9 +1393,10 @@ export default function AIAssistantPopup({
   const edgeV = (left, right) => ({ ...EDGE, top: 14, bottom: 14, left, right, width: 6, cursor: 'ew-resize' });
 
   return (
-    <div style={{ position:'fixed', left:pos.x, top:pos.y, width, height, background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'8px', boxShadow:'0 12px 60px rgba(0,0,0,0.9)', zIndex:20000, display:'flex', flexDirection:'column', fontFamily:'Georgia, serif', overflow:'hidden' }}>
+    <div style={embedded ? { position:'relative', flex:1, width:'100%', height:'100%', minHeight:0, minWidth:0, display:'flex', flexDirection:'column', background:'#101c27', overflow:'hidden', fontFamily:'system-ui, sans-serif' } : { position:'fixed', left:pos.x, top:pos.y, width, height, background:'#0d1b2a', border:'1px solid rgba(184,147,58,0.4)', borderRadius:'8px', boxShadow:'0 12px 60px rgba(0,0,0,0.9)', zIndex:20000, display:'flex', flexDirection:'column', fontFamily:'Georgia, serif', overflow:'hidden' }}>
       <style>{`@keyframes aipulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
 
+      {!embedded && (<>
       {/* ── Resize handles ── */}
       <div style={edgeH(0, undefined)}    onMouseDown={e => startResize('top', e)} />
       <div style={edgeH(undefined, 0)}    onMouseDown={e => startResize('bottom', e)} />
@@ -1444,6 +1446,7 @@ export default function AIAssistantPopup({
         <button onClick={onClose} style={{background:'none',border:'none',color:'#6b7280',cursor:'pointer',fontSize:'18px',lineHeight:1,padding:'0 2px',flexShrink:0}}>×</button>
       </div>
 
+      </>)}
       {/* Main body: left content + right panel (always visible) */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
