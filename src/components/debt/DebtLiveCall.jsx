@@ -12,7 +12,7 @@ import DebtAIPanel from '@/components/debt/DebtAIPanel';
 import DoNothingCalculator from '@/components/debt/DoNothingCalculator';
 import ClientProfileModal from '@/components/debt/ClientProfileModal';
 import { findLoopback, findIsolatedInput, isLoopbackSource, isMasterMixInput } from '@/lib/audioDevices';
-import { audioConstraints, trackChannelCount } from '@/lib/audioChannels';
+import { audioConstraints, captureChannelInfo } from '@/lib/audioChannels';
 import useInputLevelTest from '@/hooks/useInputLevelTest';
 import LiveCallControls from '@/components/debt/LiveCallControls';
 import { AUDIO_MODE_DEFAULTS, audioModes, resolveAudioMode, captureAudioMode, isAudioModeEdited } from '@/lib/debtAudioModes';
@@ -1644,10 +1644,10 @@ ${recentText}`,
           ? audioConstraints(micDeviceId, agentChannel)
           : audioConstraints(micDeviceId, 0, { echoCancellation: true, noiseSuppression: true, autoGainControl: false }),
       );
-      if (agentChannel > 0 && trackChannelCount(agentStream) < agentChannel) {
-        const got = trackChannelCount(agentStream);
+      const micCapture = captureChannelInfo(agentStream, agentChannel);
+      if (agentChannel > 0 && !micCapture.supported) {
         try { agentStream.getTracks().forEach(t => t.stop()); } catch {}
-        setError(`The browser only returned ${got} track${got === 1 ? '' : 's'} from this input, so track ${agentChannel} would be silent. Pick the multichannel device and press Test to confirm the track is live.`);
+        setError(micCapture.reason + ' The RØDECaster can be in USB multitrack mode while the browser delivers only stereo. On Windows Pro II/Duo, install RØDE Virtual Devices, enable USB 1 multitrack + Expanded input, re-scan, and select the virtual fader containing your microphone (Whole Input).');
         setPhase('idle'); setDgStatus('error'); return;
       }
       streamRef.current = agentStream;
@@ -1671,6 +1671,15 @@ ${recentText}`,
           if (s) setCustomerMicId(loop.deviceId);
           return s;
         });
+        if (customerStream && customerChannel > 0) {
+          const customerCapture = captureChannelInfo(customerStream, customerChannel);
+          if (!customerCapture.supported) {
+            try { agentStream?.getTracks().forEach(t => t.stop()); } catch {}
+            try { customerStream.getTracks().forEach(t => t.stop()); } catch {}
+            setError('Customer USB channel unavailable. ' + customerCapture.reason + ' Select an independent loopback/virtual audio input and use Whole Input.');
+            setPhase('idle'); setDgStatus('error'); return;
+          }
+        }
         if (customerStream) customerStreamRef.current = customerStream;
         else feedDual = false; // customer slot really is gone — keep transcribing the mic
       }
@@ -2168,8 +2177,8 @@ ${recentText}`,
 
   // ── Audio Test — independent level meter per input ─────────────────────
   const {
-    testingAgent, agentLevel, agentTracks, startAgentTest, stopAgentTest,
-    testingCustomer, customerLevel, customerTracks, startCustomerTest, stopCustomerTest,
+    testingAgent, agentLevel, agentTracks, agentCapture, startAgentTest, stopAgentTest,
+    testingCustomer, customerLevel, customerTracks, customerCapture, startCustomerTest, stopCustomerTest,
   } = useInputLevelTest({
     micDeviceId, agentChannel, customerMicId, customerChannel, agentGain, customerGain, micDevices, onError: setError,
   });
@@ -2270,7 +2279,7 @@ ${recentText}`,
         @media(prefers-reduced-motion:reduce){.dcc-live-workspace *{animation-duration:.01ms!important;transition:none!important}}
       `}</style>
       <LiveCallControls phase={phase} lead={lead} showCustomerStats={showCustomerStats} setShowCustomerStats={setShowCustomerStats} setShowProfile={setShowProfile}
-        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, agentLevel, agentChannel, setAgentChannel, agentTracks, customerInputs, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, customerLevel, customerChannel, setCustomerChannel, customerTracks, loadDevices, customerLabelSelected, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
+        audio={{ activeAudioMode, micDevices, micDeviceId, setMicDeviceId, agentGain, setAgentGain, testingAgent, startAgentTest, stopAgentTest, agentLevel, agentChannel, setAgentChannel, agentTracks, agentCapture, customerInputs, customerMicId, setCustomerMicId, customerGain, setCustomerGain, testingCustomer, startCustomerTest, stopCustomerTest, customerLevel, customerChannel, setCustomerChannel, customerTracks, customerCapture, loadDevices, customerLabelSelected, modes, activeSetupIndex, savingAudioMode, audioModeReady, audioModeDirty, audioModeValidation, audioModeMessage, useAudioSetup, renameAudioSetup, saveAudioSetup, outputDevices, outputDeviceId, setOutputDeviceId, testMode }}
         tools={{ statsPaused, setStatsPaused, callType, handleCallTypeChange, autoQA, setAutoQA, autoCoach, setAutoCoach, autoIntent, setAutoIntent, canLiveAI, canLiveQA, agentQuestionActive, toggleAgentQuestion }}
         session={{ leadSearch, setLeadSearch, setLeadSearchFocus, leadSearchFocus, leadSearchResults, selectLeadAndStartCall, startCall, kbLoading, handleEndCallClick }}
         recorder={recorder} onRecord={async () => { if (recorder.isRecording) { const uri = await recorder.stop(); if (uri && transcriptRecordIdRef.current) base44.entities.DebtCallTranscript.update(transcriptRecordIdRef.current, { recordingUrl: uri }).catch(() => {}); } else recorder.start(streamRef.current, customerStreamRef.current); }}

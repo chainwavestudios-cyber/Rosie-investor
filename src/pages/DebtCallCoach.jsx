@@ -208,7 +208,7 @@ export default function DebtCallCoach() {
       <PopOutTab storageKey="debt_scripts_tab" title="Scripts" icon="📜" active={tab === 'scripts'} defaultSize={{ width: 520, height: 720 }} zIndex={14600}>
         <DebtScriptsPanel username={user?.username} {...scriptCallContext} />
       </PopOutTab>
-      <PopOutTab storageKey="closing_tab" title="Smart Close" icon="🏁" active={tab === 'closing'} autoPopOut={liveCallActive} defaultSize={{ width: 460, height: 720 }} zIndex={14500}>
+      <PopOutTab storageKey="closing_tab" title="Smart Close" icon="🏁" active={tab === 'closing'} modernChrome defaultSize={{ width: 520, height: 720 }} zIndex={14500}>
         <SmartClose key={closingLeadId || 'no-lead'} leadId={closingLeadId} liveTranscript={scriptCallContext.lead?.id === closingLeadId && scriptCallContext.phase === 'live' ? scriptCallContext.liveTranscript : undefined} intentScore={scriptCallContext.lead?.id === closingLeadId ? scriptCallContext.intentScore : undefined} animalType={scriptCallContext.lead?.id === closingLeadId ? scriptCallContext.animalType : undefined} canEditPhones={!isDialerRole} canEditScripts={!isDialerRole} />
       </PopOutTab>
       <PopOutTab storageKey="calls_tab" title="Call Intelligence" icon="📞" active={tab === 'calls'} defaultSize={{ width: 1120, height: 820 }}>

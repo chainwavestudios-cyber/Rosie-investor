@@ -7,6 +7,7 @@
 import { useEffect } from 'react';
 import { ArrowUpRight, PanelTopClose, LocateFixed } from 'lucide-react';
 import { usePopOutPanel } from '@/hooks/usePopOutPanel';
+import LiveWindowChrome from '@/components/debt/LiveWindowChrome';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 
 const GOLD = '#10b981';
@@ -16,7 +17,7 @@ const sizeBtn = {
   borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold',
 };
 
-export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut, zIndex }) {
+export default function PopOutTab({ storageKey, title, icon, active, children, defaultSize, autoPopOut, zIndex, modernChrome = false }) {
   const { user } = useDebtCoachAuth();
   const panel = usePopOutPanel(storageKey, defaultSize || { width: 900, height: 700 }, user?.username, zIndex, false);
 
@@ -56,7 +57,15 @@ export default function PopOutTab({ storageKey, title, icon, active, children, d
       )}
 
       {/* Floating mode — always rendered when popped out, regardless of active tab */}
-      {panel.poppedOut && (
+      {panel.poppedOut && modernChrome && (
+        <LiveWindowChrome panel={panel} title={title} subtitle="Move · Resize · Restore" onDock={panel.toggle}>
+          <div style={{flex:1,overflowY:'auto',minHeight:0,padding:'12px'}}>
+            {children}
+          </div>
+        </LiveWindowChrome>
+      )}
+      {panel.poppedOut && !modernChrome && (
+
         <div
           style={{
             ...panel.floatingStyle,
