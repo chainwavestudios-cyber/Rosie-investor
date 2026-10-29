@@ -3,7 +3,8 @@
  * Contains: My Scripts (personal teleprompter) + Closer Pitches.
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
-import { useState } from 'react';
+import { FileText } from 'lucide-react';
+import LiveWindowChrome from './LiveWindowChrome';
 import { DebtPitchPanel } from '@/components/debt/DebtPitchTab';
 import { MyScriptsTab } from '@/components/debt/DebtScriptEditor';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
@@ -32,19 +33,12 @@ export default function LiveScriptsPanel({ transcript, phase, panel, lead, micLa
     </div>
   );
 
-  // Popped out — floating, draggable, resizable
   if (panel.poppedOut) {
     return (
-      <div style={{ ...panel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-        <div onMouseDown={panel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-          {tabs}
-          <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {tab === 'scripts' ? renderScripts() : renderPitches()}
-        </div>
-        {panel.resizeHandles}
-      </div>
+      <LiveWindowChrome panel={panel} title="Live Scripts" subtitle="Teleprompter and approved pitches" icon={FileText} onDock={panel.toggle}>
+        <div style={{ flexShrink: 0, padding: '8px 12px', display: 'flex', gap: 7, background: '#101f2a', borderBottom: '1px solid #ffffff12' }}>{tabs}</div>
+        {tab === 'scripts' ? renderScripts() : renderPitches()}
+      </LiveWindowChrome>
     );
   }
 

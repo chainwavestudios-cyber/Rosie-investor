@@ -6,6 +6,8 @@
  * Uses usePopOutPanel for drag/resize with database-backed layout persistence.
  */
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { Captions } from 'lucide-react';
+import LiveWindowChrome from './LiveWindowChrome';
 
 const GOLD = '#10b981';
 
@@ -115,7 +117,7 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
 
   const renderTranscript = () => (
     <>
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+      <div className="dcc-live-transcript-header" style={{ flexShrink: 0 }}>
         <div style={{ color: '#6b7280', fontSize: '10px' }}><span style={{ color: '#60a5fa' }}>● Agent</span> · <span style={{ color: '#a78bfa' }}>● Transfer</span> · <span style={{ color: GOLD }}>● Customer</span></div>
         <div style={{ color: '#6b7280', fontSize: '10px' }}>{transcript.length} lines{selectedCount > 0 && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>· {selectedCount} selected</span>}</div>
       </div>
@@ -147,19 +149,13 @@ export default function LiveTranscriptPanel({ transcript, phase, panel, onAnswer
 
   const header = <span style={{ color: GOLD, fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase' }}>📋 Live Transcript</span>;
 
-  // Popped out — floating, draggable, resizable
+  // The live transcript is the SAME instance whether docked or floating.
+  // No second transcription subscription; just responsive window chrome.
   if (panel.poppedOut) {
     return (
-      <div style={{ ...panel.floatingStyle, background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px' }}>
-        <div onMouseDown={panel.onDragStart} style={{ padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'move', userSelect: 'none', flexShrink: 0 }}>
-          {header}
-          <button onClick={panel.toggle} style={{ background: `${GOLD}18`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>⬇ Pop In</button>
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {renderTranscript()}
-        </div>
-        {panel.resizeHandles}
-      </div>
+      <LiveWindowChrome panel={panel} title="Live Transcript" subtitle={phase === 'live' ? 'LIVE · Real-time conversation' : 'Call transcription'} icon={Captions} onDock={panel.toggle}>
+        {renderTranscript()}
+      </LiveWindowChrome>
     );
   }
 
