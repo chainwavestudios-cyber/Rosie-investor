@@ -244,11 +244,19 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const allPoppedOut = transcriptPanel.poppedOut && scriptsPanel.poppedOut && aiPanel.poppedOut;
   const [isInbound, setIsInbound] = useState(false);
   const [layoutSavedMsg, setLayoutSavedMsg] = useState(false);
+  // Contact-card launch starts asynchronously; open the script immediately rather than
+  // waiting for transcription/phase transitions. Re-open for every new session.
+  useEffect(() => {
+    if (!launchAction?.token) return;
+    scriptsPanel.openAtSavedPosition();
+    scriptsPanel.bringToFront();
+  }, [launchAction?.token]); // eslint-disable-line react-hooks/exhaustive-deps
   // Open the original full contact and Q&A-only panels. Smart Close stays current.
   useEffect(() => {
     if (phase !== 'live') return;
     setShowProfile(true);
     scriptsPanel.openAtSavedPosition();
+    scriptsPanel.bringToFront();
     transcriptPanel.openAtSavedPosition();
     aiPanel.openAtSavedPosition();
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
