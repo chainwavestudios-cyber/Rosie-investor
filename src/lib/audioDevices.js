@@ -19,16 +19,24 @@ export function isLoopbackSource(label = '') {
  * Capturing the master mix puts both voices on the channel, which is the
  * crosstalk this split exists to avoid.
  */
-const ISOLATED_CHANNEL = /isolat|individual|\bchat\b|usb\s*3|usb\s*[4-9]|3\s*[-&/]\s*4|channel\s*3|sub\s*mix/i;
+const ISOLATED_CHANNEL = /isolat|individual|usb\s*3|usb\s*[4-9]|3\s*[-&/]\s*4|channel\s*3|sub\s*mix/i;
+const RODE_FADER_INPUT = /r[øo]de|rodecaster/i;
+/** Windows RØDE Virtual Devices driver exposes faders and individual mics as inputs. */
+export function isRodeVirtualMicInput(label = '') {
+  return RODE_FADER_INPUT.test(label) && /\bfader\s*\d+|\bcombo\s*\d+|\bmic(?:rophone)?\s*\d+|isolated\s*input/i.test(label);
+}
 const MASTER_MIX = /main mix|master mix|main out|master out|usb\s*1\s*[-&/]\s*2|\bmain\b|\bmaster\b/i;
 
 /** An isolated (single-source) channel pair, e.g. USB 3. */
 export function isIsolatedInput(label = '') {
-  return ISOLATED_CHANNEL.test(label || '');
+  return isRodeVirtualMicInput(label) || ISOLATED_CHANNEL.test(label || '');
 }
 
 /** The full mix pair (USB 1-2) — carries both voices. */
 export function isMasterMixInput(label = '') {
+  // RØDECaster "Main" is a USB interface NAME, not proof it outputs only a
+  // stereo master mix: USB Main can be 16-channel multitrack on Windows.
+  if (RODE_FADER_INPUT.test(label) && /\bmain\b/i.test(label) && !/mix|stereo|1\s*[-&/]\s*2/i.test(label)) return false;
   return MASTER_MIX.test(label || '') && !isIsolatedInput(label || '');
 }
 
@@ -37,7 +45,9 @@ export function findIsolatedInput(devices = [], excludeIds = []) {
   const usable = (devices || []).filter(d => d.kind === 'audioinput'
     && !excludeIds.includes(d.deviceId)
     && !['default', 'communications'].includes(d.deviceId));
-  return usable.find(d => isIsolatedInput(d.label || '')) || null;
+  return usable.find(d => isRodeVirtualMicInput(d.label || ''))
+    || usable.find(d => isIsolatedInput(d.label || '') && !(/r[øo]de|rodecaster/i.test(d.label||'') && /\bchat\b/i.test(d.label||'')))
+    || null;
 }
 
 /** The best loopback input in a device list, or null when there is none. */
