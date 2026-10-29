@@ -12,7 +12,7 @@ import ClosingTab from '@/components/debt/closing/ClosingTab';
 import { setProfileTimer, cancelProfileTimer, getActiveTimer, updateProfileTimerSound } from '@/components/debt/ProfileTimerWatcher';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
 import { PROFILE_TIMER_SOUNDS, isValidProfileTimerSoundFile, normalizeProfileTimerSound, primeProfileTimerAudio, playProfileTimerSound } from '@/components/debt/profileTimerSounds';
-import { Bell, Volume2, UploadCloud, Clock3, GripHorizontal } from 'lucide-react';
+import { Bell, Volume2, UploadCloud, Clock3, GripHorizontal, Save as SaveIcon } from 'lucide-react';
 import { WindowSizeActions } from './LiveWindowChrome';
 import { liveWindowGeometry } from '@/lib/liveWorkspaceLayout';
 import LeadActivityTab from '@/components/debt/LeadActivityTab';
@@ -69,7 +69,7 @@ const TABS = [
   { id: 'ai_populate', label: '🤖 AI Populate' },
 ];
 
-export default function ClientProfileModal({ lead, username, onClose, onSave, initialTab = 'overview', liveWorkspace = false }) {
+export default function ClientProfileModal({ lead, username, onClose, onSave, initialTab = 'overview', liveWorkspace = false, onSaveWorkspaceLayout, onWorkspaceGeometryChange, workspaceSaving = false, workspaceSaveMessage = '' }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(initialTab);
   // The card reads the state in full — a stored "CA" opens as "California".
@@ -113,9 +113,18 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
   const panel = usePopOutPanel(liveWorkspace ? 'live_contact_profile' : 'client_profile',
     liveWorkspace ? liveGeometry.size : { width: 900, height: 700 },
     username, 15000, false,
-    liveWorkspace ? { defaultPosition: liveGeometry.position, minWidth: 340, minHeight: 310 } : {});
+    liveWorkspace ? { defaultPosition: liveGeometry.position, minWidth: 340, minHeight: 310, persistChanges: false } : {});
   // This card is always floating: enable its eight resize handles on every open.
   useEffect(() => { panel.openAtSavedPosition(); }, [panel.openAtSavedPosition]);
+  // Keep the parent informed of CURRENT on-screen geometry, even before Save.
+  // This is in-memory only; nothing is persisted until Save Entire Layout.
+  useEffect(() => {
+    if (!liveWorkspace || !panel.loaded || !onWorkspaceGeometryChange) return;
+    onWorkspaceGeometryChange({
+      position: { x: panel.position.x, y: panel.position.y },
+      size: { width: panel.size.width, height: panel.size.height },
+    });
+  }, [liveWorkspace, panel.loaded, panel.position.x, panel.position.y, panel.size.width, panel.size.height, onWorkspaceGeometryChange]);
 
   // Load Q&A history for this lead
   useEffect(() => {
@@ -476,7 +485,20 @@ export default function ClientProfileModal({ lead, username, onClose, onSave, in
       {liveWorkspace && (
         <div className="dcc-profile-workspace-bar" onMouseDown={panel.onDragStart} aria-label="Moveable, resizable contact card">
           <span><GripHorizontal size={16} color="#a3bbb0" /> CONTACT CARD · LIVE WORKSPACE</span>
-          <WindowSizeActions panel={panel} showSave label="Contact Card" />
+          <div className="dcc-profile-workspace-layout-save" data-no-drag>
+            {workspaceSaveMessage && <span className="dcc-profile-workspace-save-status" role="status" title={workspaceSaveMessage}>{workspaceSaveMessage}</span>}
+            <button type="button" className="dcc-profile-save-all-windows"
+              disabled={!onSaveWorkspaceLayout || workspaceSaving}
+              title="Save the current positions and sizes of Contact Card, Transcript, Script, and AI Assistant for every new call on this screen"
+              aria-label="Save all four Live Call window positions and sizes"
+              onClick={() => onSaveWorkspaceLayout?.({
+                position: { x: panel.position.x, y: panel.position.y },
+                size: { width: panel.size.width, height: panel.size.height },
+              })}>
+              <SaveIcon size={15}/>{workspaceSaving ? 'Saving Layout…' : 'Save Entire Layout'}
+            </button>
+          </div>
+          <WindowSizeActions panel={panel} label="Contact Card" />
         </div>
       )}
       {/* Header — draggable */}
