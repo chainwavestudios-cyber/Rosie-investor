@@ -6,7 +6,8 @@ export function liveWindowGeometry(key, viewport) {
   const vw = Math.max(360, Number(viewport?.width) || (typeof window !== 'undefined' ? window.innerWidth : 1440));
   const vh = Math.max(380, Number(viewport?.height) || (typeof window !== 'undefined' ? window.innerHeight : 900));
   const pad = 14;
-  const top = Math.min(105, Math.max(36, Math.round(vh * 0.08)));
+  // Leave the primary app navigation and essential call controls accessible.
+  const top = Math.min(185, Math.max(120, Math.round(vh * 0.16)));
   const keys = ['live_transcript', 'live_scripts', 'live_ai_panel', 'live_contact_profile'];
   const idx = Math.max(0, keys.indexOf(key));
   if (vw >= 1720) {
