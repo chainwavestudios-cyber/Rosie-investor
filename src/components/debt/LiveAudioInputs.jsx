@@ -1,5 +1,6 @@
 import AudioSetupSwitcher from '@/components/debt/AudioSetupSwitcher';
 import LiveAudioInput from '@/components/debt/LiveAudioInput';
+import VirtualCableDiagnostics from '@/components/debt/VirtualCableDiagnostics';
 
 export default function LiveAudioInputs({ phase, audio: a }) {
   const hardware = a.activeAudioMode?.transport !== 'twilio';
@@ -28,5 +29,12 @@ export default function LiveAudioInputs({ phase, audio: a }) {
       </select>
     </div>}
     {a.testMode && <span style={{color:'#f59e0b',fontSize:10}}>TEST MODE — Single Feed</span>}
+    <VirtualCableDiagnostics
+      micDevices={a.micDevices} outputDevices={a.outputDevices}
+      agentId={a.micDeviceId} customerId={a.customerMicId}
+      onAgentSelect={a.setMicDeviceId} onCustomerSelect={a.setCustomerMicId}
+      onRescan={()=>a.loadDevices(true)} disabled={disabled}
+      twilioMode={!hardware}
+    />
   </>;
 }
