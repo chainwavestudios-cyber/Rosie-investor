@@ -47,6 +47,24 @@ export default async function (req) {
       results.gmail = { healthy: false, error: e.message };
     }
 
+    // Alert the team when a connection has dropped, instead of letting the next
+    // send or calendar write fail with a silent 500.
+    const labels = { googlecalendar: 'Google Calendar', gmail: 'Gmail' };
+    for (const key of Object.keys(labels)) {
+      const state = results[key];
+      if (!state || state.healthy) continue;
+      const title = `${labels[key]} connection needs reconnecting`;
+      const existing = await base44.asServiceRole.entities.AppNotification.filter({ title, read: false }, '-created_date', 1);
+      if (existing.length > 0) continue;
+      await base44.asServiceRole.entities.AppNotification.create({
+        title,
+        body: state.error || `The connection is no longer valid (status ${state.status}). Emails and calendar events will fail until it is reconnected.`,
+        type: 'system',
+        source: 'Connection health check',
+        linkPath: '/',
+      });
+    }
+
     return Response.json({ checkedAt, ...results });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
