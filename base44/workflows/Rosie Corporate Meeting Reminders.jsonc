@@ -1,0 +1,45 @@
+{
+  "name": "Rosie Corporate Meeting Reminders",
+  "description": "Every 15 minutes, send opted-in reminders only for confirmed Rosie AI corporate reception bookings. Separate from Debt Call Coach and Fronter sales workflows.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/15 * * * *",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "rosie_corporate_reminders",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "send_opted_in_corporate_reminders": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "sendRosieReceptionReminders",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Send Rosie meeting reminders",
+            "description": "Send reminders only for confirmed Rosie AI meetings with recorded opt-in."
+          }
+        }
+      }
+    ]
+  }
+}
