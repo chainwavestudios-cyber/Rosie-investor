@@ -1,0 +1,39 @@
+{
+  "name": "RosieReceptionConfig",
+  "type": "object",
+  "properties": {
+    "configName": {
+      "type": "string",
+      "default": "corporate"
+    },
+    "isActive": {
+      "type": "boolean",
+      "default": false
+    },
+    "phoneNumber": {
+      "type": "string",
+      "default": "+18662908994"
+    },
+    "notificationEmail": {
+      "type": "string",
+      "default": "PR@Rosieai.tech"
+    },
+    "calendarId": {
+      "type": "string"
+    },
+    "calendarTimezone": {
+      "type": "string",
+      "default": "America/New_York"
+    },
+    "meetingDurationMinutes": {
+      "type": "number",
+      "default": 30
+    },
+    "updatedBy": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "configName"
+  ]
+}
