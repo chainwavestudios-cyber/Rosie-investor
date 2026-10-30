@@ -14,6 +14,7 @@ import AIAgentDialer from './AIAgentDialer';
 import AIAgentLiveConfig from './aiagent/AIAgentLiveConfig';
 import AIAgentLatencyDashboard from './aiagent/AIAgentLatencyDashboard';
 import AIAgentIncomingCallsTab from './aiagent/AIAgentIncomingCallsTab';
+import RosieReceptionPanel from './aiagent/RosieReceptionPanel';
 import AIAgentScriptBuilderSection from './aiagent/AIAgentScriptBuilderSection';
 import useAIAgentPipeline from '@/hooks/useAIAgentPipeline';
 
@@ -24,7 +25,8 @@ const BLUE = '#60a5fa';
 
 const SECTIONS = [
   { id: 'config', label: '⚙️ Agent Configuration' },
-  { id: 'incoming', label: '📞 Incoming Calls' },
+  { id: 'incoming', label: '📞 Debt Incoming Calls' },
+  { id: 'rosie', label: '🌹 Rosie AI Receptionist' },
   { id: 'builder', label: '🧠 AI Script Builder' },
   { id: 'latency', label: '⚡ Turn Latency' },
 ];
@@ -122,6 +124,10 @@ export default function FronterAIAgentTab({ adminUsername }) {
 
   if (!config) {
     return <div style={{ color: '#4a5568', textAlign: 'center', padding: '60px', fontSize: '14px' }}>Loading AI Agent configuration…</div>;
+  }
+
+  if (section === 'rosie') {
+    return <div style={{ maxWidth: 1120, margin: '0 auto' }}><div role="tablist" aria-label="AI agent sections" style={{ display:'flex',gap:8,flexWrap:'wrap',paddingBottom:20 }}>{SECTIONS.map(s=><button key={s.id} type="button" role="tab" aria-selected={section === s.id} onClick={()=>setSection(s.id)} style={{padding:'10px 12px',borderRadius:6,border:'1px solid #374151',background:s.id===section?'#273442':'#0a0f1e',color:s.id===section?'#e7c78e':'#8a9ab8',cursor:'pointer'}}>{s.label}</button>)}</div><RosieReceptionPanel /></div>;
   }
 
   return (
