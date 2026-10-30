@@ -1,0 +1,68 @@
+{
+  "name": "RosieReceptionCall",
+  "type": "object",
+  "properties": {
+    "callSid": {
+      "type": "string"
+    },
+    "callerPhone": {
+      "type": "string"
+    },
+    "fullName": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "intent": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string",
+      "format": "textarea"
+    },
+    "preferredTime": {
+      "type": "string"
+    },
+    "meetingStartISO": {
+      "type": "string"
+    },
+    "meetingEndISO": {
+      "type": "string"
+    },
+    "calendarEventId": {
+      "type": "string"
+    },
+    "reminderConsent": {
+      "type": "boolean",
+      "default": false
+    },
+    "reminderSent": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "default": "in_progress"
+    },
+    "step": {
+      "type": "string",
+      "default": "name"
+    },
+    "lastPrompt": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "callSid"
+  ]
+}
