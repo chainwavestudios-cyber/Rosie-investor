@@ -813,7 +813,7 @@ export default async function(req) {
     // This short-circuit happens BEFORE the debt agent / lead lookup / transfer flow.
     // Unless the corporate receptionist is explicitly activated, original Fronter
     // direct-line behavior remains untouched.
-    const corporateCalled = (called || to || '').replace(/[^+\\d]/g, '');
+    const corporateCalled = (called || to || '').replace(/[^+0-9]/g, '');
     if (corporateCalled === '+18662908994') {
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
