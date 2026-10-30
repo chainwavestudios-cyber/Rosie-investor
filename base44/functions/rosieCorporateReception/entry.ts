@@ -143,7 +143,7 @@ export default async function(req:Request) {
     switch(call.step) {
       case 'name': {
         const fullName=speech.replace(/^(hi|hello|hey|this is|my name is|it's|it is|i'm|i am)\s+/i,'').replace(/[.!?]/g,'').trim();
-        if(fullName.length<3)return ask('May I have your first and last name, please?');
+        if(fullName.length<3 || fullName.split(/\s+/).filter(Boolean).length<2)return ask('Thank you. May I have both your first and last name, please?');
         await save({fullName,step:'department'});
         return ask('Lovely to meet you, '+firstName(fullName)+'. Would you like our senior management team, public relations, development department, or Steph, our Managing Partner? I can also arrange a meeting or take a message.');
       }
