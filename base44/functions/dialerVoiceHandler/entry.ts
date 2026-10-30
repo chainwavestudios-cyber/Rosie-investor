@@ -809,6 +809,23 @@ export default async function(req) {
     }
 
     // ── Mode 4: Inbound call → AI agent (all lines) or browser client fallback ──
+    // Dedicated corporate 866 line: completely separate Rosie AI reception flow.
+    // This short-circuit happens BEFORE the debt agent / lead lookup / transfer flow.
+    // Unless the corporate receptionist is explicitly activated, original Fronter
+    // direct-line behavior remains untouched.
+    const corporateCalled = (called || to || '').replace(/[^+\\d]/g, '');
+    if (corporateCalled === '+18662908994') {
+      try {
+        const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
+        const corporateClient = createClientFromRequest(req).asServiceRole;
+        const reception = await corporateClient.entities.RosieReceptionConfig.filter({ configName: 'corporate' });
+        if (reception?.[0]?.isActive) {
+          const receptionUrl = 'https://rosieai-investorpage.base44.app/functions/rosieCorporateReception';
+          console.log('[dialerVoiceHandler] Rosie AI 866 corporate receptionist branch');
+          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">'+xmlEscape(receptionUrl)+'</Redirect></Response>', { headers: { 'Content-Type': 'text/xml' } });
+        }
+      } catch (e) { console.warn('[dialerVoiceHandler] Corporate reception config unavailable, preserving existing Fronter route',e?.message); }
+    }
     // Only the selected AI line routes to the Media Stream when enabled.
     // All other numbers keep their standard browser-dialer routing.
     const calledNumber = (called || to || '').replace(/\s/g, '');
