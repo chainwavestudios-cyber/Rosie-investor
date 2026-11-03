@@ -79,6 +79,28 @@ function makePreviewCalls(leads) {
       const outcome = dispositions[i];
       const minutes = moments[i];
       const iso = new Date(Date.UTC(year,month-1,date,Math.floor(minutes/60)+offset,minutes%60)).toISOString();
+      const amount = (lo, hi) => '$' + (lo + 500 * Math.floor(rand() * ((hi - lo) / 500 + 1))).toLocaleString('en-US');
+      let previewComment = 'VM';
+      if (outcome === 'transferred') {
+        const debt = amount(10000, 30000);
+        const phrases = [
+          'Confirmed approximately ' + debt + ' in unsecured debt; transferred to closer.',
+          'Qualified; reported roughly ' + debt + ' in credit card balances. Warm transfer.',
+          'Interested in debt options with an estimated ' + debt + ' outstanding. Connected to closer.',
+          'Prospect indicated ' + debt + ' in revolving debt; transfer completed.',
+        ];
+        previewComment = phrases[Math.floor(rand() * phrases.length)];
+      } else if (outcome === 'callback') {
+        const debt = amount(10000, 50000);
+        const when = new Date(new Date(iso).getTime() + (2 + rand() * 45) * 3600000).toLocaleString('en-US', {timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+        const phrases = [
+          'Estimated ' + debt + ' in debt. Requested callback ' + when + ' ET.',
+          'Reported about ' + debt + ' outstanding; call back ' + when + ' ET.',
+          'Potentially qualified with ' + debt + ' in balances. Follow up ' + when + ' ET.',
+          'Unable to talk now, roughly ' + debt + ' in debt. Return call ' + when + ' ET.',
+        ];
+        previewComment = phrases[Math.floor(rand() * phrases.length)];
+      }
       output.push({
         id: 'preview-' + day + '-' + i,
         source: 'presentation_preview', // internal marker, excluded from persisted reports
@@ -88,6 +110,7 @@ function makePreviewCalls(leads) {
         leadName: lead ? [lead.firstName,lead.lastName].filter(Boolean).join(' ') : 'Sample Contact ' + (i+1),
         durationSeconds: outcome === 'voicemail' ? 12 + Math.floor(rand()*55) : 75 + Math.floor(rand()*410),
         previewDisposition: outcome,
+        previewComment,
         recordingUrl: '',
       });
     }
@@ -339,7 +362,9 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
                       )}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
-                      {hasComment ? (
+                      {call.source === 'presentation_preview' ? (
+                        <span style={{ color: call.previewDisposition === 'voicemail' ? '#f59e0b' : '#c4cdd8', fontSize: '12px', lineHeight: 1.5 }}>{call.previewComment || 'VM'}</span>
+                      ) : hasComment ? (
                         <div>
                           {callComments.map((c, i) => (
                             <div key={c.id || i} style={{ marginBottom: '4px', padding: '6px 8px', background: 'rgba(245,158,11,0.06)', borderRadius: '4px', borderLeft: '3px solid #f59e0b' }}>
