@@ -164,14 +164,14 @@ function PresentationMetrics({ onActual }) {
   const allCalls = makePreviewCalls(contacts);
   const filtered = allCalls.filter(call =>
     (selectedDialer === 'all' || call.fronterUsername === selectedDialer) &&
-    (selectedDay === 'all' || new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(call.callDate)) === selectedDay)
+    (selectedDay === 'all' || call.previewDay === selectedDay)
   );
   const count = status => filtered.filter(call => call.previewDisposition === status).length;
   const seconds = filtered.reduce((sum, call) => sum + (call.durationSeconds || 0), 0);
   const days = ['2026-10-28','2026-10-29','2026-10-30','2026-11-02','2026-11-03'];
   const dailyRows = days.map(day => {
     const matching = allCalls.filter(call =>
-      new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(call.callDate)) === day &&
+      call.previewDay === day &&
       (selectedDialer === 'all' || call.fronterUsername === selectedDialer)
     );
     return { day, calls:matching.length, vm:matching.filter(c=>c.previewDisposition==='voicemail').length,
@@ -180,7 +180,7 @@ function PresentationMetrics({ onActual }) {
   });
   const dialerRows = ['Dialer 1','Dialer 2'].map(name => {
     const records = allCalls.filter(c => c.fronterUsername === name && (selectedDay === 'all' ||
-      new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(c.callDate)) === selectedDay));
+      c.previewDay === selectedDay));
     return { name, total:records.length, vm:records.filter(c=>c.previewDisposition==='voicemail').length,
       transferred:records.filter(c=>c.previewDisposition==='transferred').length,
       callback:records.filter(c=>c.previewDisposition==='callback').length };
