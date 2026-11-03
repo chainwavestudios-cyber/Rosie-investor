@@ -26,7 +26,7 @@ const BLUE = '#60a5fa';
 const SECTIONS = [
   { id: 'config', label: '⚙️ Agent Configuration' },
   { id: 'incoming', label: '📞 Debt Incoming Calls' },
-  { id: 'rosie', label: '🌹 Rosie AI Receptionist' },
+  { id: 'rosie', label: '🌹 Rosie Incoming Calls' },
   { id: 'builder', label: '🧠 AI Script Builder' },
   { id: 'latency', label: '⚡ Turn Latency' },
 ];
