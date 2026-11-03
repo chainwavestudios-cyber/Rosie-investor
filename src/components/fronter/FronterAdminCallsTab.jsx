@@ -46,8 +46,60 @@ function DispositionBadge({ disposition }) {
   );
 }
 
+// Presentation preview is generated in memory only; never persisted as call history.
+const PREVIEW_DAYS = [
+  ['2026-10-28', 218, 197, 10, 11],
+  ['2026-10-29', 243, 219, 13, 11],
+  ['2026-10-30', 207, 185, 9, 13],
+  ['2026-11-02', 231, 208, 12, 11],
+  ['2026-11-03', 226, 202, 10, 14],
+];
+function previewRng(seed) {
+  let value = seed >>> 0;
+  return () => { value = (1664525 * value + 1013904223) >>> 0; return value / 4294967296; };
+}
+function makePreviewCalls(leads) {
+  const rand = previewRng(20261103), output = [];
+  for (const [day, total, voicemail, transferred, callback] of PREVIEW_DAYS) {
+    const dispositions = [
+      ...Array(voicemail).fill('voicemail'),
+      ...Array(transferred).fill('transferred'),
+      ...Array(callback).fill('callback'),
+    ];
+    for (let i = dispositions.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [dispositions[i], dispositions[j]] = [dispositions[j], dispositions[i]];
+    }
+    const [year, month, date] = day.split('-').map(Number);
+    const offset = month === 10 ? 4 : 5; // New York DST changes Nov 1, 2026
+    const limit = day === '2026-11-03' ? 465 : 540; // until 4:45 PM today
+    const moments = Array.from({length: total}, () => 9 * 60 + Math.floor(rand() * limit)).sort((a,b)=>a-b);
+    for (let i = 0; i < total; i++) {
+      const lead = leads.length ? leads[Math.floor(rand() * leads.length)] : null;
+      const outcome = dispositions[i];
+      const minutes = moments[i];
+      const iso = new Date(Date.UTC(year,month-1,date,Math.floor(minutes/60)+offset,minutes%60)).toISOString();
+      output.push({
+        id: 'preview-' + day + '-' + i,
+        source: 'presentation_preview', // internal marker, excluded from persisted reports
+        callDate: iso,
+        fronterUsername: i % 2 === 0 ? 'Dialer 1' : 'Dialer 2',
+        leadId: lead?.id || '',
+        leadName: lead ? [lead.firstName,lead.lastName].filter(Boolean).join(' ') : 'Sample Contact ' + (i+1),
+        durationSeconds: outcome === 'voicemail' ? 12 + Math.floor(rand()*55) : 75 + Math.floor(rand()*410),
+        previewDisposition: outcome,
+        recordingUrl: '',
+      });
+    }
+  }
+  return output.sort((a,b)=>new Date(b.callDate)-new Date(a.callDate));
+}
+
 export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLead }) {
   const [calls, setCalls] = useState([]);
+  const [previewMode, setPreviewMode] = useState(() => new URLSearchParams(window.location.search).get('callsPreview') === '1');
+  const [previewCalls, setPreviewCalls] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(100);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
   const [loadingRecId, setLoadingRecId] = useState(null);
@@ -94,6 +146,22 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
     const interval = setInterval(load, 15000);
     return () => clearInterval(interval);
   }, [load]);
+
+  useEffect(() => {
+    if (!previewMode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Read-only: take contact names from Fronter's lead vault; never mutate leads.
+        const existing = await base44.entities.FronterLead.list('-created_date', 1000);
+        if (!cancelled) setPreviewCalls(makePreviewCalls(Array.isArray(existing) ? existing : existing?.items || []));
+      } catch {
+        if (!cancelled) setPreviewCalls(makePreviewCalls([]));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [previewMode]);
+  const displayedCalls = previewMode ? previewCalls : calls;
 
   // Cleanup audio on unmount
   useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
@@ -163,6 +231,7 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
   };
 
   const submitComment = async (call) => {
+    if (call.source === 'presentation_preview') return;
     if (!commentText.trim()) return;
     try {
       await base44.entities.FronterCallComment.create({
@@ -192,13 +261,15 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📞 Calls — Last 24 Hours ({calls.length})</div>
-        <button onClick={load} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button>
+        <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase' }}>📞 Calls — {previewMode ? 'Last 5 Business Days' : 'Last 24 Hours'} ({displayedCalls.length})</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => { setPreviewMode(v => !v); setVisibleCount(100); }} title="Presentation preview does not represent actual calls or alter reports" style={{ background: previewMode ? '#10b98122' : '#ffffff0c', color: previewMode ? GOLD : '#8a9ab8', border: '1px solid #ffffff22', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11 }}>{previewMode ? 'Exit Preview' : 'Presentation Preview'}</button>
+        <button onClick={load} style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}44`, borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '11px' }}>↻ Refresh</button></div>
       </div>
 
-      {loading ? (
+      {loading && !previewMode ? (
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>
-      ) : calls.length === 0 ? (
+      ) : displayedCalls.length === 0 ? (
         <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px', fontSize: '14px' }}>No calls in the last 24 hours.</div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -211,11 +282,11 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
               </tr>
             </thead>
             <tbody>
-              {calls.map(call => {
+              {displayedCalls.slice(0, visibleCount).map(call => {
                 const callComments = comments[call.id] || [];
                 const hasComment = callComments.length > 0;
                 const lead = leadMap[call.leadId];
-                const disposition = lead?.lastCallResult;
+                const disposition = call.previewDisposition || lead?.lastCallResult;
                 const isPlaying = playingId === call.id;
                 const isLoadingRec = loadingRecId === call.id;
                 return (
@@ -282,7 +353,7 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
                       )}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
-                      {commentingId === call.id ? (
+                      {call.source === 'presentation_preview' ? <span style={{ color: '#4a5568', fontSize: 11 }}>—</span> : commentingId === call.id ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '250px' }}>
                           <textarea
                             value={commentText}
@@ -306,6 +377,7 @@ export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLe
               })}
             </tbody>
           </table>
+          {displayedCalls.length > visibleCount && <button onClick={() => setVisibleCount(n => n+100)} style={{ marginTop: 14, padding: '8px 14px', color: GOLD, background: '#10b98118', border: '1px solid #10b98144', borderRadius: 5, cursor: 'pointer' }}>Load more ({Math.min(visibleCount,displayedCalls.length)} of {displayedCalls.length})</button>}
         </div>
       )}
     </div>
