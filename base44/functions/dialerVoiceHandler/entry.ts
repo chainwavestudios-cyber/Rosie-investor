@@ -826,11 +826,12 @@ export default async function(req) {
           return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
         }
         console.log('[dialerVoiceHandler] Rosie corporate receptionist answering after two rings:', outcome);
-        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">https://rosieai-investorpage.base44.app/functions/rosieCorporateReception</Redirect></Response>', {headers:{'Content-Type':'text/xml'}});
+        const { default: handleRosie } = await import('../../shared/rosieCorporateReception.ts');
+        return await handleRosie(rosieRequest);
       }
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
-        const service = createClientFromRequest(rosieRequest).asServiceRole;
+        const service = createClientFromRequest(rosieRequest.clone()).asServiceRole;
         const reception = await service.entities.RosieReceptionConfig.filter({configName:'corporate'});
         if (reception?.[0]?.isActive) {
           let identities: string[] = [];
@@ -853,7 +854,8 @@ export default async function(req) {
           }
           // No staffed browser endpoints: still protect the 866 line from debt fallback.
           console.log('[Rosie] No browser handset assigned; Rosie answering directly');
-          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">https://rosieai-investorpage.base44.app/functions/rosieCorporateReception</Redirect></Response>', {headers:{'Content-Type':'text/xml'}});
+          const { default: handleRosie } = await import('../../shared/rosieCorporateReception.ts');
+        return await handleRosie(rosieRequest);
         }
         console.warn('[Rosie] Corporate receptionist disabled; answering with explicit notice, not debt');
         return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Rosie AI. Our reception team is unavailable right now.</Say><Hangup/></Response>',{headers:{'Content-Type':'text/xml'}});
