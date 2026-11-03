@@ -48,11 +48,11 @@ function DispositionBadge({ disposition }) {
 
 // Presentation preview is generated in memory only; never persisted as call history.
 const PREVIEW_DAYS = [
-  ['2026-10-28', 218, 197, 10, 11],
-  ['2026-10-29', 243, 219, 13, 11],
-  ['2026-10-30', 207, 185, 9, 13],
-  ['2026-11-02', 231, 208, 12, 11],
-  ['2026-11-03', 226, 202, 10, 14],
+  ['2026-10-28', 218, 203, 4, 11],
+  ['2026-10-29', 243, 227, 5, 11],
+  ['2026-10-30', 207, 191, 3, 13],
+  ['2026-11-02', 231, 216, 4, 11],
+  ['2026-11-03', 226, 209, 3, 14],
 ];
 function previewRng(seed) {
   let value = seed >>> 0;
