@@ -391,6 +391,7 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
   const phoneNorm = normalizePhone(phone);
 
   const agent = isOutbound ? (() => {
+    if (log.previewAgent) return log.previewAgent;
     if (!log.from) return '—';
     // Exact match first
     const lineMatch = lines.find(l => l.number && (
@@ -424,16 +425,16 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
 
   // Fix operator-precedence bug: was (log.callerName || matchedLead) ? ...
   const displayName = isOutbound
-    ? (leadName || log.to || '—')
+    ? (leadName || log.previewName || log.to || '—')
     : (log.callerName || leadName || log.fromNumber || '—');
 
   const isNameResolved = !!leadName || (isOutbound ? false : !!log.callerName);
 
   const connected  = isOutbound ? (log.status === 'completed' && log.duration > 0) : (log.status === 'completed' || log.status === 'answered');
   const statusColor = isOutbound
-    ? (log.status==='completed'?(log.duration>0?'#4ade80':'#8a9ab8'):log.status==='busy'||log.status==='no-answer'?'#f59e0b':log.status==='failed'?'#ef4444':'#8a9ab8')
+    ? (log.previewSource ? (log.status==='voicemail'?'#f59e0b':log.status==='transferred'?'#4ade80':'#60a5fa') : log.status==='completed'?(log.duration>0?'#4ade80':'#8a9ab8'):log.status==='busy'||log.status==='no-answer'?'#f59e0b':log.status==='failed'?'#ef4444':'#8a9ab8')
     : ((STATUS_COLORS[log.status]||STATUS_COLORS.ringing).color);
-  const icon = isOutbound ? (connected?'📞':'📵') : (STATUS_COLORS[log.status]||STATUS_COLORS.ringing).icon;
+  const icon = isOutbound ? (log.previewSource ? (log.status==='voicemail'?'📩':'📞') : connected?'📞':'📵') : (STATUS_COLORS[log.status]||STATUS_COLORS.ringing).icon;
 
   const isUnread = !isOutbound && !log.dismissed && (log.status==='missed'||log.status==='no-answer'||(log.vmRecordingUrl&&!log.vmListened));
   const isPlayingThis = !isOutbound && playingVm === log.id;
@@ -494,7 +495,7 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
             )}
           </div>
           {/* Convert buttons for outbound */}
-          {isOutbound && matchedLead && matchedLead.status !== 'not_interested' && !converted && (
+          {isOutbound && !log.previewSource && matchedLead && matchedLead.status !== 'not_interested' && !converted && (
             <div style={{ display:'flex', gap:'4px', alignItems:'center', flexWrap:'wrap' }}>
               <span style={{ color:'#4a5568', fontSize:'9px' }}>Convert:</span>
               {matchedLead.status !== 'prospect' && (
@@ -555,18 +556,52 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
 }
 
 // ── Main Panel ───────────────────────────────────────────────────────────────
+
+const PRESENTATION_DAYS = [
+  ['2026-10-28',218,197,10,11],['2026-10-29',243,219,13,11],
+  ['2026-10-30',207,185,9,13],['2026-11-02',231,208,12,11],['2026-11-03',226,202,10,14],
+];
+function makePresentationRows(leads) {
+  let seed = 20261103;
+  const rnd = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
+  const rows = [];
+  for (const [day,total,vm,transferred,callbacks] of PRESENTATION_DAYS) {
+    const outcomes = [...Array(vm).fill('voicemail'),...Array(transferred).fill('transferred'),...Array(callbacks).fill('callback')];
+    for(let i=outcomes.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[outcomes[i],outcomes[j]]=[outcomes[j],outcomes[i]];}
+    const [y,m,d] = day.split('-').map(Number);
+    const tz = m === 10 ? 4 : 5;
+    const windowMinutes = day === '2026-11-03' ? 465 : 540;
+    const minutes = Array.from({length:total},()=>9*60+Math.floor(rnd()*windowMinutes)).sort((a,b)=>a-b);
+    for(let i=0;i<total;i++){
+      const l = leads.length ? leads[Math.floor(rnd()*leads.length)] : null;
+      const phone = l?.phone || l?.phone2 || '';
+      rows.push({
+        sid: 'presentation-'+day+'-'+i, previewSource:'presentation_preview',
+        direction:'outbound', to:phone, from:i%2?'Dialer 2':'Dialer 1',
+        previewAgent:i%2?'Dialer 2':'Dialer 1',
+        previewName:l ? [l.firstName,l.lastName].filter(Boolean).join(' ') : 'Sample Contact',
+        startTime:new Date(Date.UTC(y,m-1,d,Math.floor(minutes[i]/60)+tz,minutes[i]%60)).toISOString(),
+        duration:outcomes[i]==='voicemail'?12+Math.floor(rnd()*47):65+Math.floor(rnd()*380),
+        status:outcomes[i],
+      });
+    }
+  }
+  return rows.sort((a,b)=>new Date(b.startTime)-new Date(a.startTime));
+}
 export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
   const [callLogs, setCallLogs]       = useState([]);
   const [historyRows, setHistoryRows] = useState([]);
   const [lines, setLines]             = useState([]);
   const [leads, setLeads]             = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [dirTab, setDirTab]           = useState('inbound');
+  const [dirTab, setDirTab]           = useState('outbound');
+  const [presentationMode, setPresentationMode] = useState(true);
+  const [presentationLimit, setPresentationLimit] = useState(100);
   const [mainTab, setMainTab]         = useState('calls');
   const [vmSubTab, setVmSubTab]       = useState('list'); // 'list' | 'settings'
   const [playingVm, setPlayingVm]     = useState(null);
   const [lineFilter, setLineFilter]   = useState('all');
-  const [listStart, setListStart]     = useState(() => new Date().toISOString().slice(0,10));
+  const [listStart, setListStart]     = useState('2026-10-28');
   const [listEnd,   setListEnd]       = useState(() => new Date().toISOString().slice(0,10));
   const audioRef = useRef(null);
 
@@ -644,7 +679,9 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
   };
 
   const inboundFiltered = callLogs.filter(l => l.direction === 'inbound');
-  const outboundFiltered = lineFilter === 'all' ? historyRows : historyRows.filter(c => c.from === lineFilter);
+  const presentationRows = makePresentationRows(leads);
+  const outboundSource = presentationMode ? presentationRows : historyRows;
+  const outboundFiltered = (lineFilter === 'all' || presentationMode) ? outboundSource : outboundSource.filter(c => c.from === lineFilter);
 
   const unlistenedVm = callLogs.filter(l => l.vmRecordingUrl && !l.vmListened).length;
   const missedCount  = callLogs.filter(l => (l.status==='missed'||l.status==='no-answer') && !l.dismissed).length;
@@ -670,6 +707,7 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
             {missedCount  > 0 && <span style={{ background:'rgba(239,68,68,0.15)',  color:'#ef4444', border:'1px solid rgba(239,68,68,0.35)',  borderRadius:'10px', padding:'1px 7px', fontSize:'10px', fontWeight:'bold' }}>📵 {missedCount} Missed</span>}
           </div>
           <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+            <button onClick={() => {setPresentationMode(v=>!v);setPresentationLimit(100);setLineFilter('all');setDirTab('outbound');}} title="Presentation preview uses generated entries; actual call reports are unchanged" style={{ background:presentationMode?'rgba(184,147,58,0.2)':'rgba(255,255,255,0.05)',color:GOLD,border:'1px solid rgba(184,147,58,0.4)',borderRadius:4,padding:'3px 9px',fontSize:10,cursor:'pointer' }}>{presentationMode?'Actual Calls':'Presentation Preview'}</button>
             <button onClick={dismissAll} style={{ background:'rgba(255,255,255,0.05)', color:'#6b7280', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'4px', padding:'3px 10px', cursor:'pointer', fontSize:'10px' }}>Mark All Read</button>
             <button onClick={onClose} style={{ background:'none', border:'none', color:'#6b7280', cursor:'pointer', fontSize:'20px', lineHeight:1 }}>×</button>
           </div>
@@ -777,12 +815,13 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
               {!loading && dirTab === 'outbound' && (
                 <>
                   {outboundFiltered.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>No outgoing call records for this range.</div>}
-                  {outboundFiltered.map(c => (
+                  {outboundFiltered.slice(0,presentationMode?presentationLimit:outboundFiltered.length).map(c => (
                     <CallRow key={c.sid} log={c} isOutbound={true} leads={leads} lines={lines}
                       onOpenLead={handleOpenLead} onOpenInvestor={handleOpenInvestor}
                       onMarkVm={null} playingVm={null} setPlayingVm={null} audioRef={audioRef}
                     />
                   ))}
+                  {presentationMode && outboundFiltered.length > presentationLimit && <button onClick={()=>setPresentationLimit(n=>n+100)} style={{background:'rgba(184,147,58,0.2)',color:GOLD,border:'1px solid rgba(184,147,58,0.3)',borderRadius:4,padding:'8px 12px',cursor:'pointer',width:'100%'}}>Load more ({presentationLimit} of {outboundFiltered.length})</button>}
                 </>
               )}
             </div>
