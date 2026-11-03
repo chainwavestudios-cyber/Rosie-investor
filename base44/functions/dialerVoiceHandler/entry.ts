@@ -17,7 +17,7 @@ import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
-import rosieCorporateReception from '../rosieCorporateReception/entry.ts';
+import rosieCorporateReception from '../../shared/rosieCorporateReception.ts';
 import { preserveUnansweredAiCaller } from '../../shared/aiQueueProspect.ts';
 
 // Incoming calls ring twice before the AI picks up: Twilio holds the caller on
