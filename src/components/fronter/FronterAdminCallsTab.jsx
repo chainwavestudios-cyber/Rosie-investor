@@ -58,7 +58,7 @@ function previewRng(seed) {
   let value = seed >>> 0;
   return () => { value = (1664525 * value + 1013904223) >>> 0; return value / 4294967296; };
 }
-function makePreviewCalls(leads) {
+export function makePreviewCalls(leads) {
   const rand = previewRng(20261103), output = [];
   for (const [day, total, voicemail, transferred, callback] of PREVIEW_DAYS) {
     const dispositions = [
