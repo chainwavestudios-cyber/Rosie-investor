@@ -1,8 +1,8 @@
 /**
  * verifyTwilioSignature.ts — Validates Twilio webhook request signatures.
  *
- * Twilio signs each request with HMAC-SHA1 over (URL + raw body) using the
- * auth token. This prevents forged callbacks from initiating calls or
+ * Twilio signs form webhooks with HMAC-SHA1 over URL plus alphabetically
+ * sorted form parameters (not the raw request body) using the auth token. This prevents forged callbacks from initiating calls or
  * mutating lead records.
  *
  * Returns true when:
@@ -22,9 +22,6 @@ export async function verifyTwilioSignature(req: Request, rawBody: string): Prom
   const twilioSignature = req.headers.get('X-Twilio-Signature') || '';
   if (!twilioSignature) return false;
 
-  // Twilio signs: full URL + raw POST body
-  const data = new TextEncoder().encode(req.url + rawBody);
-
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(authToken),
@@ -33,10 +30,19 @@ export async function verifyTwilioSignature(req: Request, rawBody: string): Prom
     ['sign'],
   );
 
-  const sigBytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
-  let binary = '';
-  for (let i = 0; i < sigBytes.length; i++) binary += String.fromCharCode(sigBytes[i]);
-  const computed = btoa(binary);
-
-  return computed === twilioSignature;
+  const sign = async (input: string) => {
+    const sigBytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(input)));
+    let binary = '';
+    for (let i = 0; i < sigBytes.length; i++) binary += String.fromCharCode(sigBytes[i]);
+    return btoa(binary);
+  };
+  const contentType = req.headers.get('content-type') || '';
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(rawBody);
+    const names = [...new Set([...params.keys()])].sort();
+    const canonical = req.url + names.map(name => params.getAll(name).sort().map(value => name + value).join('')).join('');
+    if (await sign(canonical) === twilioSignature) return true;
+  }
+  // Non-form endpoints and backwards compatibility with previous callback signing.
+  return await sign(req.url + rawBody) === twilioSignature;
 }
