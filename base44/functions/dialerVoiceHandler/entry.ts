@@ -17,7 +17,6 @@ import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
-import rosieCorporateReception from '../../shared/rosieCorporateReception.ts';
 import { preserveUnansweredAiCaller } from '../../shared/aiQueueProspect.ts';
 
 // Incoming calls ring twice before the AI picks up: Twilio holds the caller on
@@ -827,7 +826,7 @@ export default async function(req) {
           return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
         }
         console.log('[dialerVoiceHandler] Rosie corporate receptionist answering after two rings:', outcome);
-        return await rosieCorporateReception(rosieRequest);
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">https://rosieai-investorpage.base44.app/functions/rosieCorporateReception</Redirect></Response>', {headers:{'Content-Type':'text/xml'}});
       }
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
@@ -854,7 +853,7 @@ export default async function(req) {
           }
           // No staffed browser endpoints: still protect the 866 line from debt fallback.
           console.log('[Rosie] No browser handset assigned; Rosie answering directly');
-          return await rosieCorporateReception(rosieRequest);
+          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">https://rosieai-investorpage.base44.app/functions/rosieCorporateReception</Redirect></Response>', {headers:{'Content-Type':'text/xml'}});
         }
         console.warn('[Rosie] Corporate receptionist disabled; answering with explicit notice, not debt');
         return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Rosie AI. Our reception team is unavailable right now.</Say><Hangup/></Response>',{headers:{'Content-Type':'text/xml'}});
