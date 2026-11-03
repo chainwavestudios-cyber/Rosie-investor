@@ -798,7 +798,7 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
 
             {/* Call list */}
             <div style={{ flex:1, overflowY:'auto', padding:'8px' }}>
-              {loading && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
+              {loading && !presentationMode && <div style={{ color:'#6b7280', textAlign:'center', padding:'40px' }}>Loading…</div>}
 
               {!loading && dirTab === 'inbound' && (
                 <>
@@ -812,7 +812,7 @@ export default function CallLogPanel({ onClose, onOpenLead, onOpenInvestor }) {
                 </>
               )}
 
-              {!loading && dirTab === 'outbound' && (
+              {(!loading || presentationMode) && dirTab === 'outbound' && (
                 <>
                   {outboundFiltered.length === 0 && <div style={{ color:'#4a5568', textAlign:'center', padding:'40px' }}><div style={{ fontSize:'32px', marginBottom:'8px' }}>📋</div>No outgoing call records for this range.</div>}
                   {outboundFiltered.slice(0,presentationMode?presentationLimit:outboundFiltered.length).map(c => (
