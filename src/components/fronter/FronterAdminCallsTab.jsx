@@ -122,7 +122,7 @@ export function makePreviewCalls(leads) {
 export default function FronterAdminCallsTab({ adminUsername, fronters, onOpenLead }) {
   const [calls, setCalls] = useState([]);
   const [previewMode, setPreviewMode] = useState(() => new URLSearchParams(window.location.search).get('callsPreview') !== '0');
-  const [previewCalls, setPreviewCalls] = useState([]);
+  const [previewCalls, setPreviewCalls] = useState(() => makePreviewCalls([]));
   const [visibleCount, setVisibleCount] = useState(100);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState(null);
