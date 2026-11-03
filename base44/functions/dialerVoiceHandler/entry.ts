@@ -17,6 +17,7 @@ import { verifyCallCutoffOverride } from '../../shared/callCutoffOverride.ts';
 import { getPollyVoice } from '../../shared/aiVoiceMap.ts';
 import { lookupInboundLead, resolveInboundClips, clipsToTwiml } from '../../shared/inboundGreeting.ts';
 import { assignNoticeIds } from '../../shared/noticeId.ts';
+import rosieCorporateReception from '../rosieCorporateReception/entry.ts';
 import { preserveUnansweredAiCaller } from '../../shared/aiQueueProspect.ts';
 
 // Incoming calls ring twice before the AI picks up: Twilio holds the caller on
@@ -820,9 +821,11 @@ export default async function(req) {
         const corporateClient = createClientFromRequest(req).asServiceRole;
         const reception = await corporateClient.entities.RosieReceptionConfig.filter({ configName: 'corporate' });
         if (reception?.[0]?.isActive) {
-          const receptionUrl = 'https://rosieai-investorpage.base44.app/functions/rosieCorporateReception';
-          console.log('[dialerVoiceHandler] Rosie AI 866 corporate receptionist branch');
-          return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Redirect method="POST">'+xmlEscape(receptionUrl)+'</Redirect></Response>', { headers: { 'Content-Type': 'text/xml' } });
+          // Serve the corporate TwiML on the original, Twilio-signed request.
+          // A second webhook redirect can fail signature verification and leave callers
+          // hearing Twilio's generic application-error apology.
+          console.log('[dialerVoiceHandler] Rosie AI 866 corporate receptionist direct handoff');
+          return await rosieCorporateReception(req);
         }
       } catch (e) { console.warn('[dialerVoiceHandler] Corporate reception config unavailable, preserving existing Fronter route',e?.message); }
     }
