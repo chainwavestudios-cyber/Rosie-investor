@@ -277,7 +277,7 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
         ))}
       </div>
 
-      {loading && <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>}
+      {loading && subtab !== 'calls' && subtab !== 'callmetrics' && <div style={{ color: '#4a5568', textAlign: 'center', padding: '40px 0' }}>Loading…</div>}
 
       {/* ── LINE ASSIGNMENT ── */}
       {subtab === 'lines' && !loading && (
@@ -394,12 +394,12 @@ export default function FronterAdminTab({ adminUsername, onOpenLead }) {
       )}
 
       {/* ── CALLS (last 24h with recordings + comments) ── */}
-      {subtab === 'calls' && !loading && (
+      {subtab === 'calls' && (
         <FronterAdminCallsTab adminUsername={adminUsername} fronters={fronters} onOpenLead={onOpenLead} />
       )}
 
       {/* ── CALL METRICS ── */}
-      {subtab === 'callmetrics' && !loading && (
+      {subtab === 'callmetrics' && (
         <FronterCallMetricsTab fronters={fronters} />
       )}
 
