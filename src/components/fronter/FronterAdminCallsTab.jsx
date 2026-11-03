@@ -105,6 +105,7 @@ export function makePreviewCalls(leads) {
         id: 'preview-' + day + '-' + i,
         source: 'presentation_preview', // internal marker, excluded from persisted reports
         callDate: iso,
+        previewDay: day,
         fronterUsername: i % 2 === 0 ? 'Dialer 1' : 'Dialer 2',
         leadId: lead?.id || '',
         leadName: lead ? [lead.firstName,lead.lastName].filter(Boolean).join(' ') : 'Sample Contact ' + (i+1),
