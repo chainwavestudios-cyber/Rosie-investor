@@ -144,7 +144,7 @@ export default async function(req) {
   try {
     const url = new URL(req.url);
 
-    // Keep an untouched copy for the Rosie receptionist: twilioVoiceParams consumes the body.
+    // Preserve the original webhook request for authenticated corporate configuration lookup.
     const rosieRequest = req.clone();
     const params = await twilioVoiceParams(req);
     const to = params.get('To') || '';
