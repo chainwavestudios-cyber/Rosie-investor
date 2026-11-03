@@ -145,6 +145,8 @@ export default async function(req) {
   try {
     const url = new URL(req.url);
 
+    // Keep an untouched copy for the Rosie receptionist: twilioVoiceParams consumes the body.
+    const rosieRequest = req.clone();
     const params = await twilioVoiceParams(req);
     const to = params.get('To') || '';
     const conferenceName = params.get('ConferenceName') || '';
@@ -815,19 +817,51 @@ export default async function(req) {
     // Unless the corporate receptionist is explicitly activated, original Fronter
     // direct-line behavior remains untouched.
     const corporateCalled = (called || to || '').replace(/[^+0-9]/g, '');
-    if (corporateCalled === '+18662908994') {
+    const rosieTakeover = params.get('Mode') === 'rosieReceptionTakeover';
+    if (corporateCalled === '+18662908994' || rosieTakeover) {
+      // Corporate calls can NEVER fall into the debt voicemail or Chris busy-line path.
+      // Ring the browser handsets briefly, then use the existing Rosie instructions.
+      if (rosieTakeover) {
+        const outcome = String(params.get('DialCallStatus') || '').toLowerCase();
+        if (outcome === 'completed' || outcome === 'answered') {
+          return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
+        }
+        console.log('[dialerVoiceHandler] Rosie corporate receptionist answering after two rings:', outcome);
+        return await rosieCorporateReception(rosieRequest);
+      }
       try {
         const { createClientFromRequest } = await import('npm:@base44/sdk@0.8.52');
-        const corporateClient = createClientFromRequest(req).asServiceRole;
-        const reception = await corporateClient.entities.RosieReceptionConfig.filter({ configName: 'corporate' });
+        const service = createClientFromRequest(rosieRequest).asServiceRole;
+        const reception = await service.entities.RosieReceptionConfig.filter({configName:'corporate'});
         if (reception?.[0]?.isActive) {
-          // Serve the corporate TwiML on the original, Twilio-signed request.
-          // A second webhook redirect can fail signature verification and leave callers
-          // hearing Twilio's generic application-error apology.
-          console.log('[dialerVoiceHandler] Rosie AI 866 corporate receptionist direct handoff');
-          return await rosieCorporateReception(req);
+          let identities: string[] = [];
+          try {
+            const assignments = await service.entities.FronterLineAssignment.filter({twilioNumber:'+18662908994'});
+            const assignment = assignments?.items?.[0] || assignments?.[0];
+            if (assignment?.username) identities = [assignment.username];
+            else {
+              const admins = await service.entities.DebtCoachUser.filter({role:'super_admin',isActive:true});
+              identities = (admins || []).map((a:any)=>`${a.username}_inbound`);
+            }
+          } catch(e) { console.warn('[Rosie] Browser extension lookup failed:',e?.message); }
+          identities = [...new Set(identities.filter(Boolean).map((i:string)=>i.replace(/[^a-zA-Z0-9_]/g,'_')))].slice(0,10);
+          if (identities.length) {
+            const appUrl = req.headers.get('X-Base44-App-Url') || 'https://rosieai-investorpage.base44.app';
+            const action = appUrl+'/functions/dialerVoiceHandler?Mode=rosieReceptionTakeover&To=%2B18662908994';
+            const clients = identities.map(i=>'<Client>'+xmlEscape(i)+'</Client>').join('');
+            console.log('[Rosie] Ringing corporate browser handsets for 9 seconds before Rosie:',identities.join(','));
+            return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Dial timeout="9" answerOnBridge="true" action="'+xmlEscape(action)+'" method="POST">'+clients+'</Dial></Response>',{headers:{'Content-Type':'text/xml'}});
+          }
+          // No staffed browser endpoints: still protect the 866 line from debt fallback.
+          console.log('[Rosie] No browser handset assigned; Rosie answering directly');
+          return await rosieCorporateReception(rosieRequest);
         }
-      } catch (e) { console.warn('[dialerVoiceHandler] Corporate reception config unavailable, preserving existing Fronter route',e?.message); }
+        console.warn('[Rosie] Corporate receptionist disabled; answering with explicit notice, not debt');
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Rosie AI. Our reception team is unavailable right now.</Say><Hangup/></Response>',{headers:{'Content-Type':'text/xml'}});
+      } catch (e) {
+        console.error('[Rosie] Corporate routing failed; isolated safe response:',e?.message);
+        return new Response('<?xml version="1.0" encoding="UTF-8"?><Response><Say>Thank you for calling Rosie AI. Please call back shortly.</Say><Hangup/></Response>',{headers:{'Content-Type':'text/xml'}});
+      }
     }
     // Only the selected AI line routes to the Media Stream when enabled.
     // All other numbers keep their standard browser-dialer routing.
