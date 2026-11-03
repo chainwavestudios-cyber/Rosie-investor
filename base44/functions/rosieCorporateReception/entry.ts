@@ -1,5 +1,5 @@
 /**
- * Rosie AI corporate receptionist — isolated from Fronter debt scripts, DAA and Debt Call Coach.
+ * Rosie AI corporate receptionist — standalone voice webhook, isolated from Fronter debt scripts, DAA and Debt Call Coach.
  * Twilio <Gather> speech conversation, service-role storage in RosieReceptionCall, and
  * optional confirmed booking on an explicitly configured Rosie corporate calendar.
  */
