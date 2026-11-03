@@ -494,6 +494,12 @@ function CallRow({ log, isOutbound, leads, lines, onOpenLead, onOpenInvestor, on
               <span style={{ color:'#a78bfa', fontSize:'10px' }}>⏱ {formatDur(isOutbound ? log.duration : log.durationSeconds)}</span>
             )}
           </div>
+          {/* Preview-only comments, never persisted as lead notes. */}
+          {isOutbound && log.previewSource && log.previewComment && (
+            <div style={{ marginTop:'5px', color:'#aab6c8', fontSize:'11px', lineHeight:1.45 }}>
+              <span style={{ color:GOLD, fontWeight:700, marginRight:5 }}>Comments:</span>{log.previewComment}
+            </div>
+          )}
           {/* Convert buttons for outbound */}
           {isOutbound && !log.previewSource && matchedLead && matchedLead.status !== 'not_interested' && !converted && (
             <div style={{ display:'flex', gap:'4px', alignItems:'center', flexWrap:'wrap' }}>
@@ -575,14 +581,39 @@ function makePresentationRows(leads) {
     for(let i=0;i<total;i++){
       const l = leads.length ? leads[Math.floor(rnd()*leads.length)] : null;
       const phone = l?.phone || l?.phone2 || '';
+      const disposition = outcomes[i];
+      const callAt = new Date(Date.UTC(y,m-1,d,Math.floor(minutes[i]/60)+tz,minutes[i]%60));
+      const amount = (min,max) => (Math.floor(rnd() * ((max-min)/500 + 1))*500 + min).toLocaleString('en-US');
+      const transferPhrases = [
+        debt => 'Spoke with prospect; approximately $' + debt + ' in unsecured debt. Transferred to closer.',
+        debt => 'Qualified lead, roughly $' + debt + ' in credit card debt; warm transfer completed.',
+        debt => 'Confirmed about $' + debt + ' outstanding; connected with closing specialist.',
+        debt => '$' + debt + ' estimated debt, interested in reviewing options; transferred.',
+        debt => 'Discussed $' + debt + ' in revolving balances; transfer accepted.',
+      ];
+      const callbackPhrases = [
+        (debt, time) => 'Approx. $' + debt + ' in debt. Requested callback ' + time + '.',
+        (debt, time) => 'Discussed roughly $' + debt + ' outstanding. Follow up ' + time + '.',
+        (debt, time) => '$' + debt + ' debt estimate; unavailable to continue. Call back ' + time + '.',
+        (debt, time) => 'Potentially qualified with $' + debt + ' in balances. Requested return call ' + time + '.',
+        (debt, time) => 'Needs time to review options; estimated debt $' + debt + '. Callback ' + time + '.',
+      ];
+      const pick = variants => variants[Math.floor(rnd()*variants.length)];
+      let previewComment = 'VM';
+      if (disposition === 'transferred') previewComment = pick(transferPhrases)(amount(10000,30000));
+      if (disposition === 'callback') {
+        const callbackAt = new Date(callAt.getTime() + (2 + rnd()*45.5)*60*60*1000);
+        const callbackTime = callbackAt.toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true}) + ' ET';
+        previewComment = pick(callbackPhrases)(amount(10000,50000),callbackTime);
+      }
       rows.push({
         sid: 'presentation-'+day+'-'+i, previewSource:'presentation_preview',
         direction:'outbound', to:phone, from:i%2?'Dialer 2':'Dialer 1',
         previewAgent:i%2?'Dialer 2':'Dialer 1',
         previewName:l ? [l.firstName,l.lastName].filter(Boolean).join(' ') : 'Sample Contact',
         startTime:new Date(Date.UTC(y,m-1,d,Math.floor(minutes[i]/60)+tz,minutes[i]%60)).toISOString(),
-        duration:outcomes[i]==='voicemail'?12+Math.floor(rnd()*47):65+Math.floor(rnd()*380),
-        status:outcomes[i],
+        duration:disposition==='voicemail'?12+Math.floor(rnd()*47):65+Math.floor(rnd()*380),
+        status:disposition, previewComment,
       });
     }
   }
