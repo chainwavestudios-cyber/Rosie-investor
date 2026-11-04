@@ -185,10 +185,12 @@ export default async function(req: Request): Promise<Response> {
       // Server-to-server, authenticated Render diagnostics. Log only provider status and
       // last audio state; never emit credentials, raw transcripts or phone numbers.
       try {
-        const bridgeUrl=(secrets.get('WS_BRIDGE_URL')||'').replace(/^wss:/,'https:').replace(/\\/ws\\/?$/,'').replace(/\\/$/,'');
+        const bridgeUrl=secrets.get('WS_BRIDGE_URL')||'';
+        const endpoint=bridgeUrl ? new URL(bridgeUrl) : null;
+        if(endpoint){endpoint.protocol='https:';endpoint.pathname='/runtime';endpoint.search='';endpoint.hash='';}
         const token=secrets.get('PLAY_AUTH_TOKEN')||'';
-        if(bridgeUrl && token) {
-          const probe=await fetch(bridgeUrl+'/runtime',{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(2300)});
+        if(endpoint && token) {
+          const probe=await fetch(endpoint.toString(),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(2300)});
           if(probe.ok) {
             const runtime:any=await probe.json();
             const last=runtime.lastCall||{};
