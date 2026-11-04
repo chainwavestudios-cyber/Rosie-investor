@@ -21,7 +21,7 @@ export default async function(req:Request) {
     const service=client.asServiceRole;
     const saved=await service.entities.RosieReceptionConfig.filter({configName:'corporate'});
     let config=saved?.[0]||null;
-    const settings={configName:'corporate',isActive:false,phoneNumber:PHONE,notificationEmail:'PR@Rosieai.tech',calendarId:'',calendarTimezone:'America/New_York',meetingDurationMinutes:30};
+    const settings={configName:'corporate',isActive:false,phoneNumber:PHONE,notificationEmail:'PR@Rosieai.tech',calendarId:'',calendarTimezone:'America/New_York',meetingDurationMinutes:30,llmModel:'claude-haiku-4-5-20251001',ttsProvider:'cartesia',cartesiaVoiceId:'a33f7a4c-100f-41cf-a1fd-5822e8fc253f'};
     if(body.action==='save'){
       const data=body.config||{};
       const notificationEmail=String(data.notificationEmail||settings.notificationEmail).trim();
@@ -31,7 +31,9 @@ export default async function(req:Request) {
         configName:'corporate',phoneNumber:PHONE,notificationEmail,
         calendarId,calendarTimezone:'America/New_York',
         meetingDurationMinutes:Math.min(60,Math.max(15,Number(data.meetingDurationMinutes)||30)),
-        isActive:!!data.isActive,updatedBy:actor.username||actor.full_name||'admin'
+        isActive:!!data.isActive,
+        llmModel:'claude-haiku-4-5-20251001',ttsProvider:'cartesia',cartesiaVoiceId:'a33f7a4c-100f-41cf-a1fd-5822e8fc253f',
+        updatedBy:actor.username||actor.full_name||'admin'
       };
       if(config)config=await service.entities.RosieReceptionConfig.update(config.id,update);
       else config=await service.entities.RosieReceptionConfig.create(update);
@@ -39,6 +41,8 @@ export default async function(req:Request) {
     const records=await service.entities.RosieReceptionCall.list('-created_date',100).catch(()=>[]);
     return Response.json({config:{...settings,...config},records,number:PHONE,
       calendarConfigured:!!config?.calendarId,
+      voiceEngineLive:false,
+      voiceEngineNote:'Settings reserved for future Cartesia/Claude runtime integration; the current Twilio call uses scripted prompts and Polly voice.',
       note:'Rosie AI line is isolated from Debt Call Coach and Fronter debt campaigns. Calendar booking requires an authorized Rosie corporate Google calendar ID.'});
   }catch(e:any){console.error('[RosieReceptionAdmin]',e?.message);return Response.json({error:e?.message||'Failed'},{status:500});}
 }

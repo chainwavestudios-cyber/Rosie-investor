@@ -54,6 +54,12 @@ export default function RosieReceptionPanel(){
       <div style={{fontSize:12,lineHeight:1.65,color:'#c8b995'}}>Meeting time zone: America/New_York. {config.calendarId?'A specific corporate calendar is configured; access and permissions must be tested.':'No Rosie corporate calendar selected: Rosie will take meeting requests but will not claim a meeting is booked until a corporate calendar is connected.'}</div>
     </div>
     <div style={group}>
+      <div style={{color:'#d7b679',fontSize:11,fontWeight:800,letterSpacing:1.5,marginBottom:12}}>ROSIE VOICE ENGINE · REQUESTED CONFIGURATION</div>
+      <p style={{fontSize:13,color:'#f3ead9'}}>LLM: Claude Haiku 4.5 (<code>claude-haiku-4-5-20251001</code>)</p>
+      <p style={{fontSize:13,color:'#f3ead9'}}>TTS: Cartesia · Voice <code>a33f7a4c-100f-41cf-a1fd-5822e8fc253f</code></p>
+      <p style={{fontSize:12,color:'#f4c28b',lineHeight:1.6}}>Not yet live on the 866 telephone handler. The current Rosie conversation uses Twilio speech gathering and Polly voice. Do not mistake these saved selections for an active Cartesia/Claude connection.</p>
+    </div>
+    <div style={group}>
       <div style={{color:'#d7b679',fontSize:11,fontWeight:800,letterSpacing:1.5,marginBottom:12}}>WHAT CALLERS HEAR</div>
       <p style={{fontFamily:'Georgia,serif',fontSize:17,lineHeight:1.7,color:'#f3ead9'}}>“Good morning or good afternoon. It’s a beautiful day here at Rosie AI headquarters! I’m Rosie, the official Rosie AI virtual receptionist. May I ask whom I’m speaking with?”</p>
       <p style={{fontSize:12,lineHeight:1.8,color:'#aeb9c8'}}>She then asks whether the caller wants Senior Management, PR/Media, Development, or Stephani Scheidt, our Managing Partner. For now she takes a message or arranges a meeting request, always collecting name, callback number, email and the reason for calling. She confirms the email aloud and asks whether the caller wants an email acknowledgement or meeting reminder. No calls are transferred by this version.</p>
