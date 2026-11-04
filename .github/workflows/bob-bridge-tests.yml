@@ -28,5 +28,13 @@ jobs:
         run: |
           node --check server.js
           node --check managed-voice-agent.cjs
+      - name: Reject accidentally masked source from cross-app exports
+        run: |
+          if grep -n -F '******' server.js browser.test.cjs bargein.test.cjs managed-voice-agent.cjs; then
+            echo "Refusing to test a bridge with redacted literal source"
+            exit 1
+          fi
       - name: Run Fronter and isolated BOB transport tests
         run: npm test
+      - name: Build candidate Render container (no deployment)
+        run: docker build -t rosie-bob-bridge:pr-check .
