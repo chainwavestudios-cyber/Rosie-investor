@@ -57,7 +57,7 @@ export default function RosieReceptionPanel(){
       <div style={{color:'#d7b679',fontSize:11,fontWeight:800,letterSpacing:1.5,marginBottom:12}}>ROSIE VOICE ENGINE · REQUESTED CONFIGURATION</div>
       <p style={{fontSize:13,color:'#f3ead9'}}>LLM: Claude Haiku 4.5 (<code>claude-haiku-4-5-20251001</code>)</p>
       <p style={{fontSize:13,color:'#f3ead9'}}>TTS: Cartesia · Voice <code>a33f7a4c-100f-41cf-a1fd-5822e8fc253f</code></p>
-      <p style={{fontSize:12,color:'#f4c28b',lineHeight:1.6}}>Not yet live on the 866 telephone handler. The current Rosie conversation uses Twilio speech gathering and Polly voice. Do not mistake these saved selections for an active Cartesia/Claude connection.</p>
+      <p style={{fontSize:12,color:'#f4c28b',lineHeight:1.6}}>Configured in the Rosie 866 unanswered-call branch using the existing Fronter media bridge (Deepgram speech recognition, Claude Haiku 4.5 reasoning, Cartesia voice). A successful end-to-end telephone test is still required.</p>
     </div>
     <div style={group}>
       <div style={{color:'#d7b679',fontSize:11,fontWeight:800,letterSpacing:1.5,marginBottom:12}}>WHAT CALLERS HEAR</div>
