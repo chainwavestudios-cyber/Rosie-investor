@@ -68,7 +68,7 @@ function harness(file, settings) {
   const send = (msg) => ws.emit('message', Buffer.from(JSON.stringify(msg)));
   const emitStt = (msg) => sockets[0].emit('message', Buffer.from(JSON.stringify(msg)));
   const clears = () => ws.sent.filter((m) => m.event === 'clear').length;
-  const call = async (path, body) => { const r = res(); await routes[path]({ headers: { authorization: 'Bearer ******' }, body }, r); return r; };
+  const call = async (path, body) => { const r = res(); await routes[path]({ headers: { authorization: 'Bearer ' + 'inert-play' }, body }, r); return r; };
   return {
     start: async () => { send({ event: 'start', start: { streamSid: 'MZ-test', callSid: 'CA-test', customParameters: { streamToken: 'inert-stream' } } }); await settle(40); },
     emitStt, clears, requests, logs,
