@@ -1,0 +1,32 @@
+name: Rosie Fronter + BOB voice bridge checks
+
+on:
+  pull_request:
+    paths:
+      - 'render-ws-bridge/**'
+      - '.github/workflows/bob-bridge-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bridge-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: render-ws-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install bridge dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax checks
+        run: |
+          node --check server.js
+          node --check managed-voice-agent.cjs
+      - name: Run Fronter and isolated BOB transport tests
+        run: npm test
