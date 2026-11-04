@@ -4,6 +4,7 @@ const option = (value, label, model = value) => ({ value, label, model });
 export const pipelineCatalog = {
   llm: [
     option('automatic', 'Automatic (provider model not disclosed)'),
+    option('claude-haiku-4-5-20251001', 'Claude Haiku 4.5'),
     option('gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite (fastest, lowest cost)'),
     option('gemini-2.5-flash', 'Gemini 2.5 Flash (fast, low cost)'),
     option('gemini_3_flash', 'Gemini 3 Flash (fast, low cost)'),
