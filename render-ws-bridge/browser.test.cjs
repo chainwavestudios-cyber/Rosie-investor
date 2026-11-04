@@ -56,7 +56,7 @@ test('signed session tickets authenticate and keep organization ID out of invest
  const init=h.calls.find(x=>x.event==='init');assert.equal(init.leadId,'session-1');
  assert.equal(init.trainingPrompt,'Practice only');assert.ok(!('streamToken' in init));
  assert.equal(h.targets[0].url,'https://bob.invalid/functions/bobMediaRelay');
- assert.equal(h.targets[0].authorization,'Bearer ******');
+ assert.equal(h.targets[0].authorization,'Bearer ' + 'bob-callback-token-0123456789');
 });
 test('cross-tenant org mismatch is rejected before relay invocation',async()=>{
  const h=setup(),ws=h.connect();h.start(ws,{org:'org-B'});await settle();
@@ -91,7 +91,7 @@ test('shared Render leaves the Fronter /ws callback and credential untouched',as
  assert.equal(h.targets.find(v=>v.url.includes('mediaStreamRelay'))?.url,
   'https://fronter.invalid/functions/mediaStreamRelay');
  assert.equal(h.targets.find(v=>v.url.includes('mediaStreamRelay'))?.authorization,
-  'Bearer ******');
+  'Bearer ' + 'legacy-fronter-token-0123456789');
  assert.equal(call.trainingPrompt,undefined);
 });
 
@@ -118,7 +118,7 @@ test('terminal BOB receipts route to BOB even after stream removal',async()=>{
   _bobTransport:true,callSid:'ended-session',leadId:'ended-session',recordingBase64:''});
  assert.ok(res);
  assert.equal(h.targets[0]?.url,'https://bob.invalid/functions/bobMediaRelay');
- assert.equal(h.targets[0]?.authorization,'Bearer ******');
+ assert.equal(h.targets[0]?.authorization,'Bearer ' + 'bob-callback-token-0123456789');
  assert.equal(h.calls[0]._bobTransport,undefined);
 });
 
@@ -128,11 +128,11 @@ test('separate runtime diagnostics do not accept each other’s tokens',()=>{
    json(v){this.body=v;return this}});
  const bob=h.routes.get('/bob/runtime'),investor=h.routes.get('/runtime');
  assert.ok(bob);assert.ok(investor);
- const denied=makeRes();bob({headers:{authorization:'Bearer ******'}},denied);
+ const denied=makeRes();bob({headers:{authorization:'Bearer ' + 'wrong-bob-runtime-token'}},denied);
  assert.equal(denied.code,401);
- const accepted=makeRes();bob({headers:{authorization:'Bearer ******'}},accepted);
+ const accepted=makeRes();bob({headers:{authorization:'Bearer ' + 'bob-runtime-token-0123456789'}},accepted);
  assert.equal(accepted.code,200);assert.equal(accepted.body.ready,true);
  assert.ok(Array.isArray(accepted.body.calls));
- const invDenied=makeRes();investor({headers:{authorization:'Bearer ******'}},invDenied);
+ const invDenied=makeRes();investor({headers:{authorization:'Bearer ' + 'bob-runtime-token-0123456789'}},invDenied);
  assert.equal(invDenied.code,401);
 });
