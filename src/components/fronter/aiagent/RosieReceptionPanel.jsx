@@ -9,7 +9,7 @@ function formatDate(iso){try{return new Date(iso).toLocaleString('en-US',{dateSt
 export default function RosieReceptionPanel(){
   const { sessionUserId, sessionToken } = useDebtCoachAuth();
   const credentials={sessionUserId,sessionToken};
-  const [config,setConfig]=useState(null),[records,setRecords]=useState([]);
+  const [config,setConfig]=useState(null),[records,setRecords]=useState([]),[voiceDiagnostics,setVoiceDiagnostics]=useState(null);
   const [saving,setSaving]=useState(false),[loading,setLoading]=useState(true),[feedback,setFeedback]=useState('');
   const refresh=useCallback(async()=>{
     setFeedback('');
@@ -18,6 +18,7 @@ export default function RosieReceptionPanel(){
       const data=res?.data||res;
       setConfig(data.config);
       setRecords(data.records||[]);
+      setVoiceDiagnostics(data.voiceDiagnostics||null);
     }catch(e){setFeedback(e?.response?.data?.error||e?.message||'Cannot load Rosie corporate receptionist');}
     setLoading(false);
   },[sessionUserId,sessionToken]);
@@ -30,6 +31,7 @@ export default function RosieReceptionPanel(){
       const data=res?.data||res;
       setConfig(data.config);
       setRecords(data.records||[]);
+      setVoiceDiagnostics(data.voiceDiagnostics||null);
       setFeedback('Rosie corporate receptionist settings saved.');
     }catch(e){setFeedback(e?.response?.data?.error||e?.message||'Save failed');}
     setSaving(false);
