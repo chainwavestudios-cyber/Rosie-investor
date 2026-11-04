@@ -23,8 +23,8 @@
  *
  * Auth boundaries (3 separate trust boundaries — never mix):
  *   1. STREAM_AUTH_TOKEN  — Twilio → Bridge: validated in start.customParameters
- *   2. APP_AUTH_TOKEN     — Bridge → Relay: Bearer ****** on HTTP forward
- *   3. PLAY_AUTH_TOKEN    — Relay → Bridge /play: Bearer ****** on playback
+ *   2. APP_AUTH_TOKEN     — Bridge → Relay: Bearer [server-side token] on HTTP forward
+ *   3. PLAY_AUTH_TOKEN    — Relay → Bridge /play: Bearer [server-side token] on playback
  *   The stream token is never forwarded to the app or logged.
  *
  * Env:
@@ -175,7 +175,7 @@ function scheduleBargeIn(session, streamSid) {
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
-// Health check (basic ******)
+// Health check (basic liveness)
 app.get('/health', (req, res) => {
   res.json({ ok: true, activeStreams: streams.size, uptime: process.uptime() });
 });
