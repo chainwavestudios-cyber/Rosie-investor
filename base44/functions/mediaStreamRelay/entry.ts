@@ -58,11 +58,20 @@ async function corporateTurn(base44:any, body:any): Promise<Response> {
   if (firstTurn) return Response.json({action:'speak',text:timeGreeting+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",disposition:''});
   let text = '';
   try {
-    const result:any = await base44.integrations.Core.InvokeLLM({model:ROSIE_MODEL_ID,prompt:ROSIE_PROMPT+'\nConversation so far:\n'+history+'\nCaller: '+caller+'\nRosie (one or two short sentences, one question maximum):'});
-    text = typeof result === 'string' ? result : result?.text || result?.content?.[0]?.text || '';
+    const apiKey = secrets.get('ANTHROPIC_API_KEY') || '';
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY unavailable');
+    const result = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'x-api-key':apiKey,'anthropic-version':'2023-06-01','content-type':'application/json'},
+      body:JSON.stringify({model:ROSIE_MODEL_ID,max_tokens:180,system:ROSIE_PROMPT,messages:[{role:'user',content:'Conversation so far:\n'+history+'\nLatest caller utterance: '+caller+'\nRespond as Rosie. Keep it short, and ask one question maximum.'}]}),
+      signal:AbortSignal.timeout(12000),
+    });
+    if (!result.ok) throw new Error('Anthropic returned '+result.status);
+    const data:any = await result.json();
+    text = data.content?.find((x:any)=>x.type==='text')?.text || '';
   } catch(e:any) {
     console.error('[Rosie media] Claude request failed:',e?.message);
-    return Response.json({action:'speak',text:'I am sorry, I had trouble hearing that. Could you repeat just that part?',disposition:''});
+    return Response.json({action:'speak',text:'I am sorry, I had trouble with that. Could you repeat just that part?',disposition:''});
   }
   text = capSpokenText(text.replace(/\[[^\]]+\]/g,'').trim()) || 'Could you tell me a little more about that?';
   return Response.json({action:'speak',text,disposition:''});
