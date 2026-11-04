@@ -1,5 +1,6 @@
 /** Superadmin control surface for corporate Rosie reception; never reads DebtCallCoach data. */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { secrets } from 'base44:runtime';
 const PHONE='+18662908994';
 export default async function(req:Request) {
   try {
@@ -38,8 +39,22 @@ export default async function(req:Request) {
       if(config)config=await service.entities.RosieReceptionConfig.update(config.id,update);
       else config=await service.entities.RosieReceptionConfig.create(update);
     }else if(body.action!=='status')return Response.json({error:'Unknown action'},{status:400});
+    let voiceDiagnostics:any={status:'not_checked'};
+    try {
+      const bridge=secrets.get('WS_BRIDGE_URL')||'';
+      const token=secrets.get('PLAY_AUTH_TOKEN')||'';
+      if(bridge&&token){
+        const endpoint=new URL(bridge);endpoint.protocol='https:';endpoint.pathname='/runtime';endpoint.search='';endpoint.hash='';
+        const result=await fetch(endpoint.toString(),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(5000)});
+        if(result.ok){
+          const runtime:any=await result.json();
+          const last=runtime.lastCall||{};
+          voiceDiagnostics={status:'connected',cartesiaCredentialPresent:!!runtime.credentials?.cartesia,deepgramCredentialPresent:!!runtime.credentials?.deepgram,bridgeVersion:runtime.version||'',lastAudioEngine:last.tts?.engine||'',lastAudioStatus:last.tts?.state||'',lastBridgeError:String(last.error||last.tts?.error||'').slice(0,180)};
+        }else voiceDiagnostics={status:'bridge_http_'+result.status};
+      }else voiceDiagnostics={status:'bridge_credentials_missing'};
+    }catch{voiceDiagnostics={status:'unavailable'};}
     const records=await service.entities.RosieReceptionCall.list('-created_date',100).catch(()=>[]);
-    return Response.json({config:{...settings,...config},records,number:PHONE,
+    return Response.json({config:{...settings,...config},records,voiceDiagnostics,number:PHONE,
       calendarConfigured:!!config?.calendarId,
       voiceEngineConfigured:true,
       voiceEngineVerified:false,
