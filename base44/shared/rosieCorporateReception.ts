@@ -16,6 +16,8 @@ const reply = (xml: string) => new Response('<?xml version="1.0" encoding="UTF-8
 const clean = (s: unknown, max=MAX_LEN) => String(s||'').replace(/[<>]/g,'').replace(/\s+/g,' ').trim().slice(0,max);
 const yes = (s:string) => /\b(yes|yeah|yep|sure|correct|that's right|please|absolutely|i do|of course)\b/i.test(s);
 const no = (s:string) => /\b(no|nah|nope|incorrect|not right|don't|do not)\b/i.test(s);
+const PUBLIC_OVERVIEW = 'Rosie AI develops tools that help teams practice customer conversations and get useful support while they work. BOB is our conversation training product, Settlement IQ supports debt-industry workflows, and InsureIQ focuses on insurance agent support.';
+const declines = (s:string) => /\b(rather not|prefer not|no email|don't have|do not have|skip|decline|not sharing)\b/i.test(s);
 const msg = (text: string) => '<Say voice="Polly.Joanna-Neural">'+xmlEscape(text)+'</Say>';
 function ask(text:string, retry=false) {
   const action = BASE+'/functions/rosieCorporateReception';
@@ -106,17 +108,18 @@ async function finish(client:any,service:any,config:any,call:any,updates:any) {
   const record={...call,...final};
   const where=record.department||'General';
   const when=record.meetingStartISO?formatInTz(record.meetingStartISO,TZ):record.preferredTime||'not provided';
-  await notify(client,config.notificationEmail||'PR@Rosieai.tech',
+  const staffNotified = await notify(client,config.notificationEmail||'PR@Rosieai.tech',
     'Rosie AI corporate call — '+(record.status==='booked'?'Booked meeting':'New message')+' — '+record.fullName,
     `Rosie AI receptionist call\nName: ${record.fullName}\nPhone: ${record.callerPhone}\nEmail: ${record.email}\nDepartment: ${where}\nRequest: ${record.message||'—'}\nStatus: ${record.status}\nMeeting time/request: ${when}\nEmail reminder consent: ${record.reminderConsent?'yes':'no'}\nCall ID: ${record.callSid}`);
+  console.log('[RosieReception] saved corporate request',record.callSid,'staffNotificationSent',staffNotified);
   if(record.reminderConsent&&record.email){
     await notify(client,record.email,
       record.status==='booked'?'Rosie AI — Your meeting is confirmed':'Rosie AI — We received your request',
       `Hello ${firstName(record.fullName)},\n\n${record.status==='booked'?`Your Rosie AI meeting is confirmed for ${when}.`:'Thank you for speaking with Rosie. We received your meeting/message request. A member of our team will follow up to confirm the details.'}\n\nDepartment: ${where}\n\nRosie AI\nhttps://rosieai.tech`);
   }
   return reply(msg(record.status==='booked'
-    ?'Wonderful. Your appointment is confirmed. Thank you for calling Rosie AI. Have a beautiful day!'
-    :'Perfect. I have passed your details along to our team. Someone will follow up with you. Thank you for calling Rosie AI, and have a beautiful day!')+'<Hangup/>');
+    ?'Your appointment is confirmed. Thank you for calling Rosie AI. Have a beautiful day!'
+    :staffNotified?'I have recorded your request and notified our team. Thank you for calling Rosie AI, and have a lovely day!':'I have recorded your request for our team to follow up. Thank you for calling Rosie AI, and have a lovely day!')+'<Hangup/>');
 }
 export default async function(req:Request) {
   const body=await req.text();
@@ -134,39 +137,45 @@ export default async function(req:Request) {
     const from=toE164(clean(form.get('From'),24));
     if(!call) {
       call=await service.entities.RosieReceptionCall.create({callSid,callerPhone:from,fullName:'',email:'',department:'General / Other',intent:'',message:'',step:'name',status:'in_progress',reminderConsent:false,reminderSent:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
-      return ask(greet()+". It's a beautiful day here at Rosie AI headquarters! I'm Rosie, the official Rosie AI virtual receptionist. May I ask whom I'm speaking with?");
+      return ask(greet()==='Good evening'?"Good evening! Thanks for calling Rosie AI. I'm Rosie, the official AI receptionist. May I ask whom I'm speaking with?":greet()+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the official AI receptionist. May I ask whom I'm speaking with?");
     }
     if(call.step==='done')return reply(msg('Thank you for calling Rosie AI. Goodbye!')+'<Hangup/>');
     const speech=clean(form.get('SpeechResult')||'',400);
-    if(!speech)return ask("I'm sorry, I didn't quite catch that. Could you say that again?");
+    if(!speech)return ask("I'm sorry, I didn't catch that. Could you repeat just that part?");
+    if(/\b(are you (a )?(real person|human)|is this (a )?(person|robot|ai))\b/i.test(speech))return ask("I'm Rosie, the AI receptionist for Rosie AI. How can I help you?");
+    if(/\b(password|social security number|credit card number|one.time (passcode|code)|pin number)\b/i.test(speech))return ask("Please don't share passwords or account security details over the phone. What can our team help you with?");
     const save=async(fields:any)=>{await service.entities.RosieReceptionCall.update(call.id,{...fields,updatedAt:new Date().toISOString()});call={...call,...fields};};
     switch(call.step) {
       case 'name': {
         const fullName=speech.replace(/^(hi|hello|hey|this is|my name is|it's|it is|i'm|i am)\s+/i,'').replace(/[.!?]/g,'').trim();
-        if(fullName.length<3 || fullName.split(/\s+/).filter(Boolean).length<2)return ask('Thank you. May I have both your first and last name, please?');
+        if(declines(speech)){await save({fullName:'Not provided',step:'department'});return ask('No problem. Who would you like to reach, or what can I help you with?');}
+        if(/\b(what (is|does) rosie|tell me about rosie|what (do|can) you do|bob|settlement iq|insureiq)\b/i.test(speech))return ask(PUBLIC_OVERVIEW+' Would you like a specific team to follow up?');
+        if(fullName.length<3 || fullName.split(/\s+/).filter(Boolean).length<2)return ask('May I have your first and last name, please?');
         await save({fullName,step:'department'});
-        return ask('Lovely to meet you, '+firstName(fullName)+'. Would you like our senior management team, public relations, development department, or Steph, our Managing Partner? I can also arrange a meeting or take a message.');
+        return ask('Nice to meet you, '+firstName(fullName)+'. Who would you like to reach, or what can I help you with?');
       }
       case 'department': {
+        if(/\b(what (is|does) rosie|what (do|can) you do|bob|settlement iq|insureiq)\b/i.test(speech))return ask(PUBLIC_OVERVIEW+' Would you like more information or a follow-up?');
         const dep=department(speech),intent=preferredIntent(speech);
         await save({department:dep,intent,step:intent?'phone':'intent'});
-        return ask(intent?'Of course. I can '+(intent==='meeting'?'help arrange a meeting':'pass along a message')+'. What is the best callback phone number? You can say same number if you are calling from the best number.':'Absolutely. Would you like to leave a message for '+dep+' or arrange a meeting?');
+        return ask(intent?'Of course. Would you like us to call you back on the number you are calling from, or a different number?':'Of course. Would you prefer to leave a message for '+dep+' or request a meeting?');
       }
       case 'intent': {
         const intent=preferredIntent(speech);
         if(!intent)return ask('No problem. Should I take a message or arrange a meeting?');
         await save({intent,step:'phone'});
-        return ask('Certainly. What is the best callback phone number? You can say same number if the number you are calling from is best.');
+        return ask('Certainly. Would you like us to call the number you are calling from, or a different number?');
       }
       case 'phone': {
         const phone=normalizePhone(speech,call.callerPhone||'');
-        if(!/^\+[1-9]\d{7,14}$/.test(phone))return ask('Could you repeat your callback phone number, including the area code?');
+        if(!/^\+[1-9]\d{7,14}$/.test(phone))return ask('Could you give me a callback number with area code?');
         await save({callerPhone:phone,step:'email'});
         return ask('Thank you. What is the best email address for the team to reach you? Feel free to spell it slowly.');
       }
       case 'email': {
+        if(declines(speech)){await save({email:'',step:call.intent==='meeting'?'meeting_purpose':'message'});return ask(call.intent==='meeting'?'No problem. What would you like to discuss at the meeting?':'No problem, we can use your callback number. What message would you like me to pass along?');}
         const email=await normalizeEmail(speech,client);
-        if(!email)return ask("I couldn't quite make out the email address. Could you say it slowly, for example name at company dot com?");
+        if(!email)return ask("I didn't catch that email address. Could you spell it slowly, or say skip if you'd prefer a phone callback?");
         await save({email,step:'email_confirm'});
         return ask('Just to confirm, I heard '+email.replace('@',' at ').replace(/\./g,' dot ')+'. Is that correct?');
       }
@@ -203,6 +212,7 @@ export default async function(req:Request) {
         return ask('Thank you. Would you like an email acknowledging your message?');
       }
       case 'reminder': {
+        if(!call.email)return await finish(client,service,config,call,{reminderConsent:false,status:call.status==='in_progress'?'message':call.status});
         if(!yes(speech)&&!no(speech))return ask('Would you like an email from Rosie AI about this, yes or no?');
         return await finish(client,service,config,call,{reminderConsent:yes(speech),status:call.status==='in_progress'?'message':call.status});
       }
