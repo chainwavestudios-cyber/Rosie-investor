@@ -41,8 +41,9 @@ export default async function(req:Request) {
     const records=await service.entities.RosieReceptionCall.list('-created_date',100).catch(()=>[]);
     return Response.json({config:{...settings,...config},records,number:PHONE,
       calendarConfigured:!!config?.calendarId,
-      voiceEngineLive:false,
-      voiceEngineNote:'Settings reserved for future Cartesia/Claude runtime integration; the current Twilio call uses scripted prompts and Polly voice.',
+      voiceEngineConfigured:true,
+      voiceEngineVerified:false,
+      voiceEngineNote:'866 unanswered calls now route to the Fronter media bridge with Deepgram, Claude Haiku 4.5, and the selected Cartesia voice. End-to-end live call and credential checks remain unverified.',
       note:'Rosie AI line is isolated from Debt Call Coach and Fronter debt campaigns. Calendar booking requires an authorized Rosie corporate Google calendar ID.'});
   }catch(e:any){console.error('[RosieReceptionAdmin]',e?.message);return Response.json({error:e?.message||'Failed'},{status:500});}
 }
