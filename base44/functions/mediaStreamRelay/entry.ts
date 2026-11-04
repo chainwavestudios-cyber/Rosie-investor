@@ -35,6 +35,38 @@ import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
 import { enforceOutboundHandoff, OUTBOUND_QUEUE_NOTICE } from '../../shared/aiOutboundHandoff.ts';
 import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
 
+// Dedicated corporate profile; never read or mutate debt-campaign leads for this line.
+const ROSIE_PROFILE = 'rosie_corporate';
+const ROSIE_PROMPT = `INTRODUCTION: You are Rosie, the official AI receptionist for Rosie AI at rosieai.tech. Never claim to be human.
+SPEAKING PROMPT: Warm, friendly, confident executive receptionist. Sound natural and attentive.
+SPEAKING RULES: One question at a time. One or two short sentences. Listen before responding. No long menus.
+HOW YOU TALK: React naturally with varied wording, never force filler or pretend to be a human.
+GUARDRAILS: No confidential customer, investor, debt or insurance records. Do not ask for passwords, payment cards, Social Security numbers, or access codes. Never promise a live transfer, a booking, an email or a callback date without verified service success. Do not invent product features, partnerships or endorsements.
+CONTEXT: Rosie AI builds AI tools for training and live assistance. BOB is a customer-conversation simulator; Settlement IQ serves debt-industry workflows; InsureIQ serves insurance agency workflows. Departments: Senior Management, Public Relations, Development, or Stephani Scheidt (Managing Partner). Corporate line +1 (866) 290-8994. The receptionist can accept a message or meeting request for staff follow-up.
+OBJECTIVES: Introduce yourself with a time-appropriate greeting: It is a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with? Gather full name if willing, the department or person's name, what they need, callback number, optional email, and if a meeting request, preferred time and reason. Ask if they consent to an emailed acknowledgement. Do not claim that any information is saved, emailed or booked merely by speaking. If information is declined, proceed politely. Wrap up with an accurate next step.
+EXAMPLES: Caller asks for Stephani: Of course. Would you like to request a meeting, or leave a message for Stephani's team? Caller asks about BOB: BOB lets employees practice real customer conversations before handling calls. Caller asks for a transfer: I can take a message for that team and have someone follow up.
+Use ordinary spoken words only, without formatting. No sales pressure. Stay in the corporate receptionist role.`;
+const ROSIE_VOICE_ID = 'a33f7a4c-100f-41cf-a1fd-5822e8fc253f';
+const ROSIE_MODEL_ID = 'claude-haiku-4-5-20251001';
+async function corporateTurn(base44:any, body:any): Promise<Response> {
+  const turns = Array.isArray(body.conversation) ? body.conversation : [];
+  const history = turns.slice(-18).map((m:any) => (m.role === 'user' ? 'Caller' : 'Rosie') + ': ' + String(m.content||'').slice(0,500)).join('\n');
+  const caller = String(body.transcript || '').slice(0,700);
+  const hour = Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
+  const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstTurn = !turns.some((m:any)=>m.role !== 'user' && String(m.content||'').trim());
+  if (firstTurn) return Response.json({action:'speak',text:timeGreeting+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",disposition:''});
+  let text = '';
+  try {
+    const result:any = await base44.integrations.Core.InvokeLLM({model:ROSIE_MODEL_ID,prompt:ROSIE_PROMPT+'\nConversation so far:\n'+history+'\nCaller: '+caller+'\nRosie (one or two short sentences, one question maximum):'});
+    text = typeof result === 'string' ? result : result?.text || result?.content?.[0]?.text || '';
+  } catch(e:any) {
+    console.error('[Rosie media] Claude request failed:',e?.message);
+    return Response.json({action:'speak',text:'I am sorry, I had trouble hearing that. Could you repeat just that part?',disposition:''});
+  }
+  text = capSpokenText(text.replace(/\[[^\]]+\]/g,'').trim()) || 'Could you tell me a little more about that?';
+  return Response.json({action:'speak',text,disposition:''});
+}
 const VALID_ACTIONS = ['speak', 'transfer', 'end_call'];
 const VALID_DISPOSITIONS = ['interested', 'not_interested', 'callback_requested', 'transferred', 'opt_out', 'no_response', 'technical_failure'];
 
@@ -139,6 +171,11 @@ export default async function(req: Request): Promise<Response> {
     const base44 = createClientFromRequest(req).asServiceRole;
 
     // ── Route to event handler ──
+    if (body.leadId === ROSIE_PROFILE && event === 'init') return Response.json({greeting:'',llmModel:ROSIE_MODEL_ID,llmRequestModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',sttModel:'nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID,ttsSynthesisModel:'sonic-3.6',pipeline:{llmModel:ROSIE_MODEL_ID,llmRequestModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',sttModel:'nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID,ttsSynthesisModel:'sonic-3.6'},leadId:ROSIE_PROFILE,inboundMode:true});
+    if (body.leadId === ROSIE_PROFILE && event === 'turn') return await corporateTurn(base44,body);
+    if (body.leadId === ROSIE_PROFILE && event === 'transfer') return Response.json({ok:false,error:'Corporate transfers not enabled'});
+    if (body.leadId === ROSIE_PROFILE && event === 'end_call') return Response.json({ok:true});
+    if (body.leadId === ROSIE_PROFILE && event === 'stop') return Response.json({ok:true});
     if (event === 'init') return await handleInit(base44, body);
     if (event === 'turn') return await handleTurn(base44, body);
     if (event === 'transfer') return await handleTransfer(req, base44, body);

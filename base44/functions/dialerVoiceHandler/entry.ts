@@ -826,6 +826,20 @@ export default async function(req) {
           return new Response('<Response><Hangup/></Response>', {headers:{'Content-Type':'text/xml'}});
         }
         console.log('[dialerVoiceHandler] Rosie corporate receptionist answering after two rings:', outcome);
+        // Reuse Fronter's live Deepgram/STT -> LLM -> Cartesia/TTS media bridge.
+        // Only Twilio's call transport is used; no Polly or Gather is involved.
+        const { secrets } = await import('base44:runtime');
+        const bridgeUrl = secrets.get('WS_BRIDGE_URL') || '';
+        const streamToken = secrets.get('STREAM_AUTH_TOKEN') || '';
+        if (bridgeUrl) {
+          const wsUrl = new URL(bridgeUrl);
+          wsUrl.protocol = 'wss:'; wsUrl.search = ''; wsUrl.hash = ''; wsUrl.pathname = '/ws';
+          const streamXml = '<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="' + xmlEscape(wsUrl.toString()) + '" name="rosie-corporate-incoming"><Parameter name="leadId" value="rosie_corporate" />' + (streamToken ? '<Parameter name="streamToken" value="' + xmlEscape(streamToken) + '" />' : '') + '</Stream></Connect></Response>';
+          console.log('[Rosie] Corporate call connected to Fronter media bridge');
+          return new Response(streamXml,{headers:{'Content-Type':'text/xml'}});
+        }
+        console.error('[Rosie] WS_BRIDGE_URL missing; media pipeline unavailable');
+        return new Response('<Response><Say>Rosie AI reception is temporarily unavailable. Please call back shortly.</Say><Hangup/></Response>',{headers:{'Content-Type':'text/xml'}});
         const { default: handleRosie } = await import('../../shared/rosieCorporateReception.ts');
         return await handleRosie(rosieRequest);
       }
