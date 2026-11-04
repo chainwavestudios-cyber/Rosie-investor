@@ -1,0 +1,2 @@
+## Shared Render transport note (November 4, 2026)
+The **preferred deployment** is to add BOB's isolated `/bob/ws` browser transport to the **existing Fronter Render service**, with BOB-only callbacks, tickets, runtime credentials and metering. Do not spin up a second permanent Render service by default. The candidate server implementation and 39/39 synthetic tests are in standalone BOB. The live Fronter Render image has **not** been upgraded; see `BOB_SHARED_RENDER_BRIDGE_HANDOFF.md` and Core's BOB Shared Render integration document before cutover.
