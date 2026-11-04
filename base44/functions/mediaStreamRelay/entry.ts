@@ -55,7 +55,8 @@ async function corporateTurn(base44:any, body:any): Promise<Response> {
   const hour = Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstTurn = !turns.some((m:any)=>m.role !== 'user' && String(m.content||'').trim());
-  if (firstTurn) return Response.json({action:'speak',text:timeGreeting+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",disposition:''});
+  // The bridge already speaks Rosie's opening at init. Never replay the greeting on turn one.
+  if (firstTurn && !caller.trim()) return Response.json({action:'speak',text:'Hello, are you still there?',disposition:''});
   let text = '';
   try {
     const apiKey = secrets.get('ANTHROPIC_API_KEY') || '';
