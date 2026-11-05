@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test server.test.cjs browser.test.cjs pipeline.test.cjs bargein.test.cjs managed-voice-agent.test.cjs",
+    "test": "node --test *.test.cjs",
     "test:pipeline": "node --test pipeline.test.cjs bargein.test.cjs"
   },
   "engines": {
