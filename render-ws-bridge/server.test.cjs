@@ -16,7 +16,7 @@ function harness({ holdStart = false, relayStatus = 200 } = {}) {
     constructor(options) { super(); this.options = options; this.clients = new Set(); if(!server)if(!server)server = this; }
   }
   const context = {
-    require(name) {if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}};
+    require(name) {if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}};
       if (name === 'express') return express;
       if (name === 'http') return { createServer: () => ({ listen() {}, close() {}, on() {} }) };
       if (name === 'crypto') return require('node:crypto');
