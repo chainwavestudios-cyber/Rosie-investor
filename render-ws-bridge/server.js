@@ -23,8 +23,8 @@
  *
  * Auth boundaries (3 separate trust boundaries — never mix):
  *   1. STREAM_AUTH_TOKEN  — Twilio → Bridge: validated in start.customParameters
- *   2. APP_AUTH_TOKEN     — Bridge → Relay: Bearer header on HTTP forward
- *   3. PLAY_AUTH_TOKEN    — Relay → Bridge /play: Bearer header on playback
+ *   2. APP_AUTH_TOKEN     — Bridge → Relay: Bearer [server-side token] on HTTP forward
+ *   3. PLAY_AUTH_TOKEN    — Relay → Bridge /play: Bearer [server-side token] on playback
  *   The stream token is never forwarded to the app or logged.
  *
  * Env:
@@ -40,12 +40,22 @@
 const express = require('express');
 const http = require('http');
 const { WebSocket, WebSocketServer } = require('ws');
+const nodeCrypto = require('crypto');
+const {startPlainBobAgent} = require('./managed-voice-agent.cjs');
 
 // ── Config ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT || 10000);
 const WS_PATH = process.env.WS_PATH || '/ws';
+const BOB_BRIDGE_SESSION_SECRET = process.env.BOB_BRIDGE_SESSION_SECRET || '';
+const BOB_ALLOWED_ORIGINS = new Set((process.env.BOB_ALLOWED_ORIGINS || '').split(',').map(s=>s.trim()).filter(Boolean));
+// Original Fronter/Twilio callback stays unchanged. BOB has a separate
+// backend, credential and explicit opt-in while sharing this audio process.
 const APP_WEBHOOK_URL = process.env.APP_WEBHOOK_URL || '';
 const APP_AUTH_TOKEN = process.env.APP_AUTH_TOKEN || '';
+const BOB_BRIDGE_ENABLED = process.env.BOB_BRIDGE_ENABLED === 'true';
+const BOB_APP_WEBHOOK_URL = process.env.BOB_APP_WEBHOOK_URL || '';
+const BOB_APP_AUTH_TOKEN = process.env.BOB_APP_AUTH_TOKEN || '';
+const BOB_PLAY_AUTH_TOKEN = process.env.BOB_PLAY_AUTH_TOKEN || '';
 const STREAM_AUTH_TOKEN = process.env.STREAM_AUTH_TOKEN || '';
 const PLAY_AUTH_TOKEN = process.env.PLAY_AUTH_TOKEN || '';
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || '';
@@ -73,6 +83,8 @@ if (NODE_ENV === 'production') {
   if (!PLAY_AUTH_TOKEN) missing.push('PLAY_AUTH_TOKEN');
   if (!APP_WEBHOOK_URL) missing.push('APP_WEBHOOK_URL');
   if (!DEEPGRAM_API_KEY) missing.push('DEEPGRAM_API_KEY');
+  // BOB is optional and cannot prevent legacy Fronter calls from starting.
+  // Its route fails closed when disabled or unconfigured (see bobBridgeReady).
   if (missing.length) {
     console.error('[bridge] FATAL: missing required secrets:', missing.join(', '));
     process.exit(1);
@@ -93,7 +105,7 @@ const PIPELINE_VERSION = 'selector-runtime-v1';
 const TTS_DIAGNOSTICS_VERSION = 'tts-diagnostics-v2';
 let lastCall = null;
 const runtimeSnapshot = session => ({
-  callSid: session.callSid, state: session.state,
+  browser: !!session.browser, callSid: session.callSid, state: session.state,
   startedAt: new Date(session.startedAt).toISOString(), observedAt: new Date().toISOString(),
   selected: session.config, stt: session.stt, tts: session.tts, llm: session.llm, error: session.error,
   turn: session.turn || null, turnSamples: session.turnSamples || [],
@@ -186,7 +198,8 @@ app.get('/runtime', (req, res) => {
   res.set('Cache-Control', 'no-store');
   return res.json({ version: PIPELINE_VERSION, diagnosticsVersion: TTS_DIAGNOSTICS_VERSION, checkedAt: new Date().toISOString(),
     credentials: { deepgram: !!DEEPGRAM_API_KEY, elevenlabs: !!ELEVENLABS_API_KEY, cartesia: !!CARTESIA_API_KEY },
-    calls: Array.from(streams.values(), runtimeSnapshot), lastCall,
+    calls: Array.from(streams.values()).filter(s=>!s.browser).map(runtimeSnapshot),
+    lastCall: lastCall?.browser?null:lastCall,
   });
 });
 
@@ -206,6 +219,8 @@ app.post('/play', async (req, res) => {
   let { payload } = req.body || {};
   const s = streamSid && streams.get(streamSid);
   if (!s) return res.status(404).json({ error: 'stream_not_found' });
+  // Fronter's privileged /play token is never an authorization for BOB audio.
+  if (s.browser) return res.status(403).json({error:'product_scope_mismatch'});
   if (text) {
     payload = await generateTTS(String(text), s.config, s);
     if (!payload) return res.status(502).json({ error: 'tts_failed' });
@@ -219,7 +234,9 @@ app.post('/play', async (req, res) => {
 
 // ── HTTP + WebSocket server ───────────────────────────────────────────────
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: WS_PATH });
+// Explicitly dispatch upgrades: two WebSocketServer({server,path}) handlers
+// compete for every upgrade and the first one rejects the other's route.
+const wss = new WebSocketServer({ noServer:true, path:WS_PATH });
 
 wss.on('connection', (ws) => {
   let streamSid = null;
@@ -286,10 +303,153 @@ wss.on('connection', (ws) => {
   ws.on('error', (e) => log('ws error', e?.message));
 });
 
+
+// ── BOB browser transport adapter (isolated from Twilio /ws) ─────────────
+// Session ticket is short lived and signed by the BOB backend. The same
+// Twilio μ-law framing is used internally so STT, turn timing, TTS playback,
+// generations, barge-in, and mark acknowledgements reuse the proven engine.
+function bobBridgeReadiness(){
+ const cfg={enabled:BOB_BRIDGE_ENABLED,callback:!!BOB_APP_WEBHOOK_URL,
+  callbackCredential:BOB_APP_AUTH_TOKEN.length>=24,runtimeCredential:BOB_PLAY_AUTH_TOKEN.length>=24,
+  sessionSecret:BOB_BRIDGE_SESSION_SECRET.length>=32,origins:BOB_ALLOWED_ORIGINS.size>0,
+  deepgram:!!DEEPGRAM_API_KEY};
+ const scopedCallback=(()=>{try{const u=new URL(BOB_APP_WEBHOOK_URL);return u.protocol==='https:' && /\/functions\/bobMediaRelay$/.test(u.pathname)}catch{return false}})();
+ return {enabled:cfg.enabled,ready:cfg.enabled && Object.values(cfg).every(Boolean)&&scopedCallback,
+  checks:{...cfg,scopedCallback}};
+}
+// The existing /runtime stays Fronter-only. BOB's health and diagnostics use
+// a distinct token and never expose Fronter calls or tenant detail.
+app.get('/bob/runtime',(req,res)=>{
+ if(!BOB_PLAY_AUTH_TOKEN||req.headers.authorization!==`Bearer ${BOB_PLAY_AUTH_TOKEN}`)
+  return res.status(401).json({error:'unauthorized'});
+ const state=bobBridgeReadiness();
+ res.set('Cache-Control','no-store');
+ return res.status(state.ready?200:503).json({version:PIPELINE_VERSION,ready:state.ready,
+  credentials:{deepgram:!!DEEPGRAM_API_KEY,cartesia:!!CARTESIA_API_KEY,elevenlabs:!!ELEVENLABS_API_KEY},
+  calls:Array.from(streams.values()).filter(s=>s.browser).map(runtimeSnapshot),
+  lastCall:lastCall?.browser?lastCall:null});
+});
+const bobWss = new WebSocketServer({noServer:true,path:'/bob/ws'});
+const plainBobSessions=new Map();
+// ONE HTTP upgrade listener owns both mutually exclusive paths. Fronter's
+// legacy /ws handshake and BOB's /bob/ws handshake never compete.
+if(WS_PATH==='/bob/ws')throw new Error('Legacy Twilio path may not overlap BOB route');
+server.on('upgrade',(req,socket,head)=>{
+ let pathname='';
+ try{pathname=new URL(req.url||'/', 'http://localhost').pathname}catch{socket.destroy();return}
+ const handler=pathname===WS_PATH?wss:pathname==='/bob/ws'?bobWss:null;
+ if(!handler){socket.destroy();return}
+ handler.handleUpgrade(req,socket,head,ws=>handler.emit('connection',ws,req));
+});
+const bobTicketReplay=new Map();
+function verifyBobTicket(token){
+ if(!BOB_BRIDGE_SESSION_SECRET || BOB_BRIDGE_SESSION_SECRET.length<32)throw Error('BOB ticket secret is unconfigured');
+ const parts=String(token||'').split('.');
+ if(parts.length!==2 || !/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[0-9a-f]{64}$/.test(parts[1]))throw Error('Malformed BOB ticket');
+ const signed=nodeCrypto.createHmac('sha256',BOB_BRIDGE_SESSION_SECRET).update(parts[0]).digest('hex');
+ if(!nodeCrypto.timingSafeEqual(Buffer.from(signed,'hex'),Buffer.from(parts[1],'hex')))throw Error('Invalid BOB signature');
+ const decoded=JSON.parse(Buffer.from(parts[0],'base64url').toString('utf8'));
+ const now=Math.floor(Date.now()/1000);
+ if(!decoded || decoded.app_key!=='bob' || !/^[a-zA-Z0-9._-]{1,100}$/.test(decoded.org_id||'') ||
+    !/^[a-zA-Z0-9._-]{1,100}$/.test(decoded.session_id||'') ||
+    !Number.isFinite(decoded.issued_at) || !Number.isFinite(decoded.expires_at) ||
+    decoded.issued_at>now+30 || decoded.expires_at<now ||
+    decoded.expires_at>decoded.issued_at+300 || decoded.expires_at>now+300)throw Error('BOB ticket expired or invalid');
+ // One-time ticket check on this staging instance only; shared replay DB
+ // is required when running multiple bridge replicas.
+ for(const [id,expiration] of bobTicketReplay){if(expiration<now)bobTicketReplay.delete(id)}
+ if(bobTicketReplay.has(parts[1]))throw Error('BOB ticket replay');
+ if(bobTicketReplay.size>4000)throw Error('BOB ticket replay cache saturated');
+ bobTicketReplay.set(parts[1],decoded.expires_at);
+ return decoded;
+}
+bobWss.on('connection',(ws,req)=>{
+ if(!bobBridgeReadiness().ready){ws.close(1013,'BOB bridge disabled or unconfigured');return}
+ const origin=req.headers.origin||'';
+ if(!BOB_ALLOWED_ORIGINS.has(origin)){ws.close(1008,'BOB origin rejected');return}
+ let streamSid=null,authenticated=false;
+ const authTimer=setTimeout(()=>{if(!authenticated)ws.close(1008,'BOB ticket required')},5000);
+ ws.isAlive=true;
+ ws.on('pong',()=>{ws.isAlive=true});
+ let sessionTimer=null;
+ ws.on('message',async(raw)=>{
+  let m;try{m=JSON.parse(raw.toString())}catch{return}
+  if(!authenticated){
+   if(m.event!=='start')return;
+   try{
+    const ticket=verifyBobTicket(m.ticket);
+    if(m.sessionId!==ticket.session_id || m.organizationId!==ticket.org_id)
+      throw Error('BOB session/organization mismatch');
+    if(ticket.mode_id && !['plain','jacked_up'].includes(ticket.mode_id))
+      throw Error('BOB session mode not authorized');
+    authenticated=true;clearTimeout(authTimer);
+    streamSid=ticket.session_id;
+    const trainingPrompt=String(m.trainingPrompt||'').slice(0,12000);
+    if(ticket.mode_id==='plain'){
+      // Base44 verifies the signed grant and returns only the pinned settings.
+      // No Google Gemini key is needed: Deepgram manages Google internally.
+      const init=await callRelay({_bobTransport:true,event:'init',streamSid,callSid:streamSid,leadId:streamSid,trainingPrompt});
+      if(init?.serviceTier!=='plain'||init.voiceAgentSettings?.agent?.think?.provider?.type!=='google')
+       throw Error('Plain BOB signed session does not match the managed Deepgram provider');
+      if(ws.readyState!==WebSocket.OPEN)return;
+      const agent=startPlainBobAgent({browser:ws,sessionId:streamSid,settings:init.voiceAgentSettings,
+       apiKey:DEEPGRAM_API_KEY,WebSocket,
+       emit:payload=>{if(ws.readyState===WebSocket.OPEN)sendToTwilio(ws,payload)},
+       reportUsage:callRelay,reportStop:callRelay,
+       onExit:id=>plainBobSessions.delete(id)});
+      plainBobSessions.set(streamSid,agent);
+    }else{
+      // Existing Jacked Up BOB/Fronter engine: independent Deepgram STT,
+      // Anthropic dialogue and Cartesia speech. No voice-agent bundle.
+      handleStreamStart(ws,streamSid,{
+       streamSid,callSid:streamSid,
+       customParameters:{leadId:streamSid,organizationId:ticket.org_id,browser:true,trainingPrompt}
+      });
+    }
+    const maxSeconds=Number(ticket.max_session_seconds);
+    sessionTimer=setTimeout(()=>{try{ws.close(1000,'Authorized BOB time limit')}catch{}},
+      Number.isFinite(maxSeconds)?Math.max(60,Math.min(1800,maxSeconds))*1000:1800000);
+    ws.send(JSON.stringify({event:'accepted',sessionId:streamSid,codec:'mulaw',sampleRate:8000}));
+   }catch(e){log('[BOB] browser auth rejected:',e?.message);ws.close(1008,'BOB authentication failed')}
+   return;
+  }
+  if(m.sessionId!==streamSid)return;
+  const managed=plainBobSessions.get(streamSid);
+  if(m.event==='audio' && typeof m.payload==='string' && m.payload.length<=32768 &&
+     /^[A-Za-z0-9+/=]+$/.test(m.payload)){
+     if(managed)managed.audio(m.payload);else handleInboundAudio(streamSid,m.payload);
+  }
+  if(m.event==='mark'&&!managed)handleMark(streamSid,{name:String(m.name||'browser_playback_complete').slice(0,80)});
+  if(m.event==='stop'){if(managed)managed.finish();else handleStreamStop(streamSid)}
+ });
+ ws.on('close',()=>{clearTimeout(authTimer);if(sessionTimer)clearTimeout(sessionTimer);
+   if(streamSid){const managed=plainBobSessions.get(streamSid);if(managed)managed.finish();else handleStreamStop(streamSid)}});
+ ws.on('error',e=>log('[BOB] browser socket error',String(e?.message||'')));
+});
+// ── End BOB browser transport ────────────────────────────────────────────
+
+// Per-operation provider consumption observations. Provider billing remains
+// 'unavailable' until external invoice/receipt reconciliation. Never infer price.
+function meterTTS(session,streamSid,text){
+ if(!session.browser||!text||!session.tts)return;
+ const usage=session.tts,seq=++session.ttsMeterSequence;
+ const provider=usage.engine||session.config.ttsEngine||'unknown';
+ const chars=[...String(text)].length;
+ callRelay({event:'usage',streamSid,callSid:session.callSid,leadId:session.leadId,
+  usage:{service:'bob_tts',provider,model:usage.model||'unavailable',
+   synthesisCharacters:chars,providerUnits:chars,providerRequestId:usage.providerRequestId||'',
+   generationState:usage.state||'unverified',
+   providerUnitType:'submitted_characters_unreconciled',
+   requestId:'tts:'+streamSid+':'+seq}})
+ .catch(e=>log('[BOB] TTS meter outbox unavailable',String(e?.message||'').slice(0,130)));
+}
 // ── Stream lifecycle ────────────────────────────────────────────────────
 async function handleStreamStart(ws, streamSid, start) {
   const leadId = start.customParameters?.leadId || '';
   const session = {
+    browser:!!start.customParameters?.browser,
+    trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
+    sttBytesSent:0,ttsMeterSequence:0,
     ws,
     callSid: start.callSid,
     leadId,
@@ -310,7 +470,8 @@ async function handleStreamStart(ws, streamSid, start) {
 
   // Load the selected pipeline FIRST; environment defaults must not override selectors.
   try {
-    const initResp = await callRelay({ event: 'init', streamSid, callSid: start.callSid, leadId });
+    const initResp = await callRelay({ event: 'init', streamSid, callSid: start.callSid, leadId,
+      ...(session.browser?{trainingPrompt:session.trainingPrompt}:{}) });
     if (session.stopping) return;
     if (!initResp.pipeline?.valid || initResp.pipeline.version !== PIPELINE_VERSION) throw new Error('Relay pipeline is missing or outdated; update the relay.');
     session.leadId = initResp.leadId || leadId;
@@ -321,6 +482,7 @@ async function handleStreamStart(ws, streamSid, start) {
     // Generate and play greeting — stream via Deepgram for lowest latency
     if (initResp.greeting) {
       session.conversation.push({ role: 'assistant', content: initResp.greeting });
+      if(session.browser)sendToTwilio(session.ws,{event:'bob_transcript',role:'bob',text:initResp.greeting});
       session.state = 'speaking';
       session.generation++;
       const gen = session.generation;
@@ -342,11 +504,13 @@ async function handleStreamStart(ws, streamSid, start) {
         session.state = 'listening';
         clearSpeakingWatchdog(session);
       }
+      if(ok || session.tts?.state==='accepted')meterTTS(session,streamSid,initResp.greeting);
     }
   } catch (e) {
     session.state = 'error';
     session.error = e?.message;
     log('init failed', e?.message);
+    if(session.browser)sendToTwilio(session.ws,{event:'bob_error',message:String(e?.message||'Training initialization failed').slice(0,180)});
   }
 }
 
@@ -365,6 +529,7 @@ function handleInboundAudio(streamSid, audioPayload) {
     }
     const raw = Buffer.from(audioPayload, 'base64');
     session.dgWs.send(raw);
+    session.sttBytesSent+=raw.length;
   }
 }
 
@@ -403,12 +568,22 @@ async function handleStreamStop(streamSid) {
       recordingBase64 = session.recordingBuffer.join('');
     }
     try {
+      if(session.browser && session.sttBytesSent>0){
+        await callRelay({event:'usage',streamSid,callSid:session.callSid,leadId:session.leadId,
+         _bobTransport:session.browser,
+         usage:{service:'bob_stt',provider:'deepgram',model:session.stt?.model||session.config?.sttModel||'unknown',
+          audioSeconds:session.sttBytesSent/8000,providerUnits:session.sttBytesSent/8000,
+          providerRequestId:session.sttRequestId||'',
+          providerUnitType:'audio_seconds_forwarded_unreconciled',requestId:'stt:'+streamSid}});
+      }
       await callRelay({
         event: 'stop',
+        _bobTransport:session.browser,
         streamSid,
         callSid: session.callSid,
-        conversation: session.conversation,
-        recordingBase64,
+        conversation: session.browser?[]:session.conversation,
+        ...(session.browser?{durationSeconds:Math.max(0,Math.round((Date.now()-session.startedAt)/1000))}:{}),
+        recordingBase64:session.browser?'':recordingBase64,
         leadId: session.leadId,
       });
     } catch (e) {
@@ -451,12 +626,18 @@ function openDeepgram(session, streamSid) {
     headers: { Authorization: `Token ${DEEPGRAM_API_KEY}` },
   });
 
+  dgWs.on('upgrade',(response)=>{
+    const id=String(response?.headers?.['dg-request-id']||'');
+    if(/^[a-z0-9-]{8,80}$/i.test(id))session.sttRequestId=id;
+  });
   dgWs.on('open', () => { session.stt.state = 'connected'; session.stt.at = new Date().toISOString(); log('deepgram connected', streamSid, sttModel); });
 
   dgWs.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
+    if(msg?.metadata?.request_id && /^[a-z0-9-]{8,80}$/i.test(String(msg.metadata.request_id)))session.sttRequestId=String(msg.metadata.request_id);
+    if(msg?.request_id && !session.sttRequestId && /^[a-z0-9-]{8,80}$/i.test(String(msg.request_id)))session.sttRequestId=String(msg.request_id);
     if (msg.type === 'Results') {
       session.stt.state = 'accepted'; session.stt.at = new Date().toISOString();
       const modelInfo = Object.values(msg.metadata?.model_info || {})[0];
@@ -542,6 +723,7 @@ async function handleUtterance(streamSid, transcript) {
 
   session.state = 'thinking';
   session.conversation.push({ role: 'user', content: transcript });
+  if(session.browser)sendToTwilio(session.ws,{event:'bob_transcript',role:'user',text:String(transcript).slice(0,2500)});
 
   try {
     const resp = await callRelay({
@@ -552,11 +734,13 @@ async function handleUtterance(streamSid, transcript) {
       conversation: session.conversation.slice(-20), // window: last 20 messages
       leadId: session.leadId,
       pipeline: session.config,
+      ...(session.browser?{trainingPrompt:session.trainingPrompt}:{}),
     });
 
     session.llm = resp.llmRuntime || { state: 'unverified' };
     const { action, text, disposition } = resp;
     session.conversation.push({ role: 'assistant', content: text || '' });
+    if(session.browser&&text)sendToTwilio(session.ws,{event:'bob_transcript',role:'bob',text:String(text).slice(0,2500)});
 
     if (action === 'transfer') {
       // Execute transfer via relay (sends email, updates lead, redirects call)
@@ -605,6 +789,7 @@ async function handleUtterance(streamSid, transcript) {
         session.state = 'listening';
         clearSpeakingWatchdog(session);
       }
+      if(ok || session.tts?.state==='accepted')meterTTS(session,streamSid,text);
     } else {
       session.state = 'listening';
     }
@@ -711,8 +896,14 @@ async function streamDeepgramTTS(text, streamSid, session, generation) {
       ws.send(JSON.stringify({ type: 'CloseStream' }));
     });
 
+    ws.on('upgrade',response=>{const id=String(response?.headers?.['dg-request-id']||'');if(/^[a-z0-9-]{8,80}$/i.test(id))session.tts.providerRequestId=id;});
     ws.on('message', (data, isBinary) => {
-      if (!isBinary) return;
+      if(!isBinary){
+        try{const metadata=JSON.parse(data.toString());
+          if(metadata.request_id&&/^[a-z0-9-]{8,80}$/i.test(String(metadata.request_id)))session.tts.providerRequestId=String(metadata.request_id);
+        }catch{}
+        return;
+      }
       // Barge-in check: drop stale audio if generation was invalidated
       if (generation !== session.generation) { ws.close(); cleanup('interrupted'); return; }
       const chunk = data.toString('base64');
@@ -791,6 +982,8 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
 
+    const providerId=String(res.headers?.get?.('x-request-id')||res.headers?.get?.('cartesia-request-id')||'');
+    if(/^[a-z0-9_-]{8,120}$/i.test(providerId))session.tts.providerRequestId=providerId;
     if (!res.ok) {
       const details = clean(await res.text());
       log('[streamCartesiaTTS] HTTP', res.status, details);
@@ -1000,13 +1193,21 @@ function enqueue(session, fn) {
 
 // Call mediaStreamRelay with timeout
 async function callRelay(payload) {
-  if (!APP_WEBHOOK_URL) throw new Error('APP_WEBHOOK_URL not configured');
+  // Never forward a BOB training transcript to the debt/investor relay.
+  // The final stop event may run after stream deletion; its private marker
+  // survives that transition but is stripped before transmission.
+  const isBob=payload._bobTransport===true||streams.get(payload.streamSid)?.browser===true;
+  const { _bobTransport, ...safePayload }=payload;
+  if(isBob && !bobBridgeReadiness().ready)throw new Error('BOB callback disabled or unconfigured');
+  const endpoint=isBob?BOB_APP_WEBHOOK_URL:APP_WEBHOOK_URL;
+  const bearer=isBob?BOB_APP_AUTH_TOKEN:APP_AUTH_TOKEN;
+  if(!endpoint)throw new Error(isBob?'BOB callback not configured':'APP_WEBHOOK_URL not configured');
   const headers = { 'Content-Type': 'application/json' };
-  if (APP_AUTH_TOKEN) headers['Authorization'] = `Bearer ${APP_AUTH_TOKEN}`;
-  const res = await fetch(APP_WEBHOOK_URL, {
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(safePayload),
     signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Relay returned HTTP ${res.status} for ${payload.event}`);
@@ -1015,10 +1216,9 @@ async function callRelay(payload) {
 
 // ── Keepalive pings ─────────────────────────────────────────────────────
 const pingInterval = setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.isAlive === false) return ws.terminate();
-    ws.isAlive = false;
-    ws.ping();
+  for(const group of [wss,bobWss])group.clients.forEach(ws=>{
+    if(ws.isAlive===false)return ws.terminate();
+    ws.isAlive=false;ws.ping();
   });
 }, PING_INTERVAL_MS);
 wss.on('close', () => clearInterval(pingInterval));
@@ -1027,7 +1227,8 @@ wss.on('close', () => clearInterval(pingInterval));
 function shutdown(sig) {
   log('shutdown', sig);
   clearInterval(pingInterval);
-  wss.clients.forEach((ws) => { try { ws.close(1001, 'server_shutdown'); } catch {} });
+  for(const agent of plainBobSessions.values())agent.finish();
+  for(const group of [wss,bobWss])group.clients.forEach(ws=>{try{ws.close(1001,'server_shutdown')}catch{}});
   streams.clear();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
@@ -1036,5 +1237,5 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, () => {
-  log('listening on :', PORT, 'ws path', WS_PATH);
+  log('listening on :', PORT, 'ws paths', WS_PATH, '/bob/ws');
 });

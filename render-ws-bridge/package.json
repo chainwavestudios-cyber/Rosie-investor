@@ -6,8 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test server.test.cjs",
-    "test:pipeline": "node --test ../src/render-ws-bridge/pipeline.test.cjs"
+    "test": "node --test server.test.cjs browser.test.cjs pipeline.test.cjs bargein.test.cjs managed-voice-agent.test.cjs",
+    "test:pipeline": "node --test pipeline.test.cjs bargein.test.cjs"
   },
   "engines": {
     "node": ">=20"

@@ -26,6 +26,20 @@ services:
       - key: CARTESIA_API_KEY
         # Cartesia Sonic voice engine — set the value in the Render dashboard
         sync: false
+      # Optional, isolated BOB browser voice route. Default OFF until verified.
+      # No customer/tenant secrets are committed to Git.
+      - key: BOB_BRIDGE_ENABLED
+        value: "false"
+      - key: BOB_ALLOWED_ORIGINS
+        value: "https://bob-training-intelligence-8019bf2b.base44.app"
+      - key: BOB_BRIDGE_SESSION_SECRET
+        sync: false
+      - key: BOB_APP_WEBHOOK_URL
+        sync: false
+      - key: BOB_APP_AUTH_TOKEN
+        sync: false
+      - key: BOB_PLAY_AUTH_TOKEN
+        sync: false
       - key: TTS_ENGINE
         value: "elevenlabs"
       - key: ELEVENLABS_VOICE_ID

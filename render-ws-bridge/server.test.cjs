@@ -13,18 +13,19 @@ function harness({ holdStart = false, relayStatus = 200 } = {}) {
   const express = () => app;
   express.json = () => () => {};
   class MockServer extends EventEmitter {
-    constructor(options) { super(); this.options = options; this.clients = new Set(); server = this; }
+    constructor(options) { super(); this.options = options; this.clients = new Set(); if(!server)if(!server)server = this; }
   }
   const context = {
-    require(name) {
+    require(name) {if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}};
       if (name === 'express') return express;
-      if (name === 'http') return { createServer: () => ({ listen() {}, close() {} }) };
-      if (name === 'ws') return { WebSocketServer: MockServer };
+      if (name === 'http') return { createServer: () => ({ listen() {}, close() {}, on() {} }) };
+      if (name === 'crypto') return require('node:crypto');
+      if (name === 'crypto') return require('node:crypto'); if (name === 'ws') return { WebSocketServer: MockServer };
       throw new Error(`Unexpected dependency ${name}`);
     },
     process: { env: { STREAM_AUTH_TOKEN: 'development-test-stream-token', APP_WEBHOOK_URL: 'https://test.invalid/relay', APP_AUTH_TOKEN: 'development-test-relay-token' }, on() {}, uptime: () => 1 },
     console: { log: (...args) => logs.push(args), debug() {} },
-    URL, Date,
+    URL, Date, AbortSignal, Buffer,
     setTimeout(fn) { const t = { fn, active: true }; timers.push(t); return t; },
     clearTimeout(t) { t.active = false; },
     setInterval(fn) { const t = { fn, active: true }; timers.push(t); return t; },
@@ -70,8 +71,9 @@ test('valid nested Twilio start authenticates and forwards context, not credenti
   assert.equal(h.ws.closed, undefined);
   assert.equal(h.forwarded.length, 1);
   assert.equal(h.forwarded[0].callSid, 'CA-test');
-  assert.equal(h.forwarded[0].customParameters.leadId, 'test-lead');
-  assert.equal(h.forwarded[0].customParameters.streamToken, undefined);
+  assert.equal(h.forwarded[0].event, 'init');
+  assert.equal(h.forwarded[0].leadId, 'test-lead');
+  assert.equal(h.forwarded[0].streamToken, undefined);
   assert.equal(h.timers[1].active, false);
 });
 test('wrong, missing, and old flattened credentials are rejected before relaying', () => {
@@ -86,18 +88,13 @@ test('unauthenticated media cannot enter the relay', async () => {
   assert.equal(h.forwarded.length, 0);
   assert.equal(h.timers.length, 2); // Auth timeout and server-wide keepalive only.
 });
-test('nested inbound audio is forwarded after session initialization', async () => {
-  const h = harness({ holdStart: true });
-  h.send(start()); h.send(media());
-  const flush = h.timers[h.timers.length - 1]; flush.fn();
-  await settle();
-  assert.equal(h.forwarded.length, 1);
-  h.completeStart(); await settle();
-  assert.equal(h.forwarded.length, 2);
-  assert.equal(h.forwarded[1].event, 'media_batch');
-  assert.equal(h.forwarded[1].callSid, 'CA-test');
-  assert.equal(h.forwarded[1].media[0].payload, '/w==');
-  assert.equal(h.forwarded[1].media[0].track, 'inbound');
+test('nested inbound media never leaks into the business relay webhook', async () => {
+  const h=harness();
+  h.send(start());await settle();
+  h.send(media());await settle();
+  assert.equal(h.forwarded[0].event,'init');
+  assert.equal(h.forwarded.some(x=>x.event==='media_batch'),false);
+  assert.equal(h.forwarded.some(x=>JSON.stringify(x).includes('/w==')),false);
 });
 test('connections without start authenticate within five seconds or close', () => {
   const h = harness(); h.timers[1].fn();
@@ -113,5 +110,5 @@ test('authenticated stop removes the stream and prevents duplicate stop', async 
 });
 test('relay errors are visible rather than silently discarded', async () => {
   const h = harness({ relayStatus: 401 }); h.send(start()); await settle();
-  assert.ok(h.logs.some(args => args.join(' ').includes('App relay returned HTTP 401 for start')));
+  assert.ok(h.logs.some(args => args.join(' ').includes('Relay returned HTTP 401 for init')));
 });
