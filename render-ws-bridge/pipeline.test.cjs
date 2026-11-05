@@ -18,7 +18,7 @@ function harness(file, { settings = pipeline, rejectEleven = false, failureStatu
   }
   class MockServer extends EventEmitter { constructor() { super(); this.clients = new Set(); if(!server)if(!server)server = this; } }
   const context = {
-    require(name) {if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}}; if (name === 'express') return express; if (name === 'http') return { createServer: () => ({ listen() {}, close() {}, on() {} }) }; if (name === 'crypto') return require('node:crypto');
+    require(name) {if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}}; if (name === 'express') return express; if (name === 'http') return { createServer: () => ({ listen() {}, close() {}, on() {} }) }; if (name === 'crypto') return require('node:crypto');
       if (name === 'crypto') return require('node:crypto'); if (name === 'ws') return { WebSocket: MockSocket, WebSocketServer: MockServer }; if (name === 'crypto') return require('node:crypto'); throw new Error(name); },
     process: { env: { DEEPGRAM_API_KEY: 'inert-deepgram', ELEVENLABS_API_KEY: elevenKey, STREAM_AUTH_TOKEN: 'inert-stream', PLAY_AUTH_TOKEN: 'inert-play', APP_WEBHOOK_URL: 'https://relay.invalid', APP_AUTH_TOKEN: 'inert-relay', DEEPGRAM_STT_MODEL: 'nova-2', TTS_ENGINE: 'deepgram-aura' }, on() {}, uptime: () => 1 },
     console: { log: (...args) => logs.push(args.join(' ')), debug() {} }, Buffer, URL, URLSearchParams, Date, AbortSignal,
