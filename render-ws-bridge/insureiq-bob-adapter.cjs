@@ -7,7 +7,8 @@ const crypto=require('node:crypto');
 const ROUTE='/insureiq/bob/ws',RUNTIME='/insureiq/bob/runtime';
 const APP_ORIGIN='https://underwriteriq-platform.base44.app';
 const CALLBACK=APP_ORIGIN+'/functions/insureBobVoiceRelay';
-const MAX_SESSIONS=12;
+// Conservative beta cap for the shared 0.5 CPU / 512 MB Render instance.
+const MAX_SESSIONS=2;
 function installInsureIqBobTransport({app,WebSocket,WebSocketServer,deepgramKey,startPlainBobAgent,now=Date.now,request=fetch}){
  if(!app||!WebSocket||!WebSocketServer||typeof startPlainBobAgent!=='function')throw Error('InsureIQ audio dependencies missing');
  const secret=process.env.INSUREIQ_BOB_SESSION_SECRET||'';
