@@ -42,6 +42,7 @@ const http = require('http');
 const { WebSocket, WebSocketServer } = require('ws');
 const nodeCrypto = require('crypto');
 const {startPlainBobAgent} = require('./managed-voice-agent.cjs');
+const {installInsureIqBobTransport} = require('./insureiq-bob-adapter.cjs');
 
 // ── Config ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT || 10000);
@@ -331,13 +332,14 @@ app.get('/bob/runtime',(req,res)=>{
 });
 const bobWss = new WebSocketServer({noServer:true,path:'/bob/ws'});
 const plainBobSessions=new Map();
+const insureIqBob=installInsureIqBobTransport({app,WebSocket,WebSocketServer,deepgramKey:DEEPGRAM_API_KEY,startPlainBobAgent});
 // ONE HTTP upgrade listener owns both mutually exclusive paths. Fronter's
 // legacy /ws handshake and BOB's /bob/ws handshake never compete.
 if(WS_PATH==='/bob/ws')throw new Error('Legacy Twilio path may not overlap BOB route');
 server.on('upgrade',(req,socket,head)=>{
  let pathname='';
  try{pathname=new URL(req.url||'/', 'http://localhost').pathname}catch{socket.destroy();return}
- const handler=pathname===WS_PATH?wss:pathname==='/bob/ws'?bobWss:null;
+ const handler=pathname===WS_PATH?wss:pathname==='/bob/ws'?bobWss:pathname===insureIqBob.path?insureIqBob.wss:null;
  if(!handler){socket.destroy();return}
  handler.handleUpgrade(req,socket,head,ws=>handler.emit('connection',ws,req));
 });
@@ -1216,7 +1218,7 @@ async function callRelay(payload) {
 
 // ── Keepalive pings ─────────────────────────────────────────────────────
 const pingInterval = setInterval(() => {
-  for(const group of [wss,bobWss])group.clients.forEach(ws=>{
+  for(const group of [wss,bobWss,insureIqBob.wss])group.clients.forEach(ws=>{
     if(ws.isAlive===false)return ws.terminate();
     ws.isAlive=false;ws.ping();
   });
@@ -1228,7 +1230,7 @@ function shutdown(sig) {
   log('shutdown', sig);
   clearInterval(pingInterval);
   for(const agent of plainBobSessions.values())agent.finish();
-  for(const group of [wss,bobWss])group.clients.forEach(ws=>{try{ws.close(1001,'server_shutdown')}catch{}});
+  for(const group of [wss,bobWss,insureIqBob.wss])group.clients.forEach(ws=>{try{ws.close(1001,'server_shutdown')}catch{}});
   streams.clear();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
@@ -1237,5 +1239,5 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, () => {
-  log('listening on :', PORT, 'ws paths', WS_PATH, '/bob/ws');
+  log('listening on :', PORT, 'ws paths', WS_PATH, '/bob/ws', insureIqBob.path);
 });
