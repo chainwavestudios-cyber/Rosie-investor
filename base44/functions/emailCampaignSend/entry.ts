@@ -28,7 +28,7 @@ import { buildMime } from '../../shared/emailTracking.ts';
 import { sendViaGmail } from '../../shared/gmailSend.ts';
 import { sendTrackedEmail } from '../../shared/emailMessageEngine.ts';
 import { daaTemplateIssue, withDAAWelcomeCTA, withDAAMailingFooter } from '../../shared/daaEmailPolicy.ts';
-import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
+import { EMAIL_SCRUBBING_ENABLED, isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 /** One queue of a campaign: how many emails it sends, and how long it then waits. */
 interface CampaignQueue {
@@ -188,8 +188,10 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
   // Every address in this batch is checked against the real mailbox before a
   // single email leaves: an undeliverable one is skipped and put on the
   // do-not-mail list instead of bouncing and burning the sending account.
-  const verified = await verifyEmails(queueAddresses);
-  if (!verified) {
+  // Paused for now (EMAIL_SCRUBBING_ENABLED = false): the batch goes out without a
+  // mailbox check, and no address is held or suppressed on a verdict.
+  const verified = EMAIL_SCRUBBING_ENABLED ? await verifyEmails(queueAddresses) : null;
+  if (EMAIL_SCRUBBING_ENABLED && !verified) {
     return {
       ok: false,
       waiting: true,
@@ -215,20 +217,23 @@ async function runQueue(base44: any, campaign: any, options: { respectDue?: bool
       continue;
     }
 
-    // Only a mailbox the verifier confirmed as deliverable gets mailed.
-    const verdict = verified.get(address);
-    if (!verdict || !verdict.valid) {
-      await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
-        status: 'skipped',
-        reason: verdict
-          ? `Not deliverable — ${verdict.reason || 'BounceVerify rejected this mailbox'}`
-          : 'Could not be verified — held back rather than risked',
-      }).catch(() => {});
-      // One the verifier judged bad is suppressed everywhere; one it merely
-      // could not confirm is only held back from this campaign.
-      if (isBadAddress(verdict)) await suppressAddress(base44, address, verdict?.reason || '');
-      skipped += 1;
-      continue;
+    // Only a mailbox the verifier confirmed as deliverable gets mailed — and only
+    // while the check is switched on.
+    if (EMAIL_SCRUBBING_ENABLED) {
+      const verdict = verified?.get(address);
+      if (!verdict || !verdict.valid) {
+        await base44.asServiceRole.entities.EmailCampaignRecipient.update(recipient.id, {
+          status: 'skipped',
+          reason: verdict
+            ? `Not deliverable — ${verdict.reason || 'BounceVerify rejected this mailbox'}`
+            : 'Could not be verified — held back rather than risked',
+        }).catch(() => {});
+        // One the verifier judged bad is suppressed everywhere; one it merely
+        // could not confirm is only held back from this campaign.
+        if (isBadAddress(verdict)) await suppressAddress(base44, address, verdict?.reason || '');
+        skipped += 1;
+        continue;
+      }
     }
 
     const vars = recipientVars(recipient, assistants);

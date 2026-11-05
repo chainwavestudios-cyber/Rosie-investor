@@ -25,7 +25,7 @@ import {
   normalizeLeadDate,
   clean,
 } from '../../shared/emailCampaign.ts';
-import { isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
+import { EMAIL_SCRUBBING_ENABLED, isBadAddress, suppressAddress, verifyEmails } from '../../shared/emailVerify.ts';
 
 const CHUNK_LIMIT = 500;
 
@@ -97,31 +97,37 @@ export default async function (req: Request): Promise<Response> {
     //    BEFORE anything is written. An address that cannot be confirmed never
     //    becomes a recipient or a contact card, and one the verifier rejects is
     //    also put on the do-not-mail list so no later campaign picks it up.
+    //    Paused for now: while EMAIL_SCRUBBING_ENABLED is false the list is
+    //    imported as-is (format, duplicate and opt-out checks above still apply).
     const mailboxesChecked = eligible.length;
-    const scan = await verifyEmails(eligible.map((row) => row.email));
-    if (!scan) {
-      return Response.json(
-        { error: 'The mailbox scan could not run, so nothing was imported. Try again in a moment.' },
-        { status: 502 },
-      );
-    }
+    let undeliverable = 0;
 
-    const importable: any[] = [];
-    for (const row of eligible) {
-      const verdict = scan.get(row.email);
-      if (verdict && verdict.valid) { importable.push(row); continue; }
-      excluded.push({
-        email: row.email,
-        firstName: row.firstName,
-        lastName: row.lastName,
-        reason: verdict
-          ? `Not deliverable — ${verdict.reason || 'the mail server rejected this mailbox'}`
-          : 'Could not be verified — held back',
-      });
-      if (isBadAddress(verdict)) await suppressAddress(base44, row.email, verdict?.reason || '');
+    if (EMAIL_SCRUBBING_ENABLED) {
+      const scan = await verifyEmails(eligible.map((row) => row.email));
+      if (!scan) {
+        return Response.json(
+          { error: 'The mailbox scan could not run, so nothing was imported. Try again in a moment.' },
+          { status: 502 },
+        );
+      }
+
+      const importable: any[] = [];
+      for (const row of eligible) {
+        const verdict = scan.get(row.email);
+        if (verdict && verdict.valid) { importable.push(row); continue; }
+        excluded.push({
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          reason: verdict
+            ? `Not deliverable — ${verdict.reason || 'the mail server rejected this mailbox'}`
+            : 'Could not be verified — held back',
+        });
+        if (isBadAddress(verdict)) await suppressAddress(base44, row.email, verdict?.reason || '');
+      }
+      undeliverable = mailboxesChecked - importable.length;
+      eligible.splice(0, eligible.length, ...importable);
     }
-    const undeliverable = mailboxesChecked - importable.length;
-    eligible.splice(0, eligible.length, ...importable);
 
     // 4. Which of these people already have a contact card? Matched by email only —
     //    a shared phone number or name is never treated as the same person.

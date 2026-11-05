@@ -6,6 +6,13 @@ import { secrets } from 'base44:runtime';
 // Returns null when the check itself could not run, so callers can hold instead
 // of sending blind.
 
+// ── TEMPORARY SWITCH ────────────────────────────────────────────────────────
+// Mailbox scrubbing of outgoing campaigns is paused: imports no longer scan the
+// list and sends no longer hold or reject an address because of a verdict.
+// Flip this back to true to restore the BounceVerify gate on both paths —
+// nothing else needs to change.
+export const EMAIL_SCRUBBING_ENABLED = false;
+
 export type EmailVerdict = {
   valid: boolean;
   score: number;

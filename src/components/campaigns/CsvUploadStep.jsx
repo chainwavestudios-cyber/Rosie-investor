@@ -148,7 +148,7 @@ export default function CsvUploadStep({ campaign, csv, setCsv, setMapping, save,
         <Card
           title={csv.fromProspects ? 'The prospects you picked' : 'What was found'}
           hint={csv.fromProspects
-            ? 'These exact rows go through the mailbox check and the import next. People who already have a contact card keep it — only their empty fields are filled in.'
+            ? 'These exact rows go through the list check and the import next. People who already have a contact card keep it — only their empty fields are filled in.'
             : 'The first rows exactly as they were read — check that the header line landed in the header row, not as data.'}
           actions={<Btn tone="ghost" onClick={saveDraft}>💾 Save draft</Btn>}
         >
