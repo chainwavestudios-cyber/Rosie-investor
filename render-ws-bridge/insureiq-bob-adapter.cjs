@@ -35,7 +35,7 @@ function installInsureIqBobTransport({app,WebSocket,WebSocketServer,deepgramKey,
  async function relay(event,ticket,body={}){
   if(!ready().ready)throw Error('InsureIQ BOB disabled');
   const reqBody={event,app_key:'insureiq_bob',session_id:ticket.session_id,
-   agency_id:ticket.agency_id,owner_id:ticket.owner_id,...body};
+   agency_id:ticket.agency_id,owner_id:ticket.owner_id,nonce:ticket.nonce,...body};
   const res=await request(endpoint,{method:'POST',headers:{'Content-Type':'application/json',
    Authorization:'Bearer '+callbackKey},body:JSON.stringify(reqBody),
    signal:AbortSignal.timeout(12000)});
