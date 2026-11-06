@@ -28,6 +28,6 @@ export async function notifyCoreDocSync(){
     const res=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','x-docsync-timestamp':ts,'x-docsync-signature':'sha256='+sig},body,signal:AbortSignal.timeout(10000)});
     const response=await res.json().catch(()=>({}));
     if(res.ok&&response.accepted)console.info('DocSync Render startup notification accepted');
-    else console.warn('DocSync Render startup notification rejected',res.status);
+    else console.warn('DocSync Render startup notification rejected',res.status,String(response?.error||'unknown').slice(0,125));
   }catch(e){console.warn('DocSync startup notification unavailable',e?.name||'network_error')}
 }
