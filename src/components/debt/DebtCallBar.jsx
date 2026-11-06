@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { Headphones, PhoneCall, PhoneForwarded, GitMerge, PhoneOff, PhoneOutgoing } from 'lucide-react';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
+import { dialWithDialpad as dialOnDialpad } from '@/lib/dialpadCti';
 
 const actionStyle=(primary=false)=>({
   display:'inline-flex',gap:6,alignItems:'center',border:'1px solid '+(primary?'#d5b278':'#648e80'),
@@ -27,16 +28,19 @@ export default function DebtCallBar({lead, onLaunch}) {
   const active=office?.leadId===lead.id?office:null;
   const dispatch=mode=>onLaunch?onLaunch(mode):window.dispatchEvent(new CustomEvent('debt_launch_live',{detail:{leadId:lead.id,mode}}));
   const act=action=>window.dispatchEvent(new CustomEvent('debt_office_bridge_action',{detail:{action}}));
-  // No API key needed: hand the number to Dialpad through the system's click-to-call
-  // handler, then start Live Call listening so the local Computer/Cell capture keeps
-  // feeding transcription, Q&A and Coach on a call this app is not carrying.
+  // Dial through the embedded Dialpad mini dialer, so the call goes out on the
+  // Chris B RA call center, then start Live Call listening so the local capture
+  // keeps feeding transcription, Q&A and Coach. Without the dialer mounted (the
+  // fronter workspace) it hands the number to the system's click-to-call handler.
   const dialWithDialpad=()=>{
     if(!lead.phone)return;
     const number=String(lead.phone).replace(/[^\d+]/g,'');
     if(!number)return;
-    const link=document.createElement('a');
-    link.href='tel:'+number;
-    link.click();
+    if(!dialOnDialpad(number,{customData:lead.id})){
+      const link=document.createElement('a');
+      link.href='tel:'+number;
+      link.click();
+    }
     dispatch('listen');
   };
   const name=[lead.firstName,lead.lastName].filter(Boolean).join(' ')||'Client';
@@ -53,7 +57,7 @@ export default function DebtCallBar({lead, onLaunch}) {
         <PhoneCall size={14}/> Dial + Live Coach
       </button>
       <button type="button" onClick={dialWithDialpad} disabled={!lead.phone||!!active} style={actionStyle(false)}
-        title="Hand the number to Dialpad (click-to-call, no API key) and start Live Call listening on the saved Computer/Cell audio setup, so transcription, Q&A and Coach keep working.">
+        title="Dial through the embedded Dialpad dialer on the Chris B RA call center and start Live Call listening on the saved Computer/Cell audio setup, so transcription, Q&A and Coach keep working.">
         <PhoneOutgoing size={14}/> Dial in Dialpad
       </button>
       {officeAllowed&&<button type="button" onClick={()=>dispatch('office')} disabled={!!active} style={actionStyle(false)}

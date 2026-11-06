@@ -48,6 +48,7 @@ import HeatMapPopout from '@/components/debt/HeatMapPopout';
 import PipelineTab from '@/components/debt/PipelineTab';
 import MeetingAlertPopup from '@/components/debt/MeetingAlertPopup';
 import AiQueueFallbackAlert from '@/components/debt/AiQueueFallbackAlert';
+import DialpadMiniDialer from '@/components/debt/DialpadMiniDialer';
 import MissedAppointmentAlert from '@/components/debt/MissedAppointmentAlert';
 import AppointmentTimersBar from '@/components/debt/AppointmentTimersBar';
 import '@/components/debt/DebtCoachPolish.css';
@@ -268,6 +269,9 @@ export default function DebtCallCoach() {
       {pipelineLead && (
         <ClientProfileModal lead={pipelineLead} username={user?.username} onClose={() => setPipelineLead(null)} onSave={(updated) => setPipelineLead(updated)} />
       )}
+
+      {/* Embedded Dialpad phone — stays mounted so inbound calls ring in-app */}
+      <DialpadMiniDialer />
 
       {/* Popup notification when a new lead is assigned to this user */}
       <LeadAssignmentPopup onGoToLeads={() => setTab('newleads')} />
