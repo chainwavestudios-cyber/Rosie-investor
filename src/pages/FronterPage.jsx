@@ -29,6 +29,7 @@ import FronterCongratsPopup from '@/components/fronter/FronterCongratsPopup';
 import FronterEmergencyScript from '@/components/fronter/FronterEmergencyScript';
 import FronterAIAgentTab from '@/components/fronter/FronterAIAgentTab';
 import FronterEmailTrackingNotifications from '@/components/fronter/FronterEmailTrackingNotifications';
+import DialpadMiniDialer from '@/components/debt/DialpadMiniDialer';
 import FronterContactCard from '@/components/fronter/FronterContactCard';
 import FronterAIReportsTab from '@/components/fronter/FronterAIReportsTab';
 import FronterReportPopup from '@/components/fronter/FronterReportPopup';
@@ -510,6 +511,9 @@ export default function FronterPage() {
       {showMonitor && isAdmin && (
         <FronterMonitorPanel onClose={() => setShowMonitor(false)} adminUsername={user?.username} onOpenLead={async (leadId) => { try { const lead = await base44.entities.FronterLead.get(leadId); setMonitorLead(lead); } catch {} }} />
       )}
+
+      {/* Embedded Dialpad phone — stays mounted so inbound calls ring in-app */}
+      <DialpadMiniDialer />
 
       {/* Emergency script — Alt+S */}
       <FronterEmergencyScript />
