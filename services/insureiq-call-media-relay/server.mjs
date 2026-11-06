@@ -1,6 +1,7 @@
 import http from 'node:http';
 import {WebSocketServer,WebSocket} from 'ws';
 import {installDeepgramKeepAlive} from './keepalive.mjs';
+import {notifyCoreDocSync} from './notifyDocSync.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const WS_URL=String(process.env.INSUREIQ_RELAY_WSS||'');
@@ -140,4 +141,8 @@ wss.on('connection',(twilio,req)=>{
  twilio.on('error',e=>console.warn('Twilio media connection error:',trim(e.message)));
  twilio.on('close',()=>{clearTimeout(timer);if(conn&&!conn.finalizing)complete(conn).catch(()=>{});});
 });
-server.listen(PORT,'0.0.0.0',()=>console.log('InsureIQ media relay listening; configured='+READY));
+server.listen(PORT,'0.0.0.0',()=>{
+ console.log('InsureIQ media relay listening; configured='+READY);
+ // Fail-open: documentation notification never delays or prevents serving calls.
+ if(READY)void notifyCoreDocSync().catch(()=>{});
+});
