@@ -18,6 +18,7 @@ export default function DialpadMiniDialer() {
   const [open, setOpen] = useState(false);
   const [ringing, setRinging] = useState(null);
   const [signedIn, setSignedIn] = useState(false);
+  const [seenNumbers, setSeenNumbers] = useState([]);
 
   useEffect(() => {
     const win = frameRef.current?.contentWindow;
@@ -30,6 +31,18 @@ export default function DialpadMiniDialer() {
       if (event.origin !== DIALPAD_CTI_ORIGIN) return;
       const data = event.data;
       if (!data || data.api !== 'opencti_dialpad') return;
+
+      // Any number the CTI reports belongs to a line in this account. Reading
+      // them off the session is how the call center's own numbers surface here,
+      // since the embed exposes no list of them on its own.
+      const found = String(JSON.stringify(data.payload || {})).match(/\+?\d[\d\s().-]{8,}\d/g) || [];
+      const normalized = found
+        .map((n) => n.replace(/\D/g, ''))
+        .filter((n) => n.length === 10 || n.length === 11)
+        .map((n) => (n.length === 10 ? `+1${n}` : `+${n}`));
+      if (normalized.length) {
+        setSeenNumbers((prev) => Array.from(new Set([...prev, ...normalized])).slice(0, 6));
+      }
 
       if (data.method === 'user_authentication') {
         setSignedIn(!!data.payload?.user_authenticated);
@@ -63,6 +76,18 @@ export default function DialpadMiniDialer() {
             <span style={{ fontSize: '10px', color: signedIn ? '#6ee7b7' : '#9aa7b4', marginLeft: 'auto' }}>{signedIn ? 'Signed in' : 'Log in inside the dialer'}</span>
             <button type="button" onClick={() => setOpen(false)} title="Hide the dialer" style={{ background: 'transparent', border: 0, color: '#8fa4b8', cursor: 'pointer', display: 'flex' }}><X size={14} /></button>
           </div>
+          {seenNumbers.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', padding: '6px 10px', borderBottom: '1px solid #18293a', background: '#0e1c28' }}>
+              <span style={{ fontSize: '9px', letterSpacing: '.08em', color: '#7f97ab', fontWeight: 800 }}>LINES SEEN</span>
+              {seenNumbers.map((n) => (
+                <button key={n} type="button" onClick={() => navigator.clipboard?.writeText(n)}
+                  title="Copy this number so it can be pinned as a caller ID"
+                  style={{ fontSize: '10px', fontWeight: 750, color: '#bfe9dd', background: '#173e38', border: '1px solid #3f6659', borderRadius: '999px', padding: '2px 8px', cursor: 'pointer' }}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
           {ringing && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'rgba(16,185,129,.16)', borderBottom: '1px solid rgba(16,185,129,.35)', color: '#d6ffee', fontSize: '11px' }}>
               <PhoneIncoming size={14} />
