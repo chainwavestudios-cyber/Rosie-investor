@@ -15,6 +15,28 @@ export const DIALPAD_CTI_ORIGIN = 'https://dialpad.com';
 export const DIALPAD_CCID = '5432587964293120';
 export const DIALPAD_CALL_CENTER = 'Chris B RA';
 
+/** The two numbers the call center dials out on. */
+export const DIALPAD_LINES = [
+  { key: 'chris', label: 'Live call with Chris', number: '+16193530919' },
+  { key: 'other', label: 'Other', number: '+12162586934' },
+];
+
+const LINE_KEY = 'dialpad_line';
+
+/** The line every call placed from the app goes out on. */
+export function getDialpadLine() {
+  try {
+    return DIALPAD_LINES.find((l) => l.key === localStorage.getItem(LINE_KEY)) || DIALPAD_LINES[0];
+  } catch {
+    return DIALPAD_LINES[0];
+  }
+}
+
+export function setDialpadLine(key) {
+  if (!DIALPAD_LINES.some((l) => l.key === key)) return;
+  try { localStorage.setItem(LINE_KEY, key); } catch {}
+}
+
 let frameWindow = null;
 
 export function registerDialpadFrame(win) {
@@ -51,7 +73,7 @@ export function hangUpDialpadCalls() {
  * Place a call through the Chris B RA call center.
  * Returns false when the dialer is not mounted, so the caller can fall back.
  */
-export function dialWithDialpad(phone, { outboundCallerId = '', customData = '' } = {}) {
+export function dialWithDialpad(phone, { outboundCallerId = getDialpadLine().number, customData = '' } = {}) {
   const number = String(phone || '').replace(/[^\d+]/g, '');
   if (!number) return false;
   return post('initiate_call', {
