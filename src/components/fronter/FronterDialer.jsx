@@ -15,6 +15,7 @@ import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
 import { checkCallCutoff } from '@/lib/phoneTimeZone';
 import CallCutoffOverride from '@/components/fronter/CallCutoffOverride';
 import callError from '@/components/fronter/callError';
+import { resolveCallerLine } from '@/lib/tcpaCallerId';
 
 const GOLD = '#10b981';
 const DARK = '#0a0f1e';
@@ -446,9 +447,13 @@ Provide your analysis as JSON with these fields:
         if (!overrideToken) throw new Error('Calling-hours override was not authorized.');
       }
       const inventory = await base44.functions.invoke('twilioGetLines', {});
-      const liveLine = (inventory.data?.lines || []).find(l => lineNumber ? l.number === lineNumber : l.key === lineKey);
+      const liveLines = inventory.data?.lines || [];
+      const assignedLine = liveLines.find(l => lineNumber ? l.number === lineNumber : l.key === lineKey);
+      // A lead consented under a specific number is dialed from that number only.
+      const { line: liveLine, error: callerError } = resolveCallerLine(lead, liveLines, assignedLine);
+      if (callerError) throw new Error(callerError);
       if (!liveLine) throw new Error('Your assigned line is not a live voice number in this Twilio account. Contact your admin.');
-      if (!isSuperAdmin && liveLine.assignedTo && liveLine.assignedTo.toLowerCase() !== (username || '').toLowerCase()) {
+      if (!lead?.tcpaCallerId && !isSuperAdmin && liveLine.assignedTo && liveLine.assignedTo.toLowerCase() !== (username || '').toLowerCase()) {
         throw new Error('This line is assigned to another fronter. Contact your admin.');
       }
       const digits = lead.phone.replace(/\D/g, '');
