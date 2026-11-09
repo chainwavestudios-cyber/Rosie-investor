@@ -15,13 +15,18 @@ export const DIALPAD_CTI_ORIGIN = 'https://dialpad.com';
 export const DIALPAD_CCID = '5432587964293120';
 export const DIALPAD_CALL_CENTER = 'Chris B RA';
 
-/** The two numbers the call center dials out on. */
+/**
+ * Where calls may go out from. The first entry forces no caller ID, so the call
+ * center presents its own line — that is the only way its numbers appear instead
+ * of the agent's personal desk line. The two numbers below are opt-in overrides.
+ */
 export const DIALPAD_LINES = [
+  { key: 'center', label: 'Call center default', number: '' },
   { key: 'chris', label: 'Live call with Chris', number: '+16193530919' },
   { key: 'other', label: 'Other', number: '+12162586934' },
 ];
 
-const LINE_KEY = 'dialpad_line';
+const LINE_KEY = 'dialpad_line_v2';
 
 /** The line every call placed from the app goes out on. */
 export function getDialpadLine() {

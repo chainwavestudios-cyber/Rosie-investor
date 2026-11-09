@@ -70,9 +70,9 @@ export default function DialpadMiniDialer() {
               const active = line.key === lineKey;
               return (
                 <button key={line.key} type="button" onClick={() => { setLineKey(line.key); setDialpadLine(line.key); }}
-                  title={`Calls placed from the app go out on ${line.number}`}
+                  title={line.number ? `Calls placed from the app are forced out on ${line.number}` : 'Calls placed from the app use whatever line the call center presents (no number forced)'}
                   style={{ fontSize: '10px', fontWeight: 750, color: active ? '#0b1520' : '#bfe9dd', background: active ? '#5eead4' : '#173e38', border: '1px solid #3f6659', borderRadius: '999px', padding: '2px 8px', cursor: 'pointer' }}>
-                  {line.label} · {line.number}
+                  {line.label}{line.number ? ` · ${line.number}` : ''}
                 </button>
               );
             })}
