@@ -42,6 +42,27 @@ export function setDialpadLine(key) {
   try { localStorage.setItem(LINE_KEY, key); } catch {}
 }
 
+const digits = (value) => String(value || '').replace(/[^\d+]/g, '');
+
+/**
+ * The Dialpad line a lead may be dialed from.
+ * When the card carries a consented number, that number is the only line it may
+ * go out on — and only if it is one of the numbers assigned in this file. A
+ * number we don't know blocks the call instead of falling back to another line.
+ */
+export function resolveDialpadLine(lead) {
+  const consented = digits(lead?.tcpaCallerId);
+  if (!consented) return { line: getDialpadLine(), error: '' };
+  const match = DIALPAD_LINES.find((l) => l.number && digits(l.number) === consented);
+  if (!match) {
+    return {
+      line: null,
+      error: `This lead consented to be called from ${lead.tcpaCallerId}, which is not a Dialpad number on ${DIALPAD_CALL_CENTER}. Not dialing.`,
+    };
+  }
+  return { line: match, error: '' };
+}
+
 let frameWindow = null;
 
 export function registerDialpadFrame(win) {
