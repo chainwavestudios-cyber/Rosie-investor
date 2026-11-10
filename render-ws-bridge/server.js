@@ -216,21 +216,33 @@ app.post('/play', async (req, res) => {
       return res.status(401).json({ error: 'unauthorized' });
     }
   }
-  const { streamSid, text, clear, mark } = req.body || {};
+  const { streamSid, text, clear, mark, ttsOverride } = req.body || {};
   let { payload } = req.body || {};
   const s = streamSid && streams.get(streamSid);
   if (!s) return res.status(404).json({ error: 'stream_not_found' });
   // Fronter's privileged /play token is never an authorization for BOB audio.
   if (s.browser) return res.status(403).json({error:'product_scope_mismatch'});
   if (text) {
-    payload = await generateTTS(String(text), s.config, s);
+    // Per-utterance voice override is deliberately restricted to the corporate
+    // founder transfer. Never modify session.config or other calls' voices.
+    const founderVoice = '7c6219d2-e8d2-462c-89d8-7ecba7c75d65';
+    const useFounderVoice = s.leadId === 'rosie_corporate' &&
+      ttsOverride?.engine === 'cartesia' && ttsOverride?.voiceId === founderVoice;
+    if (ttsOverride && !useFounderVoice) return res.status(403).json({error:'tts_override_not_allowed'});
+    const ttsConfig = useFounderVoice
+      ? {...s.config, ttsEngine:'cartesia', cartesiaVoiceId:founderVoice}
+      : s.config;
+    payload = await generateTTS(String(text), ttsConfig, s);
     if (!payload) return res.status(502).json({ error: 'tts_failed' });
     s.recordingBuffer.push(payload);
   }
   if (clear) sendToTwilio(s.ws, { event: 'clear', streamSid });
   if (mark) sendToTwilio(s.ws, { event: 'mark', streamSid, mark: { name: mark.name || 'mark' } });
   if (payload) sendToTwilio(s.ws, { event: 'media', streamSid, media: { payload } });
-  res.json({ ok: true });
+  // G.711 mu-law 8 kHz: 8000 raw bytes per second. Caller can wait for
+  // playback to finish before instructing Twilio to bridge the destination.
+  const durationMs = payload ? Math.ceil(Buffer.from(payload,'base64').length / 8) : 0;
+  res.json({ ok: true, durationMs });
 });
 
 // ── HTTP + WebSocket server ───────────────────────────────────────────────
