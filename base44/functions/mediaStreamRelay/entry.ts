@@ -54,7 +54,21 @@ async function transferRosieFounderCall(body: any): Promise<Response> {
   if (!/^CA[a-f0-9]{32}$/i.test(callSid)) {
     return Response.json({ok:false,error:'invalid_corporate_call_sid'}, {status:400});
   }
-  const twiml = '<Response><Say voice="alice">' + ROSIE_FOUNDER_ANNOUNCEMENT + '</Say><Dial callerId="+18662908994" answerOnBridge="true" timeout="25"><Number>' + ROSIE_FOUNDER_NUMBER + '</Number></Dial></Response>';
+  // Synthesize only the Tier 1 announcement in the dedicated Cartesia voice.
+  // The bridge plays it on the existing caller stream before we move the call
+  // to the phone transfer. Retain the previous Twilio voice if playback fails.
+  const playback = await playToBridge(String(body.streamSid || ''), {
+    clear: true,
+    text: ROSIE_FOUNDER_ANNOUNCEMENT,
+    ttsOverride: { engine: 'cartesia', voiceId: '7c6219d2-e8d2-462c-89d8-7ecba7c75d65' },
+  });
+  const cartesiaPlayed = !!playback?.ok && Number(playback.durationMs) > 0;
+  if (cartesiaPlayed) {
+    const audioMs = Math.min(20000, Math.max(1000, Number(playback.durationMs)));
+    await new Promise(resolve => setTimeout(resolve, audioMs + 500));
+  }
+  const preface = cartesiaPlayed ? '' : '<Say voice="alice">' + ROSIE_FOUNDER_ANNOUNCEMENT + '</Say>';
+  const twiml = '<Response>' + preface + '<Dial callerId="+18662908994" answerOnBridge="true" timeout="25"><Number>' + ROSIE_FOUNDER_NUMBER + '</Number></Dial></Response>';
   try {
     await twilioFetch('/Calls/' + encodeURIComponent(callSid) + '.json', {
       method: 'POST',
