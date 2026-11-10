@@ -54,7 +54,7 @@ async function transferRosieFounderCall(body: any): Promise<Response> {
   if (!/^CA[a-f0-9]{32}$/i.test(callSid)) {
     return Response.json({ok:false,error:'invalid_corporate_call_sid'}, {status:400});
   }
-  const twiml = '<Response><Say voice="alice">' + ROSIE_FOUNDER_ANNOUNCEMENT + '</Say><Dial answerOnBridge="true" timeout="25"><Number>' + ROSIE_FOUNDER_NUMBER + '</Number></Dial></Response>';
+  const twiml = '<Response><Say voice="alice">' + ROSIE_FOUNDER_ANNOUNCEMENT + '</Say><Dial callerId="+18662908994" answerOnBridge="true" timeout="25"><Number>' + ROSIE_FOUNDER_NUMBER + '</Number></Dial></Response>';
   try {
     await twilioFetch('/Calls/' + encodeURIComponent(callSid) + '.json', {
       method: 'POST',
