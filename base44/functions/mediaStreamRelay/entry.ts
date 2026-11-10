@@ -37,6 +37,36 @@ import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
 
 // Dedicated corporate profile; never read or mutate debt-campaign leads for this line.
 const ROSIE_PROFILE = 'rosie_corporate';
+const ROSIE_FOUNDER_NUMBER = '+12162586934';
+const ROSIE_FOUNDER_ANNOUNCEMENT = 'Ah, Tier 1 relationship or Client, I will transfer you immediately, sorry for any delay. Have a wonderful day.';
+// This exact passphrase can occur anywhere in the caller's sentence.
+// Normalize punctuation and spacing to tolerate ordinary STT formatting.
+function isRosieFounderReferral(utterance: string): boolean {
+  const normalized = String(utterance || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return /\bi know chris the founder\b/.test(normalized);
+}
+// The corporate receptionist does not use campaign leads, qualifications, or the sales queue.
+async function transferRosieFounderCall(body: any): Promise<Response> {
+  const callSid = String(body.callSid || '');
+  if (!/^CA[a-f0-9]{32}$/i.test(callSid)) {
+    return Response.json({ok:false,error:'invalid_corporate_call_sid'}, {status:400});
+  }
+  const twiml = '<Response><Say voice="alice">' + ROSIE_FOUNDER_ANNOUNCEMENT + '</Say><Dial answerOnBridge="true" timeout="25"><Number>' + ROSIE_FOUNDER_NUMBER + '</Number></Dial></Response>';
+  try {
+    await twilioFetch('/Calls/' + encodeURIComponent(callSid) + '.json', {
+      method: 'POST',
+      body: new URLSearchParams({ Twiml: twiml }),
+    });
+    console.log('[Rosie corporate] Founder referral direct transfer accepted by Twilio');
+    return Response.json({ok:true,transferNumber:ROSIE_FOUNDER_NUMBER});
+  } catch (e:any) {
+    console.error('[Rosie corporate] Founder referral transfer failed:', e?.message);
+    return Response.json({ok:false,error:'corporate_founder_transfer_failed'}, {status:502});
+  }
+}
 const ROSIE_PROMPT = `INTRODUCTION: You are Rosie, the official AI receptionist for Rosie AI at rosieai.tech. Never claim to be human.
 SPEAKING PROMPT: Warm, friendly, confident executive receptionist. Sound natural and attentive.
 SPEAKING RULES: One question at a time. One or two short sentences. Listen before responding. No long menus.
@@ -52,6 +82,10 @@ async function corporateTurn(base44:any, body:any): Promise<Response> {
   const turns = Array.isArray(body.conversation) ? body.conversation : [];
   const history = turns.slice(-18).map((m:any) => (m.role === 'user' ? 'Caller' : 'Rosie') + ': ' + String(m.content||'').slice(0,500)).join('\n');
   const caller = String(body.transcript || '').slice(0,700);
+  // Deterministic founder bypass: do not ask the LLM whether it can transfer.
+  if (isRosieFounderReferral(caller)) {
+    return Response.json({action:'transfer',text:ROSIE_FOUNDER_ANNOUNCEMENT,disposition:'transferred'});
+  }
   const hour = Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date()));
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstTurn = !turns.some((m:any)=>m.role !== 'user' && String(m.content||'').trim());
@@ -200,7 +234,7 @@ export default async function(req: Request): Promise<Response> {
       }catch(e:any){ console.warn('[Rosie bridge diagnostics] unavailable',e?.message); }
       const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date())); const salutation=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening'; console.log('[Rosie media] Corporate bridge initialized with greeting',body.streamSid); return Response.json({greeting:salutation+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",llmModel:ROSIE_MODEL_ID,llmRequestModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',sttModel:'nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID,ttsSynthesisModel:'sonic-3.6',pipeline:resolvePipeline({llmModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID}),leadId:ROSIE_PROFILE,inboundMode:true}); }
     if (body.leadId === ROSIE_PROFILE && event === 'turn') return await corporateTurn(base44,body);
-    if (body.leadId === ROSIE_PROFILE && event === 'transfer') return Response.json({ok:false,error:'Corporate transfers not enabled'});
+    if (body.leadId === ROSIE_PROFILE && event === 'transfer') return await transferRosieFounderCall(body);
     if (body.leadId === ROSIE_PROFILE && event === 'end_call') return Response.json({ok:true});
     if (body.leadId === ROSIE_PROFILE && event === 'stop') return Response.json({ok:true});
     if (event === 'init') return await handleInit(base44, body);
