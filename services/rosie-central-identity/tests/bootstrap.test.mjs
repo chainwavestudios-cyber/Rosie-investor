@@ -19,8 +19,8 @@ test('bootstrap can only register the specific confidential BOB callback and aut
  assert.match(s,/md\.scope!=='openid email profile'/);
 });
 test('MFA evidence uses custom OIDC claims (reserved amr and acr are stripped by Better Auth)',()=>{
- assert.match(s,/rosie_mfa_verified:true/);
- assert.match(s,/rosie_auth_factor:'totp'/);
+ assert.match(s,/oidc_mfa_stepup_acceptance_pending/);
+ assert.doesNotMatch(s,/return \{rosie_mfa_verified:true/);
  assert.doesNotMatch(s,/return \{amr:/);
  assert.match(s,/disabledPaths:\['\/token'\]/);
 });
