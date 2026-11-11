@@ -80,21 +80,24 @@ export const BOB_CALLBACK='https://app.base44.com/api/apps/6aeab8051a8d4e4d8019b
 export const BOB_CLIENT_NAME='BOB Training Intelligence — Rosie MFA staging';
 export function approveBootstrapClient({initialAccessToken,clientMetadata}){
  const expected=process.env.ROSIE_OAUTH_REGISTRATION_TOKEN||'';
- if(expected.length<48||typeof initialAccessToken!=='string')return false;
+ const reject=(reason)=>{console.warn('[identity] OAuth client bootstrap denied:',reason);return false;};
+ if(expected.length<48)return reject('operator_token_missing');
+ if(typeof initialAccessToken!=='string')return reject('bearer_missing');
  const actual=createHash('sha256').update(initialAccessToken).digest();
  const wanted=createHash('sha256').update(expected).digest();
- if(!timingSafeEqual(actual,wanted))return false;
+ if(!timingSafeEqual(actual,wanted))return reject('bearer_not_authorized');
  const md=clientMetadata||{};
- if(md.client_name!==BOB_CLIENT_NAME||md.application_type!=='web'||
-    md.token_endpoint_auth_method!=='client_secret_basic')return false;
+ if(md.client_name!==BOB_CLIENT_NAME)return reject('client_name');
+ if(md.application_type!=='web')return reject('application_type');
+ if(md.token_endpoint_auth_method!=='client_secret_basic')return reject('client_confidential_type');
  if(!Array.isArray(md.redirect_uris)||md.redirect_uris.length!==1||
-    md.redirect_uris[0]!==BOB_CALLBACK)return false;
- if(md.scope!=='openid email profile')return false;
+    md.redirect_uris[0]!==BOB_CALLBACK)return reject('callback_mismatch');
+ if(md.scope!=='openid email profile')return reject('scope_mismatch');
  if(!Array.isArray(md.grant_types)||md.grant_types.length!==1||
-    md.grant_types[0]!=='authorization_code')return false;
+    md.grant_types[0]!=='authorization_code')return reject('grant_mismatch');
  if(md.resources!==undefined && (!Array.isArray(md.resources)||
-   md.resources.length!==1||md.resources[0]!==BOB_RESOURCE))return false;
- return {};
+   md.resources.length!==1||md.resources[0]!==BOB_RESOURCE))return reject('resource_mismatch');
+ return {referenceId:'rosie-staging-bob'};
 }
 
 export function readyForOidc(user){
