@@ -5,6 +5,7 @@ import {dirname,join} from 'node:path';
 import {toNodeHandler} from 'better-auth/node';
 import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
 import {auth,ORIGIN,PUBLIC_SIGNUP_ENABLED,SOCIAL_SIGNUP_ENABLED,SOCIAL_PROVIDER_CONFIGURED,SOCIAL_PROVIDER_CALLBACKS,pool,BOB_RESOURCE,readyForOidc} from './auth.mjs';
+import {createRosieLinkRouter} from './link-api.mjs';
 const dir=dirname(fileURLToPath(import.meta.url));
 const app=express();
 app.disable('x-powered-by');
@@ -33,6 +34,9 @@ app.get('/api/identity/config',(_req,res)=>res.json({
 }));
 const bAuth=toNodeHandler(auth);
 app.all('/api/auth/*',(req,res)=>bAuth(req,res));
+// Isolated server-verified seat linking: HMAC authenticated product requests,
+// central signed-in session and fresh TOTP proof; no user-supplied email joins.
+app.use('/api/links',createRosieLinkRouter({auth,pool}));
 function requestHeaders(req){
  const h=new Headers();
  for(const [k,v] of Object.entries(req.headers))if(typeof v==='string')h.set(k,v);
@@ -68,7 +72,7 @@ app.get('/api/identity/consent-context',async(req,res)=>{
 });
 app.use(express.static(join(dir,'dist'),{index:false,immutable:false,maxAge:0}));
 app.get('/styles.css',(_req,res)=>res.sendFile(join(dir,'public','styles.css')));
-const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email']);
+const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve']);
 app.get('*',async(req,res)=>{
  if(!pages.has(req.path))return res.status(404).type('text').send('Not found');
  try{res.type('html').send(await readFile(join(dir,'public','index.html'),'utf8'));}
