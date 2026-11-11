@@ -19,6 +19,45 @@ const smtpConfigured=Boolean(
  process.env.ROSIE_SMTP_PASSWORD&&process.env.ROSIE_SMTP_FROM
 );
 export const PUBLIC_SIGNUP_ENABLED=process.env.ROSIE_STAGING_SIGNUP_ENABLED==='true'&&smtpConfigured;
+// Three identity providers for the same Rosie customer account (not product
+// API integrations). Keys exist ONLY in Render environment secrets.
+export const SOCIAL_PROVIDER_CALLBACKS=Object.freeze({
+ google:ORIGIN+'/api/auth/callback/google',
+ facebook:ORIGIN+'/api/auth/callback/facebook',
+ microsoft:ORIGIN+'/api/auth/callback/microsoft'
+});
+const hasPair=(prefix)=>Boolean(process.env[prefix+'_CLIENT_ID']&&process.env[prefix+'_CLIENT_SECRET']);
+export const SOCIAL_PROVIDER_CONFIGURED=Object.freeze({
+ google:hasPair('GOOGLE'),
+ facebook:hasPair('FACEBOOK'),
+ microsoft:hasPair('MICROSOFT')
+});
+// Social sign-in for existing accounts and creation of NEW social identities
+// are separate switches. No public customer registration during staging.
+export const SOCIAL_SIGNUP_ENABLED=process.env.ROSIE_STAGING_SOCIAL_SIGNUP_ENABLED==='true';
+export const socialProviders={
+ ...(SOCIAL_PROVIDER_CONFIGURED.google?{
+  google:{clientId:process.env.GOOGLE_CLIENT_ID,
+   clientSecret:process.env.GOOGLE_CLIENT_SECRET,
+   prompt:'select_account',disableSignUp:!SOCIAL_SIGNUP_ENABLED}
+ }:{}),
+ ...(SOCIAL_PROVIDER_CONFIGURED.facebook?{
+  facebook:{clientId:process.env.FACEBOOK_CLIENT_ID,
+   clientSecret:process.env.FACEBOOK_CLIENT_SECRET,
+   // The provider can return a missing email: we do NOT manufacture one.
+   scopes:['email','public_profile'],disableSignUp:!SOCIAL_SIGNUP_ENABLED}
+ }:{}),
+ ...(SOCIAL_PROVIDER_CONFIGURED.microsoft?{
+  microsoft:{clientId:process.env.MICROSOFT_CLIENT_ID,
+   clientSecret:process.env.MICROSOFT_CLIENT_SECRET,
+   // 'common' supports personal Outlook.com/Hotmail and work/school accounts.
+   tenantId:'common',authority:'https://login.microsoftonline.com',
+   prompt:'select_account',disableSignUp:!SOCIAL_SIGNUP_ENABLED,
+   // Do not copy large base64 Microsoft photo payloads into cookies.
+   mapProfileToUser:()=>({image:null})}
+ }:{})
+};
+
 export const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:5,connectionTimeoutMillis:7000});
 const secret=process.env.BETTER_AUTH_SECRET;
 if(!secret||secret.length<32)throw Error('BETTER_AUTH_SECRET of 32+ characters is required');
@@ -69,6 +108,9 @@ export function verifiedMfaClaims(user){
 export const auth=betterAuth({
  appName:'Rosie AI Customer Identity (Staging)',
  disabledPaths:['/token'],
+ socialProviders,
+ // Never join two identities solely because their email fields match.
+ account:{accountLinking:{disableImplicitLinking:true,trustedProviders:[]}},
  baseURL:ORIGIN,secret,database:pool,
  trustedOrigins:[ORIGIN],
  advanced:{defaultCookieAttributes:{secure:true,httpOnly:true,sameSite:'lax'}},
@@ -76,9 +118,11 @@ export const auth=betterAuth({
  emailAndPassword:{enabled:true,disableSignUp:!PUBLIC_SIGNUP_ENABLED,
   requireEmailVerification:true,minPasswordLength:12},
  emailVerification:{sendVerificationEmail,sendOnSignUp:true,sendOnSignIn:false},
- // Password is the only supported initial factor; no passwordless bypass.
+ // Credential accounts still require passwords for authenticator enrollment;
+ // social-only identities can enroll an authenticator without inventing a password.
  plugins:[
-  twoFactor({issuer:'Rosie AI',backupCodeOptions:{storeBackupCodes:'encrypted'},
+  twoFactor({issuer:'Rosie AI',allowPasswordless:true,
+   backupCodeOptions:{storeBackupCodes:'encrypted'},
    totpOptions:{digits:6,period:30}}),
   jwt({disableSettingJwtHeader:true}),
   oauthProvider({
