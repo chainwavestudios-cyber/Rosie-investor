@@ -27,6 +27,9 @@ async function query(sql,args=[]){
  }
  if(sql.includes('SELECT * FROM rosie_identity_link.link_challenge'))
   return done(challenges.has(args[0])?[challenges.get(args[0])]:[]);
+ if(sql.includes('SELECT central_subject,issuer,state FROM rosie_identity_link.linked_seat')){
+  const p=args.join(':');return done(links.has(p)?[{...links.get(p),issuer:'https://rosie-central-identity-staging.onrender.com/api/auth'}]:[]);
+ }
  if(sql.includes('SELECT central_subject,state FROM rosie_identity_link.linked_seat')){
   const p=args.join(':');return done(links.has(p)?[links.get(p)]:[]);
  }
@@ -111,6 +114,14 @@ test('verified approval may redeem once; replay and conflicting organizations ar
  assert.equal(links.get([payload.product,payload.organizationId,payload.productPrincipalId].join(':')).central_subject,row.approved_subject);
  const replay=await signAndPost('/api/links/redeem',{...payload,challenge:approvedCode});
  assert.equal(replay.status,403);
+});
+test('verified product principal can reconcile the original subject without replaying the consumed challenge',async()=>{
+ const r=await signAndPost('/api/links/status',payload);
+ assert.equal(r.status,200);
+ assert.equal(r.data.verified,true);
+ assert.equal(r.data.centralSubject,'verified-synthetic-central-user-001');
+ const cross=await signAndPost('/api/links/status',{...payload,organizationId:'d'.repeat(24)});
+ assert.equal(cross.status,404);
 });
 test('central preview and approval require a signed-in Rosie user, not product HMAC',async()=>{
  const preview=await fetch(endpoint+'/api/links/preview?code='+approvedCode);
