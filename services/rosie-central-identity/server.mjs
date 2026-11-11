@@ -35,12 +35,14 @@ function requestHeaders(req){
  return h;
 }
 async function verifiedSignedQuery(req){
- const params=new URL(req.originalUrl,ORIGIN).searchParams;
- const signed=new Set(['sig','ba_param',...params.getAll('ba_param')]);
- const str=new URLSearchParams([...params].filter(([key])=>signed.has(key))).toString();
+ const signedQuery=new URL(req.originalUrl,ORIGIN).search.slice(1);
+ // The provider signs *all* parameters, including exp and client_id.
+ // Filtering the query invalidates consent and must never be done.
+ const params=new URLSearchParams(signedQuery);
+ if(params.getAll('sig').length!==1||!params.has('exp')||!params.has('client_id'))return null;
  const {secret}=await auth.$context;
- if(!str||!await verifyOAuthQueryParams(str,secret))return null;
- return new URLSearchParams(str);
+ if(!await verifyOAuthQueryParams(signedQuery,secret))return null;
+ return params;
 }
 // Return metadata only after BOTH a signed, unmodified request and verified
 // user session. A browser can never select a client by tampering with query.
