@@ -14,14 +14,17 @@ test('product OAuth is blocked before email verification AND TOTP enrollment',()
  assert.match(source,/emailVerified===true&&user\?\.twoFactorEnabled===true/);
  assert.match(source,/shouldRedirect:async\(\{user\}\)=>!readyForOidc\(user\)/);
  assert.match(source,/customIdTokenClaims:async\(\{user\}\)=>verifiedMfaClaims\(user\)/);
- assert.match(source,/amr:\['pwd','totp'\]/);
+ assert.match(source,/rosie_mfa_verified:true/);
+ assert.match(source,/rosie_auth_factor:'totp'/);
+ assert.doesNotMatch(source,/return \{amr:/);
 });
 test('client and redirect permissions fail closed',()=>{
  assert.match(source,/allowDynamicClientRegistration:false/);
  assert.match(source,/allowUnauthenticatedClientRegistration:false/);
  assert.match(source,/clientPrivileges:async\(\)=>false/);
  assert.match(source,/resourcePrivileges:async\(\)=>false/);
- assert.match(server,/verifyOAuthQueryParams\(str,secret\)/);
+ assert.match(server,/verifyOAuthQueryParams\(signedQuery,secret\)/);
+ assert.doesNotMatch(server,/filter\(\(\[key\]\)=>signed\.has\(key\)\)/);
  assert.match(server,/getOAuthClientPublic/);
  assert.match(server,/readyForOidc\(session\.user\)/);
 });
