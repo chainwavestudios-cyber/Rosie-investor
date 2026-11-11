@@ -14,8 +14,8 @@ test('product OAuth is blocked before email verification AND TOTP enrollment',()
  assert.match(source,/emailVerified===true&&user\?\.twoFactorEnabled===true/);
  assert.match(source,/shouldRedirect:async\(\{user\}\)=>!readyForOidc\(user\)/);
  assert.match(source,/customIdTokenClaims:async\(\{user\}\)=>verifiedMfaClaims\(user\)/);
- assert.match(source,/rosie_mfa_verified:true/);
- assert.match(source,/rosie_auth_factor:'totp'/);
+ assert.match(source,/oidc_mfa_stepup_acceptance_pending/);
+ assert.doesNotMatch(source,/return \{rosie_mfa_verified:true/);
  assert.doesNotMatch(source,/return \{amr:/);
 });
 test('client and redirect permissions fail closed',()=>{
