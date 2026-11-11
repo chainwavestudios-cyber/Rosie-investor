@@ -10,6 +10,7 @@ import {jwt, twoFactor} from 'better-auth/plugins';
 import {oauthProvider} from '@better-auth/oauth-provider';
 import pg from 'pg';
 import nodemailer from 'nodemailer';
+import {createHash,timingSafeEqual} from 'node:crypto';
 
 export const ORIGIN=process.env.ROSIE_IDENTITY_ORIGIN||'https://rosie-central-identity-staging.onrender.com';
 export const BOB_RESOURCE='https://bob-training-intelligence-8019bf2b.base44.app';
@@ -33,6 +34,29 @@ const sendVerificationEmail=async({user,url})=>{
  await transport.sendMail({from:process.env.ROSIE_SMTP_FROM,to:user.email,
   subject:'Verify your Rosie AI account',text:'Verify your Rosie AI email using this secure link:\n'+url+'\n\nIf you did not register, ignore this message.'});
 };
+
+// Temporary, high-entropy, one-use operator token for registering exactly
+// ONE confidential staging client. No public registration is permitted.
+export const BOB_CALLBACK='https://app.base44.com/api/apps/6aeab8051a8d4e4d8019bf2b/auth/sso/callback';
+export const BOB_CLIENT_NAME='BOB Training Intelligence — Rosie MFA staging';
+export function approveBootstrapClient({initialAccessToken,clientMetadata}){
+ const expected=process.env.ROSIE_OAUTH_REGISTRATION_TOKEN||'';
+ if(expected.length<48||typeof initialAccessToken!=='string')return false;
+ const actual=createHash('sha256').update(initialAccessToken).digest();
+ const wanted=createHash('sha256').update(expected).digest();
+ if(!timingSafeEqual(actual,wanted))return false;
+ const md=clientMetadata||{};
+ if(md.client_name!==BOB_CLIENT_NAME||md.application_type!=='web'||
+    md.token_endpoint_auth_method!=='client_secret_basic')return false;
+ if(!Array.isArray(md.redirect_uris)||md.redirect_uris.length!==1||
+    md.redirect_uris[0]!==BOB_CALLBACK)return false;
+ if(md.scope!=='openid email profile')return false;
+ if(!Array.isArray(md.grant_types)||md.grant_types.length!==1||
+    md.grant_types[0]!=='authorization_code')return false;
+ if(md.resources!==undefined && (!Array.isArray(md.resources)||
+   md.resources.length!==1||md.resources[0]!==BOB_RESOURCE))return false;
+ return {};
+}
 
 export function readyForOidc(user){
  return Boolean(user?.emailVerified===true&&user?.twoFactorEnabled===true);
@@ -65,8 +89,9 @@ export const auth=betterAuth({
    resources:[BOB_RESOURCE],scopes:['openid','email','profile'],
    clientRegistrationDefaultResources:[BOB_RESOURCE],
    grantTypes:['authorization_code'],idTokenExpiresIn:600,
-   accessTokenExpiresIn:600,allowDynamicClientRegistration:false,
+   accessTokenExpiresIn:600,allowDynamicClientRegistration:true,
    allowUnauthenticatedClientRegistration:false,
+   validateInitialAccessToken:approveBootstrapClient,
    // Customer accounts must NEVER administer OAuth client registration.
    clientPrivileges:async()=>false,resourcePrivileges:async()=>false,
    customIdTokenClaims:async({user})=>verifiedMfaClaims(user)
