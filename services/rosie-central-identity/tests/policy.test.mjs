@@ -19,7 +19,8 @@ test('product OAuth is blocked before email verification AND TOTP enrollment',()
  assert.doesNotMatch(source,/return \{amr:/);
 });
 test('client and redirect permissions fail closed',()=>{
- assert.match(source,/allowDynamicClientRegistration:false/);
+ assert.match(source,/allowDynamicClientRegistration:true/);
+ assert.match(source,/validateInitialAccessToken:approveBootstrapClient/);
  assert.match(source,/allowUnauthenticatedClientRegistration:false/);
  assert.match(source,/clientPrivileges:async\(\)=>false/);
  assert.match(source,/resourcePrivileges:async\(\)=>false/);
