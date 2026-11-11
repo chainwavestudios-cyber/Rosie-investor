@@ -102,7 +102,12 @@ export function readyForOidc(user){
 }
 export function verifiedMfaClaims(user){
  if(!readyForOidc(user))throw Error('verified_email_and_totp_required');
- return {rosie_mfa_verified:true,rosie_auth_factor:'totp'};
+ // IMPORTANT: Google, Facebook and Microsoft sign-in do NOT automatically
+ // run Better Auth's second-factor challenge. TOTP ENROLLMENT is not evidence
+ // that the CURRENT social session passed a fresh TOTP challenge.
+ // Fail closed until per-session step-up proof is implemented, independently
+ // verified, and carried through the OAuth authorization-code exchange.
+ throw Error('oidc_mfa_stepup_acceptance_pending');
 }
 
 export const auth=betterAuth({
