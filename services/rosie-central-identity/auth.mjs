@@ -39,11 +39,12 @@ export function readyForOidc(user){
 }
 export function verifiedMfaClaims(user){
  if(!readyForOidc(user))throw Error('verified_email_and_totp_required');
- return {amr:['pwd','totp'],acr:'urn:rosie:loa:2'};
+ return {rosie_mfa_verified:true,rosie_auth_factor:'totp'};
 }
 
 export const auth=betterAuth({
  appName:'Rosie AI Customer Identity (Staging)',
+ disabledPaths:['/token'],
  baseURL:ORIGIN,secret,database:pool,
  trustedOrigins:[ORIGIN],
  advanced:{defaultCookieAttributes:{secure:true,httpOnly:true,sameSite:'lax'}},
@@ -59,8 +60,10 @@ export const auth=betterAuth({
   oauthProvider({
    loginPage:'/login',consentPage:'/consent',
    signup:{page:'/signup'},
-   postLogin:{page:'/setup-mfa',shouldRedirect:async({user})=>!readyForOidc(user)},
+   postLogin:{page:'/setup-mfa',consentReferenceId:()=>undefined,
+    shouldRedirect:async({user})=>!readyForOidc(user)},
    resources:[BOB_RESOURCE],scopes:['openid','email','profile'],
+   clientRegistrationDefaultResources:[BOB_RESOURCE],
    grantTypes:['authorization_code'],idTokenExpiresIn:600,
    accessTokenExpiresIn:600,allowDynamicClientRegistration:false,
    allowUnauthenticatedClientRegistration:false,
