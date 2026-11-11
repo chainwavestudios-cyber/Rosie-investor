@@ -48,6 +48,42 @@ const guard=(fn)=>async e=>{
 };
 const goAccount=()=>location.assign('/account');
 
+const SOCIAL_CHOICES=[
+ {id:'google',label:'Google',symbol:'G'},
+ {id:'facebook',label:'Facebook',symbol:'f'},
+ {id:'microsoft',label:'Microsoft / Outlook',symbol:'M'}
+];
+function socialButtons(mode='signin'){
+ const registration=mode==='signup';
+ const intro=registration?'Or create your account with':'Or continue with';
+ const buttons=SOCIAL_CHOICES.map(provider=>{
+  const configured=config.socialProviders?.[provider.id]===true;
+  const available=configured&&(!registration||config.socialSignupEnabled===true);
+  const label=provider.label+(available?'':configured&&registration?' · Registration not yet open':' · Setup pending');
+  return '<button class="social-signin" data-social="'+provider.id+'" type="button"'+
+   (available?'':' disabled aria-disabled="true"')+
+   '><span class="social-symbol social-'+provider.id+'">'+provider.symbol+'</span>'+
+   '<span>'+label+'</span></button>';
+ }).join('');
+ return '<div class="social-section"><p class="social-divider">'+intro+'</p><div class="social-grid">'+buttons+'</div>'+
+  '<p class="subtle">You will still verify your Rosie email and enroll an authenticator before accessing a product.</p></div>';
+}
+function bindSocialButtons(){
+ document.querySelectorAll('button[data-social]').forEach(el=>{
+  el.onclick=async()=>{
+   const provider=el.dataset.social;
+   if(config.socialProviders?.[provider]!==true){msg('Provider has not been configured.',true);return;}
+   el.disabled=true;msg('Redirecting to your account provider…');
+   try{
+    const callbackURL=location.origin+oauthPage('setup-mfa');
+    const r=await client.signIn.social({provider,callbackURL});
+    if(r?.error){msg(fmtError(r),true);el.disabled=false;}
+   }catch(e){msg(String(e?.message||e),true);el.disabled=false;}
+  };
+ });
+}
+
+
 async function setupLogin(){
  const current=await session();
  if(current?.user){
@@ -65,8 +101,9 @@ async function setupLogin(){
  setHTML('<h1>Welcome to Rosie.</h1><p class="lead">Your identity across every Rosie AI product.</p>'+
   '<form id="signin">'+field('email','Email','email','autocomplete="email"')+
   field('password','Password','password','minlength="12" autocomplete="current-password"')+
-  button('Sign in to Rosie')+'</form>'+
+  button('Sign in to Rosie')+'</form>'+socialButtons('signin')+
   '<p class="subtle">New to Rosie? <a href="'+oauthPage('signup')+'">Create an account</a></p>');
+ bindSocialButtons();
  $('signin').onsubmit=guard(async()=>{
   const r=await client.signIn.email({email:$('email').value.trim().toLowerCase(),password:$('password').value});
   if(r?.error)throw Error(fmtError(r));
@@ -80,12 +117,13 @@ async function setupLogin(){
 }
 async function setupSignup(){
  setHTML('<h1>Create your Rosie account.</h1><p class="lead">A secure personal identity, separate from every organization.</p>'+
-  (!config.signupEnabled?'<div class="alert">Staging registration is temporarily closed until verified email delivery and SSO acceptance pass.</div>':'')+
+  (!config.signupEnabled?'<div class="alert">Email/password registration is temporarily closed pending email verification testing. Social registration opens when each provider is configured and approved.</div>':'')+
   '<form id="signup">'+field('fullName','Full name','text','minlength="2" autocomplete="name"')+
   field('email','Email','email','autocomplete="email"')+
   field('password','Password (12 characters minimum)','password','minlength="12" autocomplete="new-password"')+
-  button('Create secure account')+'</form>'+
+  button('Create secure account')+'</form>'+socialButtons('signup')+
   '<p class="subtle">Already registered? <a href="'+oauthPage('login')+'">Sign in</a></p>');
+ bindSocialButtons();
  if(!config.signupEnabled){$('signup').querySelector('button').disabled=true;return;}
  $('signup').onsubmit=guard(async()=>{
   const r=await client.signUp.email({name:$('fullName').value.trim(),email:$('email').value.trim().toLowerCase(),password:$('password').value});
@@ -125,11 +163,13 @@ async function setupMfa(){
   };
   return;
  }
- setHTML('<h1>Protect your Rosie account.</h1><p class="lead">An authenticator app is required for every product sign-in. Your email alone cannot unlock BOB.</p>'+
-  '<form id="enroll">'+field('password','Confirm your account password','password','autocomplete="current-password"')+
+ const accounts=await client.listAccounts().catch(()=>({data:[]}));
+ const needsAccountPassword=(accounts?.data||[]).some(a=>a.providerId==='credential');
+ setHTML('<h1>Protect your Rosie account.</h1><p class="lead">An authenticator app is required before Rosie products will authorize you. Social-only accounts can set one up without creating a separate password.</p>'+
+  '<form id="enroll">'+(needsAccountPassword?field('password','Confirm your account password','password','autocomplete="current-password"'):'')+
   button('Set up authenticator')+'</form><div id="enrollment"></div>');
  $('enroll').onsubmit=guard(async()=>{
-  const r=await client.twoFactor.enable({password:$('password').value,method:'totp',issuer:'Rosie AI'});
+  const r=await client.twoFactor.enable({...needsAccountPassword?{password:$('password').value}:{},method:'totp',issuer:'Rosie AI'});
   if(r?.error)throw Error(fmtError(r));
   const data=r?.data||{};
   if(!data.totpURI)throw Error('Authenticator enrollment could not be initialized');
@@ -182,10 +222,32 @@ async function setupAccount(){
   '<div class="consent"><strong id="who"></strong><p id="verified"></p><p id="mfa"></p></div>'+
   '<div class="actions"><button id="security" class="primary">Authenticator settings</button>'+
   '<button id="logout" class="secondary">Sign out</button></div>'+
+  '<h2 class="account-subhead">Connected sign-in methods</h2><p class="subtle">Link another sign-in method explicitly. We do not automatically combine accounts just because their email addresses match.</p>'+
+  '<div id="linkedProviders"></div>'+
   '<p class="subtle">Abracadabra encryption keys and recovery phrases remain separate from your login.</p>');
  $('who').textContent=who.user.email;
  $('verified').textContent=who.user.emailVerified?'Email verified':'Email verification required';
  $('mfa').textContent=who.user.twoFactorEnabled?'Authenticator enrolled':'Authenticator setup required';
+ const accountList=await client.listAccounts().catch(()=>({data:[]}));
+ const linkedIds=new Set((accountList?.data||[]).map(a=>a.providerId));
+ const links=SOCIAL_CHOICES.map(p=>{
+  const linked=linkedIds.has(p.id);
+  const enabled=config.socialProviders?.[p.id]===true&&who.user.emailVerified===true&&who.user.twoFactorEnabled===true;
+  return '<button class="social-signin" type="button" data-link-provider="'+p.id+'"'+
+    (!enabled||linked?' disabled aria-disabled="true"':'')+
+    '><span class="social-symbol social-'+p.id+'">'+p.symbol+'</span><span>'+p.label+
+    (linked?' · Connected':enabled?' · Connect':' · Unavailable')+'</span></button>';
+ }).join('');
+ $('linkedProviders').innerHTML='<div class="social-grid">'+links+'</div>';
+ document.querySelectorAll('[data-link-provider]').forEach(btn=>{
+  btn.onclick=async()=>{
+   btn.disabled=true;
+   try{
+    const result=await client.linkSocial({provider:btn.dataset.linkProvider,callbackURL:location.origin+'/account'});
+    if(result?.error)throw Error(fmtError(result));
+   }catch(e){msg(String(e?.message||e),true);btn.disabled=false;}
+  };
+ });
  $('security').onclick=()=>location.assign('/setup-mfa');
  $('logout').onclick=async()=>{await client.signOut();location.replace('/login')};
 }
