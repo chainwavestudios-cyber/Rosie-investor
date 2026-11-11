@@ -1,0 +1,140 @@
+{
+  "schema_version": "rosie.grc.control_catalog.v1",
+  "status": "draft_not_audited",
+  "systems": [
+    "core",
+    "bob"
+  ],
+  "controls": [
+    {
+      "id": "CORE-SEC-001",
+      "title": "Tenant authorization and Abracadabra policy enforcement",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-access-control"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Documented negative cross-tenant access tests and approved authorization assertions"
+    },
+    {
+      "id": "CORE-SEC-002",
+      "title": "Service identities and signed evidence authentication",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-identity-management"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Verify scoped tokens, signature freshness, issuer, audience and replay rejection"
+    },
+    {
+      "id": "CORE-SEC-003",
+      "title": "Restricted operator access and access review",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-access-control"
+      ],
+      "evidence_kind": "access-review",
+      "acceptance": "Document reviewer, decision, ticket reference and removed excess privileges"
+    },
+    {
+      "id": "CORE-SEC-004",
+      "title": "Recoverability and tested backup restoration",
+      "framework_hints": [
+        "SOC2-CC7",
+        "ISO27001-backup"
+      ],
+      "evidence_kind": "backup-restore-test",
+      "acceptance": "Time-bounded restore drill with integrity validation and authorized reviewer"
+    },
+    {
+      "id": "CORE-SEC-005",
+      "title": "Change and production release controls",
+      "framework_hints": [
+        "SOC2-CC8",
+        "ISO27001-change-management"
+      ],
+      "evidence_kind": "change-control",
+      "acceptance": "Approved change, testing, release decision and rollback reference"
+    },
+    {
+      "id": "CORE-SEC-006",
+      "title": "Third-party processing review",
+      "framework_hints": [
+        "SOC2-CC9",
+        "ISO27001-supplier-relationships"
+      ],
+      "evidence_kind": "provider-dpa-review",
+      "acceptance": "Vendor inventory, applicable DPA and approved risk decision"
+    },
+    {
+      "id": "BOB-SEC-001",
+      "title": "Organization isolation for training and knowledge",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-access-control"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Cross-org read/write tests deny access to knowledge, scripts, training sessions and results"
+    },
+    {
+      "id": "BOB-SEC-002",
+      "title": "Encrypted session vault",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-cryptography"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Approved encryption/key scope and denial tests; secrets never sent as evidence"
+    },
+    {
+      "id": "BOB-SEC-003",
+      "title": "Voice-session privacy and retention",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-information-lifecycle"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Retention policy, deletion behavior and proof without audio/transcript disclosure"
+    },
+    {
+      "id": "BOB-SEC-004",
+      "title": "External voice and AI processor governance",
+      "framework_hints": [
+        "SOC2-CC9",
+        "ISO27001-supplier-relationships"
+      ],
+      "evidence_kind": "provider-dpa-review",
+      "acceptance": "Deepgram/Cartesia/LLM configuration, retention settings and vendor review"
+    },
+    {
+      "id": "BOB-SEC-005",
+      "title": "User invitation, least privilege and membership access",
+      "framework_hints": [
+        "SOC2-CC6",
+        "ISO27001-access-control"
+      ],
+      "evidence_kind": "access-review",
+      "acceptance": "Verified role tests, invite controls and removal/access review"
+    },
+    {
+      "id": "BOB-SEC-006",
+      "title": "AI credit and billing segregation",
+      "framework_hints": [
+        "SOC2-CC5",
+        "ISO27001-integrity"
+      ],
+      "evidence_kind": "automated-security-test",
+      "acceptance": "Credit receipts and tenant billing reconciliation without exposing financial records"
+    },
+    {
+      "id": "BOB-SEC-007",
+      "title": "Deletion, backup and recovery policies",
+      "framework_hints": [
+        "SOC2-CC7",
+        "ISO27001-backup"
+      ],
+      "evidence_kind": "backup-restore-test",
+      "acceptance": "Completed recovery test, tenant-bound restore proof and retention review"
+    }
+  ]
+}
