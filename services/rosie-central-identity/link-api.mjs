@@ -21,9 +21,14 @@ const keys={
 const R=express.Router();
 const reply=(res,status,body)=>res.status(status).set('Cache-Control','no-store').json(body);
 const POST_BODY=express.raw({type:'application/json',limit:'1500b'});
-const REDIRECTS={
- bob:'https://bob-training-intelligence-8019bf2b.base44.app/bob/portal'
-};
+// Pinned destinations. The browser cannot supply a redirect_uri for a link.
+const REDIRECTS=Object.freeze({
+ bob:'https://bob-training-intelligence-8019bf2b.base44.app/identity/link',
+ directd:'https://direct-d-investment-capital-manag-9322d972.base44.app/identity/link',
+ insureiq:'https://underwriteriq-platform.base44.app/identity/link',
+ settlementiq:'https://settlement-iq-cf53340e.base44.app/identity/link',
+ emailiq:'https://email-iq-7fe0bfa2.base44.app/identity/link'
+});
 const loggedIn=async(req,auth)=>{
  const headers=new Headers();
  for(const [k,v] of Object.entries(req.headers))
