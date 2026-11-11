@@ -133,6 +133,25 @@ export function createRosieLinkRouter({auth,pool}){
    finally{client.release()}
   }catch(e){return reply(res,400,{error:'redemption_failed'})}
  });
+ // Server-only recovery after a network break between redeem and the product
+ // membership write. The local product must reauthenticate the SAME principal
+ // and organization before signing a fresh status query.
+ R.post('/status',POST_BODY,async(req,res)=>{
+  try{
+   const verified=await productAuth(req,res,pool,'status');
+   if(verified.error)return;
+   const identity=validateProductLinkInput(verified.data);
+   const rows=await pool.query(
+    "SELECT central_subject,issuer,state FROM rosie_identity_link.linked_seat WHERE product_key=$1 AND organization_id=$2 AND product_principal_id=$3",
+    [identity.product,identity.organizationId,identity.productPrincipalId]);
+   const record=rows.rows[0];
+   if(!record||record.state!=='verified')return reply(res,404,{error:'verified_link_not_found'});
+   return reply(res,200,{verified:true,centralSubject:record.central_subject,
+    issuer:record.issuer,product:identity.product,
+    organizationId:identity.organizationId,productPrincipalId:identity.productPrincipalId});
+  }catch{return reply(res,400,{error:'link_status_failed'})}
+ });
+
  R.get('/preview',async(req,res)=>{
   try{
    const s=await loggedIn(req,auth);
