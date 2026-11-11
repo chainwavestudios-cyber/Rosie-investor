@@ -6,7 +6,9 @@ import QRCode from 'qrcode';
 const path=window.location.pathname;
 const suffix=window.location.search||'';
 const hasOAuth=new URLSearchParams(suffix).has('sig');
-const oauthPage=name=>'/'+name+(hasOAuth?suffix:'');
+const rawNext=new URLSearchParams(suffix).get('next')||'';
+const nextLink=/^\/link\/approve\?code=[A-Za-z0-9_-]{20,120}$/.test(rawNext)?rawNext:null;
+const oauthPage=name=>'/'+name+(hasOAuth?suffix:(nextLink?'?next='+encodeURIComponent(nextLink):''));
 const ui=document.querySelector('#screen');
 const status=document.querySelector('#status');
 const client=createAuthClient({
@@ -46,7 +48,7 @@ const guard=(fn)=>async e=>{
  try{await fn(e)}catch(err){msg(err?.message||String(err),true)}
  finally{if(submit)submit.disabled=false}
 };
-const goAccount=()=>location.assign('/account');
+const goAccount=()=>location.assign(nextLink||'/account');
 
 const SOCIAL_CHOICES=[
  {id:'google',label:'Google',symbol:'G'},
@@ -215,6 +217,72 @@ async function setupConsent(){
   };
  }
 }
+/**
+ * The product's signed server call creates an opaque, three-minute challenge.
+ * Only the logged-in central account can approve it; a fresh TOTP proof must
+ * be verified by Better Auth first. No user-supplied email or role can grant
+ * product access, and actual binding happens on signed product redemption.
+ */
+async function setupLinkApproval(){
+ const token=new URLSearchParams(window.location.search).get('code')||'';
+ if(!/^[A-Za-z0-9_-]{20,120}$/.test(token)){
+  setHTML('<h1>Invalid account-link request.</h1><p>Please restart linking from your product workspace.</p>');
+  return;
+ }
+ const p='/link/approve?code='+encodeURIComponent(token);
+ const response=await fetch('/api/links/preview?code='+encodeURIComponent(token),{credentials:'same-origin',cache:'no-store'});
+ if(response.status===401){
+  location.replace('/login?next='+encodeURIComponent(p));
+  return;
+ }
+ const item=await response.json().catch(()=>({}));
+ if(!response.ok){
+  setHTML('<h1>Cannot link this account.</h1><p>This link may have expired or already been used. Restart from your product workspace.</p>');
+  msg(item.error||'Link request unavailable.',true);
+  return;
+ }
+ if(!item.emailVerified||!item.totpEnabled){
+  setHTML('<h1>Secure your Rosie identity first.</h1><p>Verify your email and enroll a TOTP authenticator before linking any Rosie product.</p>'+
+   '<button type="button" class="primary" id="setup">Set up authenticator</button>');
+  $('setup').onclick=()=>location.assign('/setup-mfa?next='+encodeURIComponent(p));
+  return;
+ }
+ setHTML('<h1>Connect this Rosie account?</h1>'+
+  '<p class="lead">A verified product account is requesting to link to this Rosie identity. You will keep separate product memberships, billing and private data.</p>'+
+  '<div class="consent"><strong id="product"></strong><p>Expires: <span id="expires"></span></p><p>No other organizations will be linked.</p></div>'+
+  '<form id="prove">'+field('code','Authenticator code','text','inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code"')+
+  button('Verify authenticator')+'</form>'+
+  '<div id="finalize" hidden><p class="lead">Your authenticator was verified. Approve this specific product account link?</p>'+
+  '<button type="button" class="primary" id="approve">Approve account link</button></div>');
+ $('product').textContent={bob:'BOB Training Intelligence',directd:'Direct D',insureiq:'UnderWriterIQ',
+  settlementiq:'Settlement IQ',emailiq:'Email IQ'}[item.product]||'Rosie product';
+ $('expires').textContent=new Date(item.expiresAt).toLocaleTimeString();
+ $('prove').onsubmit=guard(async()=>{
+  const r=await fetch('/api/links/step-up',{method:'POST',credentials:'same-origin',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('code').value.trim()})});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw Error(data.error||'Authenticator verification failed.');
+  $('prove').hidden=true;$('finalize').hidden=false;
+  msg('Fresh authenticator proof accepted. Approve the exact product link.');
+ });
+ $('approve').onclick=async()=>{
+  $('approve').disabled=true;
+  try{
+   const r=await fetch('/api/links/approve',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({challenge:token})});
+   const data=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(data.error||'Unable to approve account link');
+   setHTML('<h1>Identity link approved.</h1>'+
+    '<p class="lead">Return to the original product workspace to complete server-side verification. No other workspace was granted access.</p>'+
+    '<div id="return"></div>');
+   if(data.returnTo&&new URL(data.returnTo).protocol==='https:'){
+    const a=document.createElement('a');a.className='primary';a.href=data.returnTo;
+    a.textContent='Return to product';$('return').append(a);
+   }
+  }catch(e){msg(e.message,true);$('approve').disabled=false;}
+ };
+}
+
 async function setupAccount(){
  const who=await session();
  if(!who?.user){location.replace('/login');return;}
@@ -259,6 +327,7 @@ async function setupAccount(){
   else if(path==='/setup-mfa'||path==='/verify-email')await setupMfa();
   else if(path==='/consent')await setupConsent();
   else if(path==='/account')await setupAccount();
+  else if(path==='/link/approve')await setupLinkApproval();
   else{setHTML('<h1>Not found</h1>');}
  }catch(e){msg(e?.message||'Identity service unavailable',true);}
 })();
