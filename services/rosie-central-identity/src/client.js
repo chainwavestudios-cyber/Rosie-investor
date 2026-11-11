@@ -169,7 +169,7 @@ async function setupMfa(){
   '<form id="enroll">'+(needsAccountPassword?field('password','Confirm your account password','password','autocomplete="current-password"'):'')+
   button('Set up authenticator')+'</form><div id="enrollment"></div>');
  $('enroll').onsubmit=guard(async()=>{
-  const r=await client.twoFactor.enable({...needsAccountPassword?{password:$('password').value}:{},method:'totp',issuer:'Rosie AI'});
+  const r=await client.twoFactor.enable({...(needsAccountPassword?{password:$('password').value}:{}),method:'totp',issuer:'Rosie AI'});
   if(r?.error)throw Error(fmtError(r));
   const data=r?.data||{};
   if(!data.totpURI)throw Error('Authenticator enrollment could not be initialized');
