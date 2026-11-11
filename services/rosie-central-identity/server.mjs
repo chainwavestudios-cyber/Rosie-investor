@@ -4,7 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname,join} from 'node:path';
 import {toNodeHandler} from 'better-auth/node';
 import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
-import {auth,ORIGIN,PUBLIC_SIGNUP_ENABLED,pool,BOB_RESOURCE,readyForOidc} from './auth.mjs';
+import {auth,ORIGIN,PUBLIC_SIGNUP_ENABLED,SOCIAL_SIGNUP_ENABLED,SOCIAL_PROVIDER_CONFIGURED,SOCIAL_PROVIDER_CALLBACKS,pool,BOB_RESOURCE,readyForOidc} from './auth.mjs';
 const dir=dirname(fileURLToPath(import.meta.url));
 const app=express();
 app.disable('x-powered-by');
@@ -25,6 +25,10 @@ app.get('/health',async(_req,res)=>{
 });
 app.get('/api/identity/config',(_req,res)=>res.json({
  stage:'staging',signupEnabled:PUBLIC_SIGNUP_ENABLED,
+ socialSignupEnabled:SOCIAL_SIGNUP_ENABLED,
+ socialProviders:SOCIAL_PROVIDER_CONFIGURED,
+ // Callback URIs can be registered without exposing the client IDs/secrets.
+ socialCallbacks:SOCIAL_PROVIDER_CALLBACKS,
  requireTotp:true,issuer:ORIGIN+'/api/auth',resource:BOB_RESOURCE
 }));
 const bAuth=toNodeHandler(auth);
