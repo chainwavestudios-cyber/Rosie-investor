@@ -7,7 +7,7 @@ This folder contains a pinned upstream Probo container wrapper and **staging-onl
 - Deploy isolated Docker service using `Dockerfile` on the `rosie-probo-grc-staging` branch.
 - Set `PROBOD_PG_CA_BUNDLE_PATH=/etc/ssl/certs/ca-certificates.crt` to verify TLS for the isolated PostgreSQL connection.
 - Configure `PROBOD_PG_ADDR`, `PROBOD_PG_USERNAME`, `PROBOD_PG_PASSWORD`, `PROBOD_PG_DATABASE` through protected deployment secrets.
-- Configure private S3-compatible storage with `PROBOD_AWS_*` settings and scoped credentials. Never commit access keys, connection strings, tenant IDs, or storage endpoints.
+- Configure private S3-compatible storage with `PROBOD_AWS_*` settings and scoped credentials. **Neon Storage requires `PROBOD_AWS_USE_PATH_STYLE=true`** (verified against Neon's branch storage response and Probo's `pkg/bootstrap/builder.go` support for this setting). Never commit access keys, connection strings, tenant IDs, or storage endpoints.
 - Set `PROBOD_AUTH_DISABLE_SIGNUP=true` until controlled owner enrollment can be completed privately.
 - Use secure and persistent `PROBOD_ENCRYPTION_KEY`, `PROBOD_AUTH_COOKIE_SECRET`, `PROBOD_AUTH_PASSWORD_PEPPER`, `PROBOD_OAUTH2_SERVER_SIGNING_KEY` and supporting settings through secret management.
 - AI provider startup is restricted to a nonfunctional staging placeholder: do not perform AI-assisted compliance processing until a scoped provider is explicitly approved.
