@@ -1,0 +1,32 @@
+name: Probo staging compliance checks
+on:
+  push:
+    branches: [rosie-probo-grc-staging]
+    paths:
+      - 'services/probo-grc/**'
+      - '.github/workflows/probo-staging-check.yml'
+  pull_request:
+    branches: [rosie-probo-grc-staging]
+    paths:
+      - 'services/probo-grc/**'
+permissions:
+  contents: read
+jobs:
+  probo-contract-and-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate controls, dashboard and evidence contracts
+        run: |
+          node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/controls/catalog.v1.test.mjs services/probo-grc/dashboard/dashboard.test.mjs
+      - name: Confirm no credential-bearing deployment artifacts
+        run: |
+          if grep -RInE '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|sk-[A-Za-z0-9]{20}|-----BEGIN CERTIFICATE)' services/probo-grc/; then
+            echo "Potential secret material in Probo staging subtree"
+            exit 1
+          fi
