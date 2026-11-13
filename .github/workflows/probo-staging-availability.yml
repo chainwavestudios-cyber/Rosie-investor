@@ -1,0 +1,16 @@
+name: Probo staging external availability
+on:
+  workflow_dispatch:
+  push:
+    branches: [rosie-probo-grc-staging]
+    paths: [services/probo-grc/probe-availability.mjs, .github/workflows/probo-staging-availability.yml]
+jobs:
+  availability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node services/probo-grc/probe-availability.mjs
