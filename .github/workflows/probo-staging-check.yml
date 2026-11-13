@@ -23,7 +23,7 @@ jobs:
           node-version: '22'
       - name: Validate controls, dashboard and evidence contracts
         run: |
-          node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/controls/catalog.v1.test.mjs services/probo-grc/dashboard/dashboard.test.mjs services/probo-grc/tools/storage-roundtrip.test.mjs
+          node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/evidence-admission.test.mjs services/probo-grc/controls/catalog.v1.test.mjs services/probo-grc/dashboard/dashboard.test.mjs services/probo-grc/tools/storage-roundtrip.test.mjs
       - name: Confirm no credential-bearing deployment artifacts
         run: |
           if grep -RInE '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|sk-[A-Za-z0-9]{20}|-----BEGIN CERTIFICATE)' services/probo-grc/; then
