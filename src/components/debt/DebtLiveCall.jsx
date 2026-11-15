@@ -36,7 +36,7 @@ import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
-import { INVESTOR_SHARED_POLICY_ENABLED, latestInvestorProspectTurn, investorNeedsQuestionReview,
+import { INVESTOR_SHARED_POLICY_ENABLED, latestInvestorProspectTurn, investorShouldAskSettled,
   investorPlanLiveServices, investorSettleDelay, investorShouldCoachSettled } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
@@ -946,13 +946,22 @@ Agent line: "${firstAgentLines}"`,
   const flushCustomerBuffer = useCallback(() => {
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (customerBufferRef.current.length === 0) return;
+    // An operator switching off auto Q&A cancels any already scheduled request.
+    // Manual Ask remains separately authorized and unaffected.
+    if (INVESTOR_SHARED_POLICY_ENABLED && !qaActiveRef.current) {
+      customerBufferRef.current = [];
+      return;
+    }
     const settled = customerBufferRef.current.join(' ').replace(/\s+/g, ' ').trim();
     customerBufferRef.current = [];
     if (!settled || settled.length < 3) return;
     // Only the opt-in shared policy filters completed caller statements here.
     // The original answer backend, permissions, KB and UI stay unchanged.
-    if (INVESTOR_SHARED_POLICY_ENABLED &&
-        !investorNeedsQuestionReview({ role: 'prospect', text: settled })) return;
+    if (INVESTOR_SHARED_POLICY_ENABLED && !investorShouldAskSettled({
+      turn: { role: 'prospect', text: settled }, enabled: qaActiveRef.current,
+      now: Date.now(), lastAskedText: lastAskedQuestionRef.current,
+      lastAskedAt: lastAskedAtRef.current,
+    })) return;
     // Short questions are first-class: "Why?", "What fees?" and
     // "How much?" should not be dropped because of character/word count.
     const normalized = settled.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
