@@ -64,3 +64,30 @@ Optionally, the function may return `{play, streamSid}` inline in its response a
 
 ## Turning on in-container AI later
 The relay seams are `forwardToApp()` (inbound) and `sendToTwilio()` (outbound). Swap the HTTP forward for in-process Deepgram + LLM, and reuse `sendToTwilio()` for TTS — no transport interface changes needed.
+
+## Commercial BOB browser route — November 15, 2026
+
+`/bob/ws` is a separately authenticated browser-training route. Its session
+ticket selects either Plain BOB's existing Deepgram managed voice agent or the
+Jacked Up BOB pipeline (Deepgram Flux STT → BOB-signed Core Haiku 4.5 →
+Rosie Core master Cartesia Sonic 3.6/Skylar TTS).
+
+For **Jacked Up BOB browser sessions only**, `streamCartesiaTTS` now sends
+a bounded `event: "tts"` to the private BOB `bobMediaRelay` callback,
+which authenticates the session and signs the exact speech request to
+`coreBobPilotTts` in Rosie Core. Core returns metered, 8 kHz raw μ-law audio
+for the selected Skylar voice; the bridge streams those bytes to the browser.
+No Render-local Cartesia master key is required by the BOB browser route.
+The operation is currently restricted to the approved internal executive
+pilot and does not debit any customer credit wallet.
+
+A failed Core/Claude turn is sent back as an explicit `bob_error` for the
+browser instead of leaving the user in an unresponsive call. If Core Skylar
+synthesis fails, the BOB route displays an error instead of silently playing
+Deepgram Aura and presenting it as Skylar.
+
+**Do not change the existing Fronter `/ws`, investor callbacks, Twilio
+credentials, or the distinct InsureIQ BOB route.** The conditions above
+apply only to `session.browser === true` in commercial BOB's
+`/bob/ws` transport. The Base44 BOB relay and Core functions must be
+deployed before the Render bridge revision.
