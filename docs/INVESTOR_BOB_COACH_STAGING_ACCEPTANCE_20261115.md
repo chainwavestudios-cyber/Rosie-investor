@@ -31,3 +31,13 @@ Scope: Original RoieAI-Investor embedded Debt Call Coach only; standalone Commer
 - App: `69cd2741578c9b5ce655395b`
 - Document: `rosie-investor-bob-coach-v1`
 - Plan: `rosie-investor-bob-coach-best-of-both-v1`
+
+## Controlled pilot rollout gate — stage only
+- Staging branch was synced to Investor main on 2026-11-15, importing its media stream relay and founder override updates. Sync status was clean, with no production merge. Restore checkpoint for sync: `6afa30b2a339ef0ba40f4f71`.
+- A feature-enabled Vite build **does not activate the shared conversation policy for every agent**. `investorPilotEnabled` now requires BOTH `VITE_ROSIE_INVESTOR_SHARED_POLICY=true` at build time and the authenticated Investor user's `aiSettingsJson.sharedConversationV1 === true`.
+- Investor `AdminFlagsTab.jsx` exposes the explicit per-user pilot setting. It defaults false, and All ON / All OFF bulk actions forcibly leave it false to prevent accidental mass rollout.
+- The original authenticated `debtCoachAuth/entry.ts` admin API had a strict `ADMIN_FLAG_KEYS` allowlist; it was updated to include `sharedConversationV1`. Existing `updateUser` session validation, role checks, boolean-only validation, DB persistence, and post-write UI verification remain in place.
+- **Important boundary:** this is a client rollout guard, not a replacement for the server's tenant/entitlement or paid-provider authorization. A client can never be trusted to grant tenant permissions. No live user was opted in and no environment flag was changed.
+- Staged deterministic tests (including double-gate matrix and source-contract checks): **37/37 pass**; lint 0; builds both with flag on and flag off exit 0. No live UI or authenticated server persistence is claimed.
+- Next gate still requires authorized staging account, consented dual-channel call and independent tenant/KB/provider checks before any release.
+
