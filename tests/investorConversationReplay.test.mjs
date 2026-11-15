@@ -65,8 +65,9 @@ function replay(events,{initialQa=true,initialCoach=true}={}) {
     transcript.push(normalizedEvent(event));
     if(event.interim===true){
       if(event.speaker===1){
-        if(customerPending)customerPending.due=event.at+1300;
-        if(coachPending)coachPending.due=event.at+1300;
+        const nextDelay=Math.max(1300,investorSettleDelay(event.text));
+        if(customerPending)customerPending.due=event.at+nextDelay;
+        if(coachPending)coachPending.due=event.at+nextDelay;
       }
       continue;
     }
