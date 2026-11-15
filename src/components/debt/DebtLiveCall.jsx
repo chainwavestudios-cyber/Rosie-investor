@@ -37,7 +37,7 @@ import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
 import { INVESTOR_SHARED_POLICY_ENABLED, latestInvestorProspectTurn, investorNeedsQuestionReview,
-  investorPlanLiveServices, investorSettleDelay } from '@/lib/investorConversationAdapter';
+  investorPlanLiveServices, investorSettleDelay, investorShouldCoachSettled } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 
@@ -576,6 +576,8 @@ Agent line: "${firstAgentLines}"`,
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);
   const lastSharedCoachKey = useRef('');
+  const sharedCoachPendingRef = useRef(null);
+  const sharedCoachTimeoutRef = useRef(null);
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
   const lastLedgerTime = useRef(0);
@@ -971,6 +973,24 @@ Agent line: "${firstAgentLines}"`,
       .then(res => { const tip = res?.tip || res?.response || res?.answer || ''; if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8)); })
       .catch(() => {});
   }, [kbEntries]);
+
+  // This debounce is independent of Q&A: Coach can run when Q&A is OFF.
+  // Only a complete, settled prospect turn may trigger the shared Coach path.
+  const flushSharedCoach = useCallback(() => {
+    if (sharedCoachTimeoutRef.current) {
+      clearTimeout(sharedCoachTimeoutRef.current);
+      sharedCoachTimeoutRef.current = null;
+    }
+    const turn = sharedCoachPendingRef.current;
+    sharedCoachPendingRef.current = null;
+    if (!INVESTOR_SHARED_POLICY_ENABLED || !coachActiveRef.current || !turn) return;
+    const now = Date.now();
+    if (!investorShouldCoachSettled({ turn, enabled: true, now,
+      lastCoachAt: lastCoachTime.current, lastCoachKey: lastSharedCoachKey.current })) return;
+    lastSharedCoachKey.current = investorPlanLiveServices({turn}).signal.key;
+    lastCoachTime.current = now;
+    handleCoach();
+  }, [handleCoach]);
 
   const handleIntent = useCallback(() => {
     logAI('intent');
@@ -1520,6 +1540,11 @@ ${recentText}`,
       const settleMs = INVESTOR_SHARED_POLICY_ENABLED ? investorSettleDelay(latest)
         : incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), settleMs);
+    } else if (INVESTOR_SHARED_POLICY_ENABLED && entry.speaker === 2) {
+      // Transfer speaker is neither the customer nor the closing agent.
+      // Never carry a preceding customer question through the handoff.
+      customerBufferRef.current = [];
+      if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     } else if (entry.speaker === 0) {
       // Agent started speaking — flush any pending customer question, then treat
       // the next one as a fresh turn so it is asked in full.
@@ -1529,20 +1554,22 @@ ${recentText}`,
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
     const now = Date.now();
     const isCustomer = entry.speaker === 1;
-    // Coach: only on customer lines, with a 20s minimum gap even on keyword hits
+    // The shared Coach waits for a complete turn (like BOB), not an individual
+    // Deepgram fragment. The legacy behavior remains unchanged when disabled.
     if (INVESTOR_SHARED_POLICY_ENABLED) {
-      const sharedTurn = isCustomer ? latestInvestorProspectTurn(nextTranscript) : null;
-      const planned = investorPlanLiveServices({
-        turn: sharedTurn, now,
-        enabled: { qa: false, coach: coachActiveRef.current, intent: false },
-        state: { lastCoachAt: lastCoachTime.current, lastCoachKey: lastSharedCoachKey.current },
-      });
-      const newCandidate = sharedTurn && planned.signal.key !== lastSharedCoachKey.current;
-      if (coachActiveRef.current && newCandidate && now - lastCoachTime.current > 20000 &&
-          (planned.coach || now - lastCoachTime.current > 45000)) {
-        lastSharedCoachKey.current = planned.signal.key;
-        lastCoachTime.current = now;
-        handleCoach();
+      if (isCustomer) {
+        const turn = latestInvestorProspectTurn(nextTranscript);
+        sharedCoachPendingRef.current = turn;
+        if (sharedCoachTimeoutRef.current) clearTimeout(sharedCoachTimeoutRef.current);
+        sharedCoachTimeoutRef.current = turn && coachActiveRef.current
+          ? setTimeout(flushSharedCoach, investorSettleDelay(turn.text)) : null;
+      } else if (entry.speaker === 0) {
+        flushSharedCoach();
+      } else if (entry.speaker === 2) {
+        // Transfer-agent speech invalidates any pending customer Coach tip.
+        sharedCoachPendingRef.current = null;
+        if (sharedCoachTimeoutRef.current) clearTimeout(sharedCoachTimeoutRef.current);
+        sharedCoachTimeoutRef.current = null;
       }
     } else if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
         ((objWords.some(w => text.toLowerCase().includes(w))) || now - lastCoachTime.current > 45000)) {
@@ -1569,7 +1596,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, flushSharedCoach, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
 
   // Show live partial transcript text as it arrives (interim results from Deepgram).
   // The interim line is replaced on each update and removed when the final text
@@ -1581,6 +1608,11 @@ ${recentText}`,
     if (speaker === 1 && qaActiveRef.current && customerBufferRef.current.length > 0 && bufferTimeoutRef.current) {
       clearTimeout(bufferTimeoutRef.current);
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1300);
+    }
+    if (INVESTOR_SHARED_POLICY_ENABLED && speaker === 1 && coachActiveRef.current &&
+        sharedCoachPendingRef.current && sharedCoachTimeoutRef.current) {
+      clearTimeout(sharedCoachTimeoutRef.current);
+      sharedCoachTimeoutRef.current = setTimeout(flushSharedCoach, 1300);
     }
     // Render no more than ~12 preview updates/sec per speaker. Recognition
     // stays streaming at full rate; this only reduces React layout work.
@@ -1602,7 +1634,7 @@ ${recentText}`,
       }
       return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
     });
-  }, [flushCustomerBuffer]);
+  }, [flushCustomerBuffer, flushSharedCoach]);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false, twilioStreams = null) => {
     if (phaseRef.current === 'live') return;
@@ -1697,6 +1729,8 @@ ${recentText}`,
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
     lastSharedCoachKey.current = '';
+    sharedCoachPendingRef.current = null;
+    if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
@@ -1822,7 +1856,9 @@ ${recentText}`,
     if (recorder.isRecording) {
       try { recordingUri = await recorder.stop(); } catch {}
     }
-    // Nothing should submit a new Q&A question after the call has ended.
+    // No stale Q&A or Coach request may fire after the call ends.
+    sharedCoachPendingRef.current = null;
+    if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
     customerBufferRef.current = [];
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (agentQuestionTimeoutRef.current) { clearTimeout(agentQuestionTimeoutRef.current); agentQuestionTimeoutRef.current = null; }
