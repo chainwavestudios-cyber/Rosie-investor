@@ -12,6 +12,7 @@ import {
   classifyRosieTurn,
   planRosieLiveServices,
   rosieSettleDelay,
+  rosieTextKey,
 } from './rosieLiveIntelligencePolicy.js';
 
 export const INVESTOR_CONVERSATION_POLICY_VERSION = ROSIE_LIVE_INTELLIGENCE_VERSION;
@@ -63,6 +64,21 @@ export function investorSettleDelay(text) {
 export function investorNeedsQuestionReview(turn) {
   if (!turn || turn.role !== 'prospect') return false;
   return classifyRosieTurn(turn.text).needsQuestionReview;
+}
+
+/** Decide whether a settled prospect utterance can open an automatic Q&A.
+ * Manual agent Ask is separate and intentionally remains available.
+ * Mirrors the Investor application's existing 11-second duplicate guard.
+ */
+export function investorShouldAskSettled({ turn, enabled = false, now = Date.now(),
+  lastAskedText = '', lastAskedAt = 0 } = {}) {
+  if (!enabled || !investorNeedsQuestionReview(turn)) return false;
+  const normalized = rosieTextKey(turn.text);
+  const prior = rosieTextKey(lastAskedText);
+  if (!normalized) return false;
+  const recentlyAsked = now - Number(lastAskedAt || 0) < 11000;
+  return !(recentlyAsked && (normalized === prior ||
+    (prior.startsWith(normalized) && prior.length - normalized.length < 24)));
 }
 
 export function investorPlanLiveServices({ turn, enabled = {}, now = Date.now(), state = {} } = {}) {
