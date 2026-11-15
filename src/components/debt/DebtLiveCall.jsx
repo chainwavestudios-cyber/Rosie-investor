@@ -977,7 +977,7 @@ Agent line: "${firstAgentLines}"`,
     lastAskedAtRef.current = Date.now();
     // Full settled customer turn goes to the one canonical live Q&A engine.
     handleQa(settled);
-  }, [handleQa]);
+  }, [handleQa, sharedPolicyEnabled]);
 
   const handleCoach = useCallback(() => {
     logAI('coach');
@@ -1002,7 +1002,7 @@ Agent line: "${firstAgentLines}"`,
     lastSharedCoachKey.current = investorPlanLiveServices({turn}).signal.key;
     lastCoachTime.current = now;
     handleCoach();
-  }, [handleCoach]);
+  }, [handleCoach, sharedPolicyEnabled]);
 
   const handleIntent = useCallback(() => {
     logAI('intent');
@@ -1608,7 +1608,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, flushSharedCoach, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, flushSharedCoach, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract, sharedPolicyEnabled]);
 
   // Show live partial transcript text as it arrives (interim results from Deepgram).
   // The interim line is replaced on each update and removed when the final text
@@ -1650,7 +1650,7 @@ ${recentText}`,
       }
       return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
     });
-  }, [flushCustomerBuffer, flushSharedCoach]);
+  }, [flushCustomerBuffer, flushSharedCoach, sharedPolicyEnabled]);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false, twilioStreams = null) => {
     if (phaseRef.current === 'live') return;
