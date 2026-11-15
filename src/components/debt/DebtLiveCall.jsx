@@ -36,7 +36,7 @@ import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
-import { INVESTOR_SHARED_POLICY_ENABLED, latestInvestorProspectTurn, investorShouldAskSettled,
+import { investorPilotEnabled, latestInvestorProspectTurn, investorShouldAskSettled,
   investorPlanLiveServices, investorSettleDelay, investorShouldCoachSettled } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
@@ -94,6 +94,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const { user: coachUser, can, sessionToken, sessionUserId } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
+  // Double gate: staging build flag + authenticated per-agent admin opt-in.
+  // Rollout remains off for every agent by default, even in a flag-on build.
+  const sharedPolicyEnabled = investorPilotEnabled(aiSettings);
   const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
   const canLiveQA = can('liveQA') && aiSettings.liveQA !== false;
   const canLiveCoach = can('liveCoach') && aiSettings.liveCoach !== false;
@@ -948,7 +951,7 @@ Agent line: "${firstAgentLines}"`,
     if (customerBufferRef.current.length === 0) return;
     // An operator switching off auto Q&A cancels any already scheduled request.
     // Manual Ask remains separately authorized and unaffected.
-    if (INVESTOR_SHARED_POLICY_ENABLED && !qaActiveRef.current) {
+    if (sharedPolicyEnabled && !qaActiveRef.current) {
       customerBufferRef.current = [];
       return;
     }
@@ -957,7 +960,7 @@ Agent line: "${firstAgentLines}"`,
     if (!settled || settled.length < 3) return;
     // Only the opt-in shared policy filters completed caller statements here.
     // The original answer backend, permissions, KB and UI stay unchanged.
-    if (INVESTOR_SHARED_POLICY_ENABLED && !investorShouldAskSettled({
+    if (sharedPolicyEnabled && !investorShouldAskSettled({
       turn: { role: 'prospect', text: settled }, enabled: qaActiveRef.current,
       now: Date.now(), lastAskedText: lastAskedQuestionRef.current,
       lastAskedAt: lastAskedAtRef.current,
@@ -992,7 +995,7 @@ Agent line: "${firstAgentLines}"`,
     }
     const turn = sharedCoachPendingRef.current;
     sharedCoachPendingRef.current = null;
-    if (!INVESTOR_SHARED_POLICY_ENABLED || !coachActiveRef.current || !turn) return;
+    if (!sharedPolicyEnabled || !coachActiveRef.current || !turn) return;
     const now = Date.now();
     if (!investorShouldCoachSettled({ turn, enabled: true, now,
       lastCoachAt: lastCoachTime.current, lastCoachKey: lastSharedCoachKey.current })) return;
@@ -1537,7 +1540,7 @@ ${recentText}`,
     // question asked is whole sentences rather than the latest fragment.
     if (qaActiveRef.current && entry.speaker === 1) {
       // Core/BOB canonical turn assembly is opt-in until phone/speaker acceptance.
-      const sharedCustomerTurn = INVESTOR_SHARED_POLICY_ENABLED
+      const sharedCustomerTurn = sharedPolicyEnabled
         ? latestInvestorProspectTurn(nextTranscript) : null;
       customerBufferRef.current = [sharedCustomerTurn?.text || trailingTurn(nextTranscript, 'customer')];
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
@@ -1546,10 +1549,10 @@ ${recentText}`,
       // fragment waits longer for continuation. Interim speech resets this timer.
       const latest = customerBufferRef.current[0] || text;
       const incomplete = /\b(?:and|or|but|because|if|that|with|to|for|of|about|is|are|does|do|can|could|would|should|will|what|how|why|when)\s*$/i.test(latest);
-      const settleMs = INVESTOR_SHARED_POLICY_ENABLED ? investorSettleDelay(latest)
+      const settleMs = sharedPolicyEnabled ? investorSettleDelay(latest)
         : incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), settleMs);
-    } else if (INVESTOR_SHARED_POLICY_ENABLED && entry.speaker === 2) {
+    } else if (sharedPolicyEnabled && entry.speaker === 2) {
       // Transfer speaker is neither the customer nor the closing agent.
       // Never carry a preceding customer question through the handoff.
       customerBufferRef.current = [];
@@ -1565,7 +1568,7 @@ ${recentText}`,
     const isCustomer = entry.speaker === 1;
     // The shared Coach waits for a complete turn (like BOB), not an individual
     // Deepgram fragment. The legacy behavior remains unchanged when disabled.
-    if (INVESTOR_SHARED_POLICY_ENABLED) {
+    if (sharedPolicyEnabled) {
       if (isCustomer) {
         const turn = latestInvestorProspectTurn(nextTranscript);
         sharedCoachPendingRef.current = turn;
@@ -1616,13 +1619,13 @@ ${recentText}`,
     // delay the real-time transcript display.
     // In shared mode, incomplete interim words need the longer BOB settle
     // window. A fixed 1300ms could answer before Deepgram finalized the rest.
-    const interimSettleMs = INVESTOR_SHARED_POLICY_ENABLED
+    const interimSettleMs = sharedPolicyEnabled
       ? Math.max(1300, investorSettleDelay(text)) : 1300;
     if (speaker === 1 && qaActiveRef.current && customerBufferRef.current.length > 0 && bufferTimeoutRef.current) {
       clearTimeout(bufferTimeoutRef.current);
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), interimSettleMs);
     }
-    if (INVESTOR_SHARED_POLICY_ENABLED && speaker === 1 && coachActiveRef.current &&
+    if (sharedPolicyEnabled && speaker === 1 && coachActiveRef.current &&
         sharedCoachPendingRef.current && sharedCoachTimeoutRef.current) {
       clearTimeout(sharedCoachTimeoutRef.current);
       sharedCoachTimeoutRef.current = setTimeout(flushSharedCoach, interimSettleMs);
