@@ -21,6 +21,14 @@ export const INVESTOR_CONVERSATION_POLICY_VERSION = ROSIE_LIVE_INTELLIGENCE_VERS
 export const INVESTOR_SHARED_POLICY_ENABLED =
   String(import.meta.env?.VITE_ROSIE_INVESTOR_SHARED_POLICY || '').toLowerCase() === 'true';
 
+/** Feature rollout is deny-by-default for EVERY user, even on a build with
+ * the feature compiled in. The existing authenticated user's admin-managed
+ * AI settings must explicitly opt in; this does not replace backend auth.
+ */
+export function investorPilotEnabled(aiSettings = {}, { buildEnabled = INVESTOR_SHARED_POLICY_ENABLED } = {}) {
+  return buildEnabled === true && aiSettings?.sharedConversationV1 === true;
+}
+
 /** In DebtLiveCall, 0=local agent mic, 1=remote prospect, 2=transfer agent.
  * This is NOT the mapping used by the lead assistant popup.
  */
