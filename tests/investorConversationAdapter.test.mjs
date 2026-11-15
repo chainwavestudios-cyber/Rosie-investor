@@ -89,6 +89,42 @@ test('explicit finished questions settle sooner than incomplete speech', () => {
   assert.ok(investorSettleDelay('What are the fees?') < investorSettleDelay('What are the fees and'));
 });
 
+test('staged Q&A gate rejects statements and manual/agent turn auto-detection', async () => {
+  const { investorShouldAskSettled } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorShouldAskSettled({turn:{role:'prospect',text:'That seems fine.'},enabled:true,now:90000}),false);
+  assert.equal(investorShouldAskSettled({turn:{role:'agent',text:'What happens next?'},enabled:true,now:90000}),false);
+  assert.equal(investorShouldAskSettled({turn:{role:'prospect',text:'What happens next?'},enabled:false,now:90000}),false);
+});
+
+test('staged Q&A gate suppresses repeated words despite punctuation differences within 11 sec', async () => {
+  const { investorShouldAskSettled } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorShouldAskSettled({
+    turn:{role:'prospect',text:'What are the fees?'},enabled:true,now:11000,
+    lastAskedText:'What are the fees',lastAskedAt:9000,
+  }),false);
+});
+
+test('staged Q&A gate still permits a new question and a substantially longer correction', async () => {
+  const { investorShouldAskSettled } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorShouldAskSettled({
+    turn:{role:'prospect',text:'How does an IRA work?'},enabled:true,now:11000,
+    lastAskedText:'What are the fees?',lastAskedAt:9000,
+  }),true);
+  assert.equal(investorShouldAskSettled({
+    turn:{role:'prospect',text:'What are the fees and can I use an IRA?'},enabled:true,now:11000,
+    lastAskedText:'What are the fees?',lastAskedAt:9000,
+  }),true);
+});
+
+test('staged Q&A can consider a repeated real question after 11-second cooldown', async () => {
+  const { investorShouldAskSettled } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorShouldAskSettled({
+    turn:{role:'prospect',text:'Why do I need to verify?'},enabled:true,now:29001,
+    lastAskedText:'Why do I need to verify?',lastAskedAt:17000,
+  }),true);
+});
+
+
 test('settled Coach requires enabled prospect and can run while Q&A stays off', async () => {
   const { investorShouldCoachSettled } = await import('../src/lib/investorConversationAdapter.js');
   const turn = { role: 'prospect', text: "I'm worried about the risk." };
