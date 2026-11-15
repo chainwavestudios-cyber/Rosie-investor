@@ -36,6 +36,8 @@ import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
+import { INVESTOR_SHARED_POLICY_ENABLED, latestInvestorProspectTurn, investorNeedsQuestionReview,
+  investorPlanLiveServices, investorSettleDelay } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 
@@ -573,6 +575,7 @@ Agent line: "${firstAgentLines}"`,
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);
+  const lastSharedCoachKey = useRef('');
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
   const lastLedgerTime = useRef(0);
@@ -944,6 +947,10 @@ Agent line: "${firstAgentLines}"`,
     const settled = customerBufferRef.current.join(' ').replace(/\s+/g, ' ').trim();
     customerBufferRef.current = [];
     if (!settled || settled.length < 3) return;
+    // Only the opt-in shared policy filters completed caller statements here.
+    // The original answer backend, permissions, KB and UI stay unchanged.
+    if (INVESTOR_SHARED_POLICY_ENABLED &&
+        !investorNeedsQuestionReview({ role: 'prospect', text: settled })) return;
     // Short questions are first-class: "Why?", "What fees?" and
     // "How much?" should not be dropped because of character/word count.
     const normalized = settled.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1500,14 +1507,18 @@ ${recentText}`,
     // Q&A: hold the caller's turn as the transcript has merged it, so the
     // question asked is whole sentences rather than the latest fragment.
     if (qaActiveRef.current && entry.speaker === 1) {
-      customerBufferRef.current = [trailingTurn(nextTranscript, 'customer')];
+      // Core/BOB canonical turn assembly is opt-in until phone/speaker acceptance.
+      const sharedCustomerTurn = INVESTOR_SHARED_POLICY_ENABLED
+        ? latestInvestorProspectTurn(nextTranscript) : null;
+      customerBufferRef.current = [sharedCustomerTurn?.text || trailingTurn(nextTranscript, 'customer')];
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
       // Keep Deepgram preview immediate but let the *answer* settle.
       // An explicit finished question gets a short beat; a likely incomplete
       // fragment waits longer for continuation. Interim speech resets this timer.
       const latest = customerBufferRef.current[0] || text;
       const incomplete = /\b(?:and|or|but|because|if|that|with|to|for|of|about|is|are|does|do|can|could|would|should|will|what|how|why|when)\s*$/i.test(latest);
-      const settleMs = incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
+      const settleMs = INVESTOR_SHARED_POLICY_ENABLED ? investorSettleDelay(latest)
+        : incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), settleMs);
     } else if (entry.speaker === 0) {
       // Agent started speaking — flush any pending customer question, then treat
@@ -1519,7 +1530,21 @@ ${recentText}`,
     const now = Date.now();
     const isCustomer = entry.speaker === 1;
     // Coach: only on customer lines, with a 20s minimum gap even on keyword hits
-    if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
+    if (INVESTOR_SHARED_POLICY_ENABLED) {
+      const sharedTurn = isCustomer ? latestInvestorProspectTurn(nextTranscript) : null;
+      const planned = investorPlanLiveServices({
+        turn: sharedTurn, now,
+        enabled: { qa: false, coach: coachActiveRef.current, intent: false },
+        state: { lastCoachAt: lastCoachTime.current, lastCoachKey: lastSharedCoachKey.current },
+      });
+      const newCandidate = sharedTurn && planned.signal.key !== lastSharedCoachKey.current;
+      if (coachActiveRef.current && newCandidate && now - lastCoachTime.current > 20000 &&
+          (planned.coach || now - lastCoachTime.current > 45000)) {
+        lastSharedCoachKey.current = planned.signal.key;
+        lastCoachTime.current = now;
+        handleCoach();
+      }
+    } else if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
         ((objWords.some(w => text.toLowerCase().includes(w))) || now - lastCoachTime.current > 45000)) {
       lastCoachTime.current = now; handleCoach();
     }
@@ -1671,6 +1696,7 @@ ${recentText}`,
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
+    lastSharedCoachKey.current = '';
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
