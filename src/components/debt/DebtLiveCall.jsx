@@ -24,7 +24,7 @@ import { startLiveFeed } from '@/lib/debtLiveFeed';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
-import { useDebtCoachValue, getDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
+import { useDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 import { liveWindowGeometry, LIVE_LAYOUT_KEY, LIVE_PROFILE_STORE, LIVE_MODE_KEY, LIVE_PANEL_KEYS,
   getWorkspaceViewport, resolveDisplayProfile, displayProfileName,
   createDisplayLayout, clampDisplayLayout, captureDisplayLayout } from '@/lib/liveWorkspaceLayout';
