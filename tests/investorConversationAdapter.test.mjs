@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   INVESTOR_CONVERSATION_POLICY_VERSION,
   INVESTOR_SHARED_POLICY_ENABLED,
+  investorPilotEnabled,
   investorConversationSegments,
   investorNeedsQuestionReview,
   investorPlanLiveServices,
@@ -18,6 +19,16 @@ const sample = (speaker, text, ms, extra = {}) => ({
 test('matches exact versioned shared policy without requiring a Core provider', () => {
   assert.equal(INVESTOR_CONVERSATION_POLICY_VERSION, 'rosie.live_intelligence.v1');
   assert.equal(INVESTOR_SHARED_POLICY_ENABLED, false);
+});
+
+test('BOB/Investor pilot is denied unless BOTH build and admin-saved user flag are true', () => {
+  assert.equal(investorPilotEnabled({ sharedConversationV1: true }), false, 'node build default is off');
+  assert.equal(investorPilotEnabled({}, { buildEnabled: true }), false);
+  assert.equal(investorPilotEnabled({ sharedConversationV1: false }, { buildEnabled: true }), false);
+  assert.equal(investorPilotEnabled({ sharedConversationV1: 'true' }, { buildEnabled: true }), false);
+  assert.equal(investorPilotEnabled(null, { buildEnabled: true }), false);
+  assert.equal(investorPilotEnabled({ sharedConversationV1: true }, { buildEnabled: false }), false);
+  assert.equal(investorPilotEnabled({ sharedConversationV1: true }, { buildEnabled: true }), true);
 });
 
 test('Investor real-call source maps 0 agent, 1 prospect, 2 transfer as unknown', () => {
