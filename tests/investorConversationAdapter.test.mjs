@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   INVESTOR_CONVERSATION_POLICY_VERSION,
   INVESTOR_SHARED_POLICY_ENABLED,
@@ -29,6 +30,17 @@ test('BOB/Investor pilot is denied unless BOTH build and admin-saved user flag a
   assert.equal(investorPilotEnabled(null, { buildEnabled: true }), false);
   assert.equal(investorPilotEnabled({ sharedConversationV1: true }, { buildEnabled: false }), false);
   assert.equal(investorPilotEnabled({ sharedConversationV1: true }, { buildEnabled: true }), true);
+});
+
+test('staging pilot key is wired in both admin UI and server allowlist (source contract)', () => {
+  const admin = readFileSync(new URL('../src/components/debt/manager/AdminFlagsTab.jsx', import.meta.url), 'utf8');
+  const backend = readFileSync(new URL('../base44/functions/debtCoachAuth/entry.ts', import.meta.url), 'utf8');
+  const callUi = readFileSync(new URL('../src/components/debt/DebtLiveCall.jsx', import.meta.url), 'utf8');
+  assert.match(admin, /key: 'sharedConversationV1'/);
+  assert.match(admin, /acc\[k\] = k !== 'sharedConversationV1'/);
+  assert.match(admin, /k==='sharedConversationV1'\?false:val/);
+  assert.match(backend, /'sharedConversationV1'/);
+  assert.match(callUi, /sharedPolicyEnabled = investorPilotEnabled\(aiSettings\)/);
 });
 
 test('Investor real-call source maps 0 agent, 1 prospect, 2 transfer as unknown', () => {
