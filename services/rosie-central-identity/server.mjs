@@ -6,6 +6,7 @@ import {toNodeHandler} from 'better-auth/node';
 import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
 import {auth,ORIGIN,PUBLIC_SIGNUP_ENABLED,SOCIAL_SIGNUP_ENABLED,SOCIAL_PROVIDER_CONFIGURED,SOCIAL_PROVIDER_CALLBACKS,pool,BOB_RESOURCE,readyForOidc} from './auth.mjs';
 import {createRosieLinkRouter} from './link-api.mjs';
+import {createConnectorRouter} from './connector-api.mjs';
 const dir=dirname(fileURLToPath(import.meta.url));
 const app=express();
 app.disable('x-powered-by');
@@ -37,6 +38,7 @@ app.all('/api/auth/*',(req,res)=>bAuth(req,res));
 // Isolated server-verified seat linking: HMAC authenticated product requests,
 // central signed-in session and fresh TOTP proof; no user-supplied email joins.
 app.use('/api/links',createRosieLinkRouter({auth,pool}));
+app.use('/api/connectors',createConnectorRouter({auth,pool}));
 function requestHeaders(req){
  const h=new Headers();
  for(const [k,v] of Object.entries(req.headers))if(typeof v==='string')h.set(k,v);
