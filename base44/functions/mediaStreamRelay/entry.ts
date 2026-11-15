@@ -34,6 +34,7 @@ import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
 import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
 import { enforceOutboundHandoff, OUTBOUND_QUEUE_NOTICE } from '../../shared/aiOutboundHandoff.ts';
 import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
+import { isRosieFounderReferral } from '../../shared/rosieFounderOverride.js';
 
 // Dedicated corporate profile; never read or mutate debt-campaign leads for this line.
 const ROSIE_PROFILE = 'rosie_corporate';
@@ -41,13 +42,6 @@ const ROSIE_FOUNDER_NUMBER = '+12162586934';
 const ROSIE_FOUNDER_ANNOUNCEMENT = 'Ah, Tier 1 relationship or Client, I will transfer you immediately, sorry for any delay. Have a wonderful day.';
 // Exact founder override phrase + passcode; old phrase alone no longer transfers.
 // Allow transcription punctuation, and the four digits as one token or separated.
-function isRosieFounderReferral(utterance: string): boolean {
-  const normalized = String(utterance || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-  return /\bsystem override i know the founder and ceo chris (?:5526|5 5 2 6)\b/.test(normalized);
-}
 // The corporate receptionist does not use campaign leads, qualifications, or the sales queue.
 async function transferRosieFounderCall(body: any): Promise<Response> {
   const callSid = String(body.callSid || '');
