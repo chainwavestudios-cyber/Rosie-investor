@@ -507,10 +507,19 @@ async function handleStreamStart(ws, streamSid, start) {
         ok = await streamFluxTTS(initResp.greeting, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(initResp.greeting, streamSid, session, gen);
-      } else if (ttsEngine === 'cartesia' && CARTESIA_API_KEY) {
+      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser)) {
         ok = await streamCartesiaTTS(initResp.greeting, streamSid, session, gen);
       }
       if (!ok) {
+        // Premium BOB must NEVER masquerade as Skylar using an unrelated
+        // Deepgram/ElevenLabs fallback. Fronter is unaffected.
+        if (session.browser && ttsEngine === 'cartesia') {
+          session.state = 'listening';
+          clearSpeakingWatchdog(session);
+          sendToTwilio(session.ws, { event: 'bob_error',
+            message: 'Selected Skylar voice could not be synthesized through Rosie Core. The call is still connected; try again after checking the provider diagnostic.' });
+          return;
+        }
         const tts = await generateTTS(initResp.greeting, session.config, session);
         if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
         else { session.state = 'listening'; clearSpeakingWatchdog(session); }
@@ -792,10 +801,19 @@ async function handleUtterance(streamSid, transcript) {
         ok = await streamFluxTTS(text, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(text, streamSid, session, gen);
-      } else if (ttsEngine === 'cartesia' && CARTESIA_API_KEY) {
+      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser)) {
         ok = await streamCartesiaTTS(text, streamSid, session, gen);
       }
       if (!ok) {
+        // Premium BOB must NEVER masquerade as Skylar using an unrelated
+        // Deepgram/ElevenLabs fallback. Fronter is unaffected.
+        if (session.browser && ttsEngine === 'cartesia') {
+          session.state = 'listening';
+          clearSpeakingWatchdog(session);
+          sendToTwilio(session.ws, { event: 'bob_error',
+            message: 'Selected Skylar voice could not be synthesized through Rosie Core. The call is still connected; try again after checking the provider diagnostic.' });
+          return;
+        }
         const tts = await generateTTS(text, session.config, session);
         if (tts && session.generation === gen) { session.recordingBuffer.push(tts); playAudio(streamSid, tts, gen); }
         else { session.state = 'listening'; clearSpeakingWatchdog(session); }
@@ -809,6 +827,16 @@ async function handleUtterance(streamSid, transcript) {
     }
   } catch (e) {
     log('utterance handling failed', e?.message);
+    session.llm = { state: 'failed', errorType: 'relay_failure' };
+    // The user's finalized transcript reached us. Expose the failing relay
+    // result to BOB rather than silently leaving Skylar unresponsive.
+    if (session.browser) {
+      const code = /Relay returned HTTP (\d{3}) for turn/.exec(String(e?.message || ''));
+      sendToTwilio(session.ws, { event: 'bob_error',
+        message: 'Your speech was received, but the Claude dialogue relay failed' +
+          (code ? ' (HTTP ' + code[1] + ').' : '.') +
+          ' No customer credits were deducted.' });
+    }
     session.state = 'listening';
   }
 }
@@ -977,6 +1005,54 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   const finish = (state, error = null) => {
     session.tts = { ...session.tts, state, error, ms: Date.now() - startedAt };
   };
+
+  // Commercial Jacked Up BOB's Skylar voice is rendered by the Core-owned
+  // Cartesia credential, not the rejected Render-local Cartesia key.
+  // Only the BOB browser route enters this branch; investor/Fronter routes
+  // preserve their existing provider calls and settings unchanged.
+  if (session.browser) {
+    try {
+      const remote = await callRelay({
+        _bobTransport: true, event: 'tts', streamSid,
+        callSid: session.callSid, leadId: session.leadId,
+        ttsVoiceId: voice, ttsText: String(text).slice(0, 700),
+        requestId: 'skylar-' + streamSid + '-' + generation,
+      });
+      if (remote?.action !== 'play_audio' || remote?.provider !== 'cartesia' ||
+          remote?.model !== 'sonic-3.6' || remote?.codec !== 'mulaw' ||
+          remote?.sampleRate !== 8000 || remote?.customerCreditsDebited !== 0 ||
+          typeof remote?.audioBase64 !== 'string') {
+        throw Error('BOB Core Skylar audio response not verified');
+      }
+      const audio = Buffer.from(remote.audioBase64, 'base64');
+      if (audio.length < 800 || audio.length > 1500000)
+        throw Error('BOB Core Skylar audio size outside limit');
+      if (generation !== session.generation || session.stopping) {
+        finish('cancelled');
+        return true;
+      }
+      sendToTwilio(session.ws, { event: 'clear', streamSid });
+      noteAudioOut(session);
+      played = true;
+      for (let offset = 0; offset < audio.length; offset += 4096) {
+        if (generation !== session.generation || session.stopping) break;
+        const payload = Buffer.from(audio.subarray(offset, offset + 4096)).toString('base64');
+        sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
+        session.recordingBuffer.push(payload);
+        chunkCount++;
+      }
+      session.tts.providerRequestId = remote.providerRequestId || '';
+      ensureMark();
+      finish(chunkCount ? 'accepted' : 'cancelled');
+      return true;
+    } catch (e) {
+      // No silent voice substitution, and no fallback to the invalid local key.
+      const detail = String(e?.message || 'Core Skylar unavailable').slice(0, 130);
+      log('[BOB] Core Skylar synthesis unavailable:', detail);
+      finish('error', detail);
+      return false;
+    }
+  }
 
   try {
     const res = await fetch('https://api.cartesia.ai/tts/bytes', {
