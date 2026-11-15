@@ -54,7 +54,13 @@ export function latestInvestorProspectTurn(lines = []) {
     investorConversationSegments(relevant.slice(lastTransferIndex + 1))
   );
   const turn = turns[turns.length - 1];
-  return turn?.role === 'prospect' ? turn : null;
+  if (turn?.role !== 'prospect') return null;
+  // Match the original Investor trailingTurn size cap. A long monologue must
+  // not bypass KB context limits or create an unbounded AI request.
+  const text = turn.text.length > 1200
+    ? `… ${turn.text.slice(-1200).replace(/^\S*\s*/, '')}`
+    : turn.text;
+  return { ...turn, text };
 }
 
 export function investorSettleDelay(text) {
