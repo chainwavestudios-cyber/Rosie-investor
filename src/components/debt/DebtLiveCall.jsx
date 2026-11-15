@@ -1614,14 +1614,18 @@ ${recentText}`,
     // Prospect still talking after an earlier speech_final fragment: don't
     // answer the old fragment. Restart only the Q&A settling clock; do not
     // delay the real-time transcript display.
+    // In shared mode, incomplete interim words need the longer BOB settle
+    // window. A fixed 1300ms could answer before Deepgram finalized the rest.
+    const interimSettleMs = INVESTOR_SHARED_POLICY_ENABLED
+      ? Math.max(1300, investorSettleDelay(text)) : 1300;
     if (speaker === 1 && qaActiveRef.current && customerBufferRef.current.length > 0 && bufferTimeoutRef.current) {
       clearTimeout(bufferTimeoutRef.current);
-      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1300);
+      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), interimSettleMs);
     }
     if (INVESTOR_SHARED_POLICY_ENABLED && speaker === 1 && coachActiveRef.current &&
         sharedCoachPendingRef.current && sharedCoachTimeoutRef.current) {
       clearTimeout(sharedCoachTimeoutRef.current);
-      sharedCoachTimeoutRef.current = setTimeout(flushSharedCoach, 1300);
+      sharedCoachTimeoutRef.current = setTimeout(flushSharedCoach, interimSettleMs);
     }
     // Render no more than ~12 preview updates/sec per speaker. Recognition
     // stays streaming at full rate; this only reduces React layout work.
