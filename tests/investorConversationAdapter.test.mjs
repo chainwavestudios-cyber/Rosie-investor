@@ -88,3 +88,77 @@ test('QA, Coach and Intent plan independently and respect off switches', () => {
 test('explicit finished questions settle sooner than incomplete speech', () => {
   assert.ok(investorSettleDelay('What are the fees?') < investorSettleDelay('What are the fees and'));
 });
+
+test('settled Coach requires enabled prospect and can run while Q&A stays off', async () => {
+  const { investorShouldCoachSettled } = await import('../src/lib/investorConversationAdapter.js');
+  const turn = { role: 'prospect', text: "I'm worried about the risk." };
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 25_001, lastCoachAt: 0 }), true);
+  assert.equal(investorShouldCoachSettled({ turn, enabled: false, now: 25_001, lastCoachAt: 0 }), false);
+  assert.equal(investorShouldCoachSettled({ turn: { ...turn, role: 'trainee' }, enabled: true, now: 25_001, lastCoachAt: 0 }), false);
+});
+
+test('Coach respects cooldown and will not retrigger an identical turn', async () => {
+  const { investorShouldCoachSettled } = await import('../src/lib/investorConversationAdapter.js');
+  const turn = { role: 'prospect', text: 'I am worried about the fees.' };
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 38_000, lastCoachAt: 25_000 }), false);
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 55_000, lastCoachAt: 25_000, lastCoachKey: 'i am worried about the fees' }), false);
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 55_000, lastCoachAt: 25_000, lastCoachKey: 'different previous turn' }), true);
+});
+
+test('Coach preserves original 45-second periodic tip fallback on neutral full turns', async () => {
+  const { investorShouldCoachSettled } = await import('../src/lib/investorConversationAdapter.js');
+  const turn = { role: 'prospect', text: 'Yes, I understand, thank you.' };
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 25_000, lastCoachAt: 1_000 }), false);
+  assert.equal(investorShouldCoachSettled({ turn, enabled: true, now: 46_100, lastCoachAt: 1_000 }), true);
+});
+
+test('progressive Deepgram final revisions do not duplicate overlapping words', () => {
+  const turn = latestInvestorProspectTurn([
+    sample(1, 'So I was wondering', 0),
+    sample(1, 'wondering if there is a fee?', 700),
+  ]);
+  assert.equal(turn?.text, 'So I was wondering if there is a fee?');
+});
+
+test('speaker boundary always wins even when caller and agent overlap in time', () => {
+  const turn = latestInvestorProspectTurn([
+    sample(1, 'Can you explain', 0),
+    sample(0, 'Let me clarify that', 350),
+    sample(1, 'the lockup?', 500),
+  ]);
+  assert.equal(turn?.text, 'the lockup?');
+});
+
+test('long pauses do not merge two separate caller questions', () => {
+  const turn = latestInvestorProspectTurn([
+    sample(1, 'What is the minimum?', 0),
+    sample(1, 'How much are the fees?', 15_000),
+  ]);
+  assert.equal(turn?.text, 'How much are the fees?');
+});
+
+test('unknown and transfer channels never become a prospect when sole input', () => {
+  assert.equal(latestInvestorProspectTurn([sample(2, 'What investment?', 0)]), null);
+  assert.equal(latestInvestorProspectTurn([sample(3, 'What investment?', 0)]), null);
+  assert.equal(latestInvestorProspectTurn([sample(undefined, 'What investment?', 0)]), null);
+});
+
+test('final=false and interim content are ignored, keeping last complete prospect text', () => {
+  const turn = latestInvestorProspectTurn([
+    sample(1, 'How much can I invest?', 0),
+    sample(1, 'How much can I invest with', 350, { interim: true }),
+    sample(1, 'can I invest with', 450, { final: false }),
+  ]);
+  assert.equal(turn?.text, 'How much can I invest?');
+});
+
+test('disabled shared services cannot plan paid inference, including question-looking customer lines', () => {
+  const turn = latestInvestorProspectTurn([sample(1, 'How do the shares work?', 0)]);
+  const decisions = investorPlanLiveServices({
+    turn, enabled: { qa: false, coach: false, intent: false }, now: 90_000,
+  });
+  assert.equal(decisions.qa, false);
+  assert.equal(decisions.coach, false);
+  assert.equal(decisions.intent, false);
+});
+
