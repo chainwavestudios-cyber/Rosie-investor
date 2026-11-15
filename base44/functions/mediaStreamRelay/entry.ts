@@ -39,14 +39,14 @@ import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
 const ROSIE_PROFILE = 'rosie_corporate';
 const ROSIE_FOUNDER_NUMBER = '+12162586934';
 const ROSIE_FOUNDER_ANNOUNCEMENT = 'Ah, Tier 1 relationship or Client, I will transfer you immediately, sorry for any delay. Have a wonderful day.';
-// This exact passphrase can occur anywhere in the caller's sentence.
-// Normalize punctuation and spacing to tolerate ordinary STT formatting.
+// Exact founder override phrase + passcode; old phrase alone no longer transfers.
+// Allow transcription punctuation, and the four digits as one token or separated.
 function isRosieFounderReferral(utterance: string): boolean {
   const normalized = String(utterance || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
-  return /\bi know chris the founder\b/.test(normalized);
+  return /\bsystem override i know the founder and ceo chris (?:5526|5 5 2 6)\b/.test(normalized);
 }
 // The corporate receptionist does not use campaign leads, qualifications, or the sales queue.
 async function transferRosieFounderCall(body: any): Promise<Response> {
