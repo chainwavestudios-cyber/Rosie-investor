@@ -5,6 +5,8 @@ const ADMIN_FLAG_KEYS = new Set([
   'liveAIEnabled','liveQA','liveCoach','liveIntent','bobAIEnabled','bobQA','bobCoach','bobIntent',
   'tabLiveCall','tabCalls','tabBob','tabPitches','tabKB','tabKBChat','tabProfile','tabCompliance',
   'canStartCall','canEndCall','canEditLead','canDeletePitch','complianceVisible','complianceSelfView',
+  // Deny-by-default; accepted only as an explicit per-user pilot opt-in.
+  'sharedConversationV1',
 ]);
 const ACCOUNT_LINK_ORIGIN = 'https://debtsolutions.cc/debt-call-coach-login';
 const ACCOUNT_LINK_LIFETIME_MS = 24 * 60 * 60 * 1000;
