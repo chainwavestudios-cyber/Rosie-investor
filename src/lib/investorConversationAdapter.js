@@ -68,3 +68,19 @@ export function investorNeedsQuestionReview(turn) {
 export function investorPlanLiveServices({ turn, enabled = {}, now = Date.now(), state = {} } = {}) {
   return planRosieLiveServices({ turn, enabled, now, state });
 }
+
+/** Evaluate only AFTER the full customer turn settles. Never run a provider here.
+ * The 45s fallback keeps the original Investor Coach cadence for non-objection
+ * customer remarks, while a 20s minimum and per-turn key block duplicates.
+ */
+export function investorShouldCoachSettled({ turn, enabled = false, now = Date.now(),
+  lastCoachAt = 0, lastCoachKey = '' } = {}) {
+  if (!enabled || !turn || turn.role !== 'prospect') return false;
+  const planned = investorPlanLiveServices({
+    turn, enabled: { coach: true, qa: false, intent: false }, now,
+    state: { lastCoachAt, lastCoachKey },
+  });
+  const elapsed = now - Number(lastCoachAt || 0);
+  return Boolean(planned.signal.key && planned.signal.key !== lastCoachKey &&
+    elapsed > 20000 && (planned.coach || elapsed > 45000));
+}
