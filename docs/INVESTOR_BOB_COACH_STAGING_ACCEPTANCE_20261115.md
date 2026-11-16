@@ -49,4 +49,10 @@ Scope: Original RoieAI-Investor embedded Debt Call Coach only; standalone Commer
 - **Proof scope:** four new synthetic/source-contract tests validate epoch truth table, legacy-path compatibility, stale response rejection and synchronous stop order. Combined targeted suite **53/53 pass** (41 BOB/Investor tests plus 12 founder-override tests), targeted ESLint exit 0, feature-enabled Vite build exit 0. Not a live phone/provider or billing confirmation.
 - **Remaining:** independently verify browser call start/stop and authenticated admin pilot persistence, provider-side request cancellation/usage (UI suppression does **not** refund already-issued inference), cross-tenant negative authorization and customer-consent policies.
 
+## Blocking backend authorization review — source inspected
+- The original Investor `base44/functions/liveAssistantAI/entry.ts` constructs a direct paid-LLM / InvokeLLM response from a JSON request body, including browser-provided `kbEntries`, `question`, `transcript`, and `_ctx` usage metadata. The request handler itself does not visibly validate a DebtCoachUser session token, per-tenant organization, or an approved server-side KB record before invoking its Q&A or Coach models. The Base44 execution platform may enforce separate access controls, but **this has not been verified here**.
+- The new **frontend** build flag + per-user pilot flag and call-epoch safeguards must NOT be described as provider/tenant authorization, source-provenance enforcement, or billing controls. No existing backend inference endpoint, app API key, or customer tenant was modified during this staging unit.
+- **Required before any customer pilot**: independent endpoint authorization/threat review, verified tenant-to-Core link and RLS, authenticated user and lead ownership at the server, approved KB retrieval rather than client-trusted knowledge, server-owned usage IDs/receipts and idempotent metering, controlled provider error/credit handling, and explicit release approval. Do not attempt a paid end-to-end call against the existing unverified endpoint.
+
+
 
