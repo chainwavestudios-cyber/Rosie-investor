@@ -22,6 +22,48 @@ test('matches exact versioned shared policy without requiring a Core provider', 
   assert.equal(INVESTOR_SHARED_POLICY_ENABLED, false);
 });
 
+
+test('pilot response epoch allows only the currently live call', async () => {
+  const { investorPilotResponseCurrent } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorPilotResponseCurrent({pilotEnabled:true,requestEpoch:7,currentEpoch:7,active:true}),true);
+  assert.equal(investorPilotResponseCurrent({pilotEnabled:true,requestEpoch:7,currentEpoch:7,active:false}),false);
+  assert.equal(investorPilotResponseCurrent({pilotEnabled:true,requestEpoch:7,currentEpoch:9,active:true}),false);
+  assert.equal(investorPilotResponseCurrent({pilotEnabled:true,requestEpoch:0,currentEpoch:0,active:false}),false);
+});
+
+test('legacy response path stays unchanged by pilot-only epoch validation', async () => {
+  const { investorPilotResponseCurrent } = await import('../src/lib/investorConversationAdapter.js');
+  assert.equal(investorPilotResponseCurrent({pilotEnabled:false,requestEpoch:4,currentEpoch:9,active:false}),true);
+});
+
+test('pilot epoch excludes stale provider success and failure after a subsequent call starts', async () => {
+  const { investorPilotResponseCurrent } = await import('../src/lib/investorConversationAdapter.js');
+  const state={active:true,epoch:2};
+  const requestEpoch=state.epoch;
+  const accept=()=>investorPilotResponseCurrent({
+    pilotEnabled:true,requestEpoch,currentEpoch:state.epoch,active:state.active,
+  });
+  assert.equal(accept(),true);
+  state.active=false;state.epoch++;
+  assert.equal(accept(),false,'after teardown, old provider callback must not render');
+  state.active=true;state.epoch++;
+  assert.equal(accept(),false,'after next call starts, stale callback must remain blocked');
+  assert.equal(investorPilotResponseCurrent({
+    pilotEnabled:true,requestEpoch:state.epoch,currentEpoch:state.epoch,active:state.active,
+  }),true,'new call can receive its own responses');
+});
+
+test('pilot source closes request gate before awaiting teardown and avoids pre-invocation double QA logging', () => {
+  const callUi=readFileSync(new URL('../src/components/debt/DebtLiveCall.jsx',import.meta.url),'utf8');
+  const stop=callUi.indexOf('const stopCall = useCallback(async () => {');
+  assert.ok(stop>0);
+  const close=callUi.indexOf('sharedCallActiveRef.current = false;',stop);
+  const firstAwait=callUi.indexOf('await ',stop);
+  assert.ok(close>stop && close<firstAwait,'pilot must close synchronously before stopCall async work');
+  assert.match(callUi, /if \(!sharedPolicyEnabled\) logAI\('qa'\);/);
+  assert.match(callUi, /if \(!acceptPilotReply\(\) \|\| supersededQaIdsRef.current.has\(id\)\) return;/);
+});
+
 test('BOB/Investor pilot is denied unless BOTH build and admin-saved user flag are true', () => {
   assert.equal(investorPilotEnabled({ sharedConversationV1: true }), false, 'node build default is off');
   assert.equal(investorPilotEnabled({}, { buildEnabled: true }), false);
