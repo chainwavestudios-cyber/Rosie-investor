@@ -890,10 +890,23 @@ Agent line: "${firstAgentLines}"`,
     }
     recentQaRequestRef.current = { question: normalized, ts: startTime, id };
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
-    logAI('qa');
-    invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
-      .then(res => {
+    // Pilot never uses the legacy unverified KB/provider/billing route.
+    if (!sharedPolicyEnabled) logAI('qa');
+    const pilotTranscript = transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12);
+    const qaRequest = sharedPolicyEnabled
+      ? base44.functions.invoke('investorBobPilotAI', {
+          mode: 'qa', question, transcript: pilotTranscript,
+          leadId: leadRef.current?.id, sessionUserId, sessionToken,
+        })
+      : invokeAI('liveAssistantAI', { question, transcript: pilotTranscript, kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current });
+    qaRequest.then(res => {
         if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
+        if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
+          setQaItems(prev => prev.map(x => x.id === id ? { ...x,
+            answer: 'BOB pilot blocked pending verified Core tenant, approved Investor KB and usage authority.', loading: false,
+          } : x));
+          return;
+        }
         const responseMs = Date.now() - startTime;
         // AI decided no answer is needed (small talk, greeting, etc.)
         if (res?.needs_answer === false || res?.data?.needs_answer === false) {
@@ -910,8 +923,14 @@ Agent line: "${firstAgentLines}"`,
         // saveCallOutcome flow persists them once at call end, avoiding
         // duplicate DebtQAHistory rows and extra network traffic mid-call.
       })
-      .catch(() => { if (acceptPilotReply() && !supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
-  }, [kbEntries, sharedPolicyEnabled]);
+      .catch(() => {
+        if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
+        const answer = sharedPolicyEnabled
+          ? 'BOB pilot blocked pending verified Core tenant, approved Investor KB and usage authority.'
+          : 'Unable to answer.';
+        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x));
+      });
+  }, [kbEntries, sharedPolicyEnabled, sessionUserId, sessionToken]);
 
   // Handle pushed questions once, regardless of whether the panel is popped out.
   const handledPendingQuestionRef = useRef(null);
@@ -1002,15 +1021,27 @@ Agent line: "${firstAgentLines}"`,
       currentEpoch: sharedCallEpochRef.current, active: sharedCallActiveRef.current,
     });
     if (!acceptPilotReply()) return;
-    logAI('coach');
-    invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
-      .then(res => {
+    if (!sharedPolicyEnabled) logAI('coach');
+    const coachRequest = sharedPolicyEnabled
+      ? base44.functions.invoke('investorBobPilotAI', {
+          mode: 'coach', transcript: transcriptRef.current.slice(-6),
+          leadId: leadRef.current?.id, sessionUserId, sessionToken,
+        })
+      : invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' });
+    coachRequest.then(res => {
         if (!acceptPilotReply()) return;
+        if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
+          setError('BOB pilot Coach blocked: Core tenant, approved Investor KB and usage authority unverified.');
+          return;
+        }
         const tip = res?.tip || res?.response || res?.answer || '';
         if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8));
       })
-      .catch(() => {});
-  }, [kbEntries, sharedPolicyEnabled]);
+      .catch(() => {
+        if (acceptPilotReply() && sharedPolicyEnabled)
+          setError('BOB pilot Coach blocked: Core tenant, approved Investor KB and usage authority unverified.');
+      });
+  }, [kbEntries, sharedPolicyEnabled, sessionUserId, sessionToken]);
 
   // This debounce is independent of Q&A: Coach can run when Q&A is OFF.
   // Only a complete, settled prospect turn may trigger the shared Coach path.
