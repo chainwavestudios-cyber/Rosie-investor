@@ -103,7 +103,8 @@ test('staging gateway never calls a paid model or falls back to the legacy endpo
   const source=readFileSync(new URL('../functions/investorBobPilotAI/entry.ts',import.meta.url),'utf8');
   assert.match(source,/requireInvestorPilotAuthority\(\)/);
   assert.match(source,/PILOT_PROVIDER_NOT_ENABLED/);
-  assert.doesNotMatch(source,/InvokeLLM|Anthropic\.com|liveAssistantAI|functions\.invoke\(/);
+  const executable=source.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+  assert.doesNotMatch(executable,/InvokeLLM|anthropic\.com|liveAssistantAI|functions\.invoke\(/i);
 });
 test('pilot UI never sends client KB or usage metadata to new authenticated gateway',()=>{
   const source=readFileSync(new URL('../../src/components/debt/DebtLiveCall.jsx',import.meta.url),'utf8');
