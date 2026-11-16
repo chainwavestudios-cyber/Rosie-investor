@@ -205,11 +205,14 @@ export default async function(req: Request): Promise<Response> {
   try {
     // ── Auth: fail-closed ──
     const authToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
-    if (authToken) {
-      const auth = req.headers.get('Authorization') || '';
-      if (auth !== `Bearer ${authToken}`) {
-        return Response.json({ error: 'unauthorized' }, { status: 401 });
-      }
+    // Corporate transfer must never fail open when the bridge credential is
+    // unprovisioned. Reject before reading any untrusted transfer payload.
+    if (!authToken) {
+      return Response.json({ error: 'bridge_auth_not_configured' }, { status: 503 });
+    }
+    const auth = req.headers.get('Authorization') || '';
+    if (auth !== `Bearer ${authToken}`) {
+      return Response.json({ error: 'unauthorized' }, { status: 401 });
     }
 
     // ── Parse and validate body ──
