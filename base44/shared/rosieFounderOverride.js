@@ -8,3 +8,12 @@ export function isRosieFounderReferral(utterance) {
   // Require the full override phrase AND its code within the same utterance.
   return /\bsystem override i know the founder and (?:ceo|c e o) chris (?:5526|5 5 2 6|five five two six|five five twenty six|fifty five twenty six)\b/.test(normalized);
 }
+
+/** Second-stage request-context guard, not an independent authentication token. */
+export function hasRecentFounderTransferContext(conversation) {
+  if (!Array.isArray(conversation) || conversation.length < 2) return false;
+  const caller = conversation[conversation.length - 2];
+  const response = conversation[conversation.length - 1];
+  return caller?.role === 'user' && response?.role === 'assistant' &&
+    isRosieFounderReferral(caller.content);
+}
