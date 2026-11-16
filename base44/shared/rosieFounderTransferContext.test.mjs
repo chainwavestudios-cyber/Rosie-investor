@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {hasRecentFounderTransferContext} from './rosieFounderOverride.js';
+const phrase='System override, I know the Founder and CEO Chris, 5526';
+const caller=(content)=>({role:'user',content});
+const assistant={role:'assistant',content:'Transferring now.'};
+test('correct immediately preceding caller override is eligible',()=>assert.equal(hasRecentFounderTransferContext([caller(phrase),assistant]),true));
+test('absent conversation fails closed',()=>{for(const x of [undefined,null,{},[],[assistant]])assert.equal(hasRecentFounderTransferContext(x),false)});
+test('mismatched speaker sequence denied',()=>{assert.equal(hasRecentFounderTransferContext([assistant,caller(phrase)]),false);assert.equal(hasRecentFounderTransferContext([caller(phrase),caller(phrase)]),false)});
+test('incorrect code denied',()=>assert.equal(hasRecentFounderTransferContext([caller(phrase.replace('5526','5527')),assistant]),false));
+test('old override denied',()=>assert.equal(hasRecentFounderTransferContext([caller('I know Chris the founder'),assistant]),false));
+test('earlier override cannot authorize a subsequent unrelated caller turn',()=>assert.equal(hasRecentFounderTransferContext([caller(phrase),assistant,caller('Hello'),assistant]),false));
