@@ -1827,7 +1827,14 @@ ${recentText}`,
     const fetchDgKey = async (fn) => { try { const r = await base44.functions.invoke(fn, {}); return r?.key || r?.data?.key || ''; } catch { return ''; } };
     let dgKey = (await fetchDgKey('deepgramToken2')) || (await fetchDgKey('deepgramToken'));
     if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); if (!twilioStreams) {agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop());} return; }
+    if (!dgKey) {
+      // A failed call start cannot leave the pilot AI gate open.
+      sharedCallActiveRef.current = false;
+      sharedCallEpochRef.current += 1;
+      setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error');
+      if (!twilioStreams) {agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop());}
+      return;
+    }
 
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
