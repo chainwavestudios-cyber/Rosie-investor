@@ -34,7 +34,7 @@ import { resolvePipeline } from '../../shared/aiAgentPipeline.ts';
 import { renderLeadTemplate } from '../../shared/leadTemplate.ts';
 import { enforceOutboundHandoff, OUTBOUND_QUEUE_NOTICE } from '../../shared/aiOutboundHandoff.ts';
 import { nextSavedAlexOpening } from '../../shared/aiOutboundOpening.ts';
-import { isRosieFounderReferral } from '../../shared/rosieFounderOverride.js';
+import { isRosieFounderReferral, hasRecentFounderTransferContext } from '../../shared/rosieFounderOverride.js';
 
 // Dedicated corporate profile; never read or mutate debt-campaign leads for this line.
 const ROSIE_PROFILE = 'rosie_corporate';
@@ -205,11 +205,14 @@ export default async function(req: Request): Promise<Response> {
   try {
     // ── Auth: fail-closed ──
     const authToken = secrets.get('WS_BRIDGE_AUTH_TOKEN') || '';
-    if (authToken) {
-      const auth = req.headers.get('Authorization') || '';
-      if (auth !== `Bearer ${authToken}`) {
-        return Response.json({ error: 'unauthorized' }, { status: 401 });
-      }
+    // Corporate transfer must never fail open when the bridge credential is
+    // unprovisioned. Reject before reading any untrusted transfer payload.
+    if (!authToken) {
+      return Response.json({ error: 'bridge_auth_not_configured' }, { status: 503 });
+    }
+    const auth = req.headers.get('Authorization') || '';
+    if (auth !== `Bearer ${authToken}`) {
+      return Response.json({ error: 'unauthorized' }, { status: 401 });
     }
 
     // ── Parse and validate body ──
@@ -242,7 +245,12 @@ export default async function(req: Request): Promise<Response> {
       }catch(e:any){ console.warn('[Rosie bridge diagnostics] unavailable',e?.message); }
       const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date())); const salutation=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening'; console.log('[Rosie media] Corporate bridge initialized with greeting',body.streamSid); return Response.json({greeting:salutation+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",llmModel:ROSIE_MODEL_ID,llmRequestModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',sttModel:'nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID,ttsSynthesisModel:'sonic-3.6',pipeline:resolvePipeline({llmModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID}),leadId:ROSIE_PROFILE,inboundMode:true}); }
     if (body.leadId === ROSIE_PROFILE && event === 'turn') return await corporateTurn(base44,body);
-    if (body.leadId === ROSIE_PROFILE && event === 'transfer') return await transferRosieFounderCall(body);
+    if (body.leadId === ROSIE_PROFILE && event === 'transfer') {
+      if (!hasRecentFounderTransferContext(body.conversation)) {
+        return Response.json({ok:false,error:'founder_override_context_required'}, {status:403});
+      }
+      return await transferRosieFounderCall(body);
+    }
     if (body.leadId === ROSIE_PROFILE && event === 'end_call') return Response.json({ok:true});
     if (body.leadId === ROSIE_PROFILE && event === 'stop') return Response.json({ok:true});
     if (event === 'init') return await handleInit(base44, body);
