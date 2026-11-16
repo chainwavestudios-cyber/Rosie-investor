@@ -29,6 +29,17 @@ export function investorPilotEnabled(aiSettings = {}, { buildEnabled = INVESTOR_
   return buildEnabled === true && aiSettings?.sharedConversationV1 === true;
 }
 
+/** Only the experimental call path rejects callbacks from ended/older calls.
+ * The original Investor legacy result-handling contract stays unchanged.
+ * This gates UI application of a response, not cancellation of provider spend.
+ */
+export function investorPilotResponseCurrent({ pilotEnabled = false, requestEpoch = 0,
+  currentEpoch = 0, active = false } = {}) {
+  if (!pilotEnabled) return true;
+  return active === true && Number.isSafeInteger(requestEpoch) &&
+    requestEpoch === currentEpoch;
+}
+
 /** In DebtLiveCall, 0=local agent mic, 1=remote prospect, 2=transfer agent.
  * This is NOT the mapping used by the lead assistant popup.
  */
