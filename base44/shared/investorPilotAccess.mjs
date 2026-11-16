@@ -9,11 +9,13 @@ const SEAT_ROLES=new Set(['super_admin','admin','super_manager','manager','diale
 const MANAGER_ROLES=new Set(['super_admin','admin','super_manager','manager']);
 const MODES=new Set(['qa','coach']);
 const CLIENT_AUTHORITY_FIELDS=['kbEntries','kbName','_ctx','organization_id','organizationId','tenantId','priceId','costUsd','stripeCustomerId','model','approvedKb'];
+const ALLOWED_FIELDS=new Set(['mode','question','leadId','sessionUserId','sessionToken','transcript']);
 const fail=(status,code)=>({ok:false,status,code});
 export function validateInvestorPilotPayload(body){
   if(!body || typeof body!=='object' || Array.isArray(body))return fail(400,'PILOT_INVALID_REQUEST');
   if(!MODES.has(body.mode))return fail(400,'PILOT_INVALID_MODE');
-  if(CLIENT_AUTHORITY_FIELDS.some(key=>Object.prototype.hasOwnProperty.call(body,key)))
+  if(CLIENT_AUTHORITY_FIELDS.some(key=>Object.prototype.hasOwnProperty.call(body,key)) ||
+     Object.keys(body).some(key=>!ALLOWED_FIELDS.has(key)))
     return fail(400,'PILOT_CLIENT_AUTHORITY_FORBIDDEN');
   if(typeof body.sessionUserId!=='string' || !body.sessionUserId.trim() ||
      typeof body.sessionToken!=='string' || !body.sessionToken ||
