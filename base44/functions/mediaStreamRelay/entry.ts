@@ -242,7 +242,16 @@ export default async function(req: Request): Promise<Response> {
       }catch(e:any){ console.warn('[Rosie bridge diagnostics] unavailable',e?.message); }
       const hour=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',hourCycle:'h23'}).format(new Date())); const salutation=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening'; console.log('[Rosie media] Corporate bridge initialized with greeting',body.streamSid); return Response.json({greeting:salutation+"! It's a beautiful day here at Rosie AI headquarters. I'm Rosie, the AI receptionist. May I ask whom I'm speaking with?",llmModel:ROSIE_MODEL_ID,llmRequestModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',sttModel:'nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID,ttsSynthesisModel:'sonic-3.6',pipeline:resolvePipeline({llmModel:ROSIE_MODEL_ID,sttEngine:'deepgram-nova-3',ttsEngine:'cartesia',ttsVoiceModel:ROSIE_VOICE_ID,cartesiaVoiceId:ROSIE_VOICE_ID}),leadId:ROSIE_PROFILE,inboundMode:true}); }
     if (body.leadId === ROSIE_PROFILE && event === 'turn') return await corporateTurn(base44,body);
-    if (body.leadId === ROSIE_PROFILE && event === 'transfer') return await transferRosieFounderCall(body);
+    if (body.leadId === ROSIE_PROFILE && event === 'transfer') {
+      const turns = Array.isArray(body.conversation) ? body.conversation : [];
+      const lastCaller = turns.length >= 2 ? turns[turns.length - 2] : null;
+      const lastReply = turns.length ? turns[turns.length - 1] : null;
+      if (lastCaller?.role !== 'user' || lastReply?.role !== 'assistant' ||
+          !isRosieFounderReferral(lastCaller.content)) {
+        return Response.json({ok:false,error:'founder_override_context_required'}, {status:403});
+      }
+      return await transferRosieFounderCall(body);
+    }
     if (body.leadId === ROSIE_PROFILE && event === 'end_call') return Response.json({ok:true});
     if (body.leadId === ROSIE_PROFILE && event === 'stop') return Response.json({ok:true});
     if (event === 'init') return await handleInit(base44, body);
