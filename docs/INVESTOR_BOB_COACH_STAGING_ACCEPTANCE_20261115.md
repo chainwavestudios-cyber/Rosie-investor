@@ -41,3 +41,12 @@ Scope: Original RoieAI-Investor embedded Debt Call Coach only; standalone Commer
 - Staged deterministic tests (including double-gate matrix and source-contract checks): **37/37 pass**; lint 0; builds both with flag on and flag off exit 0. No live UI or authenticated server persistence is claimed.
 - Next gate still requires authorized staging account, consented dual-channel call and independent tenant/KB/provider checks before any release.
 
+## Pilot call lifecycle / async AI response hardening
+- **Risk found in source:** `stopCall()` awaited dialer-session and recorder work before clearing Q&A timers, and prior `liveAssistantAI` promises could still paint Q&A or Coach cards after teardown or on a later call.
+- **Staging-only correction:** added `sharedCallEpochRef` and `sharedCallActiveRef` in original Investor `DebtLiveCall.jsx`. Each call start and stop advances the epoch; stop invalidates it synchronously **before any await**, clears scheduled pilot auto-Q&A/Coach timers and buffers, and guards pending manual Agent Question invocation. Pilot `handleQa` / `handleCoach` verify the captured epoch and active call before submitting and when resolving a provider promise. A prior call's success/failure cannot update the next call's UI in the staged pilot.
+- **Usage fix:** staged Agent Question flush logs estimated Q&A usage only for the legacy path. The pilot logs once in `handleQa` when a request is actually initiated, rather than double-logging when an agent speaks a question.
+- **Startup cleanup:** audio permission errors and missing Deepgram key invalidate the staged call epoch and deactivate the pilot gate; no fallback audio source is invented.
+- **Proof scope:** four new synthetic/source-contract tests validate epoch truth table, legacy-path compatibility, stale response rejection and synchronous stop order. Combined targeted suite **53/53 pass** (41 BOB/Investor tests plus 12 founder-override tests), targeted ESLint exit 0, feature-enabled Vite build exit 0. Not a live phone/provider or billing confirmation.
+- **Remaining:** independently verify browser call start/stop and authenticated admin pilot persistence, provider-side request cancellation/usage (UI suppression does **not** refund already-issued inference), cross-tenant negative authorization and customer-consent policies.
+
+
