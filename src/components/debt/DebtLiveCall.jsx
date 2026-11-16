@@ -36,7 +36,7 @@ import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
-import { investorPilotEnabled, latestInvestorProspectTurn, investorShouldAskSettled,
+import { investorPilotEnabled, investorPilotResponseCurrent, latestInvestorProspectTurn, investorShouldAskSettled,
   investorPlanLiveServices, investorSettleDelay, investorShouldCoachSettled } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
@@ -621,6 +621,10 @@ Agent line: "${firstAgentLines}"`,
   const lastAskedAtRef = useRef(0);
   const recentQaRequestRef = useRef({ question: '', ts: 0, id: null });
   const supersededQaIdsRef = useRef(new Set());
+  // Prevent previous-call AI responses from entering a new call's pilot UI.
+  // The epoch advances at the start of a call and at the beginning of teardown.
+  const sharedCallEpochRef = useRef(0);
+  const sharedCallActiveRef = useRef(false);
   const interimPaintTimeRef = useRef({});
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
@@ -867,6 +871,12 @@ Agent line: "${firstAgentLines}"`,
   }, [coachUser]);
 
   const handleQa = useCallback((question) => {
+    const requestEpoch = sharedCallEpochRef.current;
+    const acceptPilotReply = () => investorPilotResponseCurrent({
+      pilotEnabled: sharedPolicyEnabled, requestEpoch,
+      currentEpoch: sharedCallEpochRef.current, active: sharedCallActiveRef.current,
+    });
+    if (!acceptPilotReply()) return;
     const id = Date.now() + Math.random();
     const startTime = Date.now();
     const prior = recentQaRequestRef.current;
@@ -883,7 +893,7 @@ Agent line: "${firstAgentLines}"`,
     logAI('qa');
     invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
       .then(res => {
-        if (supersededQaIdsRef.current.has(id)) return;
+        if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
         const responseMs = Date.now() - startTime;
         // AI decided no answer is needed (small talk, greeting, etc.)
         if (res?.needs_answer === false || res?.data?.needs_answer === false) {
@@ -900,8 +910,8 @@ Agent line: "${firstAgentLines}"`,
         // saveCallOutcome flow persists them once at call end, avoiding
         // duplicate DebtQAHistory rows and extra network traffic mid-call.
       })
-      .catch(() => { if (!supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
-  }, [kbEntries]);
+      .catch(() => { if (acceptPilotReply() && !supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
+  }, [kbEntries, sharedPolicyEnabled]);
 
   // Handle pushed questions once, regardless of whether the panel is popped out.
   const handledPendingQuestionRef = useRef(null);
@@ -921,11 +931,13 @@ Agent line: "${firstAgentLines}"`,
     agentQuestionActiveRef.current = false;
     agentQuestionWaitingRef.current = false;
     setAgentQuestionActive(false);
-    if (combined.length > 0) {
-      logAI('qa');
+    if (combined.length > 0 && (!sharedPolicyEnabled || sharedCallActiveRef.current)) {
+      // handleQa already logs actual invocation. Avoid an extra estimated
+      // credit log in the pilot path before the request is submitted.
+      if (!sharedPolicyEnabled) logAI('qa');
       setPendingQuestion({ question: combined, ts: Date.now() });
     }
-  }, [logAI]);
+  }, [logAI, sharedPolicyEnabled]);
 
   // Agent Question mode — press ONCE to start, speak your question, and it
   // auto-answers when you stop speaking (3s silence), when the customer starts
@@ -949,6 +961,10 @@ Agent line: "${firstAgentLines}"`,
   const flushCustomerBuffer = useCallback(() => {
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (customerBufferRef.current.length === 0) return;
+    if (sharedPolicyEnabled && !sharedCallActiveRef.current) {
+      customerBufferRef.current = [];
+      return;
+    }
     // An operator switching off auto Q&A cancels any already scheduled request.
     // Manual Ask remains separately authorized and unaffected.
     if (sharedPolicyEnabled && !qaActiveRef.current) {
@@ -980,11 +996,21 @@ Agent line: "${firstAgentLines}"`,
   }, [handleQa, sharedPolicyEnabled]);
 
   const handleCoach = useCallback(() => {
+    const requestEpoch = sharedCallEpochRef.current;
+    const acceptPilotReply = () => investorPilotResponseCurrent({
+      pilotEnabled: sharedPolicyEnabled, requestEpoch,
+      currentEpoch: sharedCallEpochRef.current, active: sharedCallActiveRef.current,
+    });
+    if (!acceptPilotReply()) return;
     logAI('coach');
     invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
-      .then(res => { const tip = res?.tip || res?.response || res?.answer || ''; if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8)); })
+      .then(res => {
+        if (!acceptPilotReply()) return;
+        const tip = res?.tip || res?.response || res?.answer || '';
+        if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8));
+      })
       .catch(() => {});
-  }, [kbEntries]);
+  }, [kbEntries, sharedPolicyEnabled]);
 
   // This debounce is independent of Q&A: Coach can run when Q&A is OFF.
   // Only a complete, settled prospect turn may trigger the shared Coach path.
@@ -1741,6 +1767,8 @@ ${recentText}`,
     interimPaintTimeRef.current = {};
     setMicMuted(false);
     setTestMode(testModeArg);
+    sharedCallEpochRef.current += 1;
+    sharedCallActiveRef.current = true;
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
@@ -1789,6 +1817,8 @@ ${recentText}`,
       streamRef.current = null;
       customerStreamRef.current = null;
       setError(twilioStreams ? 'Twilio audio stream unavailable.' : `Audio input unavailable: ${e?.message || 'Check microphone permission and re-select the device.'}`);
+      sharedCallActiveRef.current = false;
+      sharedCallEpochRef.current += 1;
       setPhase('idle'); setDgStatus('error'); return;
     }
 
@@ -1845,6 +1875,16 @@ ${recentText}`,
   }, [micDeviceId, customerMicId, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
+    // Close the pilot inference gate synchronously BEFORE the first await;
+    // pending timers and old provider callbacks cannot start/paint new Q&A.
+    sharedCallActiveRef.current = false;
+    sharedCallEpochRef.current += 1;
+    if (sharedPolicyEnabled) {
+      customerBufferRef.current = [];
+      sharedCoachPendingRef.current = null;
+      if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+      if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
+    }
     // Clear the 45-second auto-save timer
     // Update DialerSession back to logged_in
     if (coachUser?.username) {
@@ -2045,7 +2085,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice]);
+  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice,sharedPolicyEnabled]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
