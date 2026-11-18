@@ -1,0 +1,21 @@
+name: Probo Core Evidence Gateway Tests
+on:
+  push:
+    branches:
+      - probo-core-evidence-gateway-20261118
+  pull_request:
+    paths:
+      - 'services/probo-grc/**'
+      - '.github/workflows/probo-core-evidence-gateway.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Probo validators, admission, and gateway tests
+        run: node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/evidence-admission.test.mjs services/probo-grc/core-evidence-gateway.test.mjs
