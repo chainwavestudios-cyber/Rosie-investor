@@ -18,4 +18,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run Probo validators, admission, and gateway tests
-        run: node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/evidence-admission.test.mjs services/probo-grc/core-evidence-gateway.test.mjs services/probo-grc/postgres-evidence-adapter.test.mjs services/probo-grc/core-evidence-ack.test.mjs services/probo-grc/core-evidence-receiver.test.mjs services/probo-grc/core-evidence-sender.test.mjs
+        run: node --test services/probo-grc/rosie-evidence-v1.test.mjs services/probo-grc/evidence-admission.test.mjs services/probo-grc/core-evidence-gateway.test.mjs services/probo-grc/postgres-evidence-adapter.test.mjs services/probo-grc/core-evidence-ack.test.mjs services/probo-grc/core-evidence-receiver.test.mjs services/probo-grc/core-evidence-sender.test.mjs services/probo-grc/probo-api-preflight.test.mjs
