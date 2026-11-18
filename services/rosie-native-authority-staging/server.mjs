@@ -8,6 +8,31 @@ import {createServer} from 'node:http';
 const port=Number.parseInt(process.env.PORT||'10000',10);
 const contract='rosie.core.native-authority.isolated-staging.v1';
 const max=4096;
+// Pinned peer-only health dependency: Authority -> Product Grants -> restricted
+// Neon reader. No customer payload, service secret, or authorization passes here.
+const grantsHealthUrl='https://rosie-native-product-grants-a2-staging.onrender.com/healthz';
+async function verifyGrantsReadonlyPeer(){
+ try{
+  const result=await fetch(grantsHealthUrl,{method:'GET',redirect:'manual',
+   cache:'no-store',headers:{accept:'application/json'},
+   signal:AbortSignal.timeout(11000)});
+  if(result.status!==200||Number(result.headers.get('content-length')||0)>2048)
+   return false;
+  const body=await result.text();
+  if(Buffer.byteLength(body,'utf8')>2048)return false;
+  const data=JSON.parse(body);
+  return data?.ok===true&&
+   data?.contract==='rosie.core.native-product-grants.isolated-staging.v1'&&
+   data?.environment==='isolated_staging'&&
+   data?.database_readonly_connected===true&&
+   data?.restricted_rls_verified===true&&
+   data?.authorization_granted===false&&
+   data?.production_authorized===false&&
+   data?.current_a1_signed_identity_ready===false&&
+   data?.current_a3_consent_issuer_ready===false&&
+   data?.atomic_writable_consent_adapter_ready===false;
+ }catch{return false;}
+}
 const headers={
  'content-type':'application/json; charset=utf-8',
  'cache-control':'no-store, max-age=0',
@@ -28,6 +53,19 @@ function fail(res,reason='native_customer_authority_not_accepted',status=503){
 }
 const server=createServer(async(req,res)=>{
  const path=new URL(req.url||'/', 'http://localhost').pathname;
+ if(path==='/readyz'&&req.method==='GET'){
+  const linked=await verifyGrantsReadonlyPeer();
+  return respond(res,linked?200:503,{ok:linked,contract,
+   environment:'isolated_staging',
+   linked_product_grants_readonly:linked,
+   restricted_neon_reader_verified:linked,
+   // Network reachability and database visibility are NOT customer consent.
+   authority_accepted:false,product_grants_accepted:false,
+   a1_identity_verifier_ready:false,a3_consent_issuer_ready:false,
+   atomic_writable_consent_adapter_ready:false,
+   customer_grant_authorized:false,provider_operation_authorized:false,
+   production_authorized:false});
+ }
  if(path==='/healthz'&&req.method==='GET'){
   return respond(res,200,{ok:true,contract,environment:'isolated_staging',
    backend_reachable:true,authority_accepted:false,product_grants_accepted:false,
