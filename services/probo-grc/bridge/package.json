@@ -1,0 +1,10 @@
+{
+  "name":"rosie-probo-core-bridge",
+  "version":"0.1.0",
+  "private":true,
+  "type":"module",
+  "description":"Staging-only signed sanitized evidence inbox; NOT a Probo API connector",
+  "engines":{"node":">=22"},
+  "scripts":{"start":"node runtime.mjs"},
+  "dependencies":{"pg":"8.16.3"}
+}
