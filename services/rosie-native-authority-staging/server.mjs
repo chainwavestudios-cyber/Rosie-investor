@@ -66,10 +66,17 @@ const headers={
  'x-frame-options':'DENY',
  'content-security-policy':"default-src 'none'",
 };
-function respond(res,status,data){
- res.writeHead(status,headers);
+function respond(res,status,data,extraHeaders=null){
+ res.writeHead(status,extraHeaders?{...headers,...extraHeaders}:headers);
  res.end(JSON.stringify(data));
 }
+// Exact published Rosie origins may read ONLY the informational /readyz
+// response. Customer authority POST endpoints remain non-browser.
+const readinessOrigins=new Set([
+ 'https://rosie-ai-core-46e10df3.base44.app',
+ 'https://underwriteriq-platform.base44.app',
+ 'https://directd.tech'
+]);
 function fail(res,reason='native_customer_authority_not_accepted',status=503){
  respond(res,status,{ok:false,contract,environment:'isolated_staging',
   error:reason,authorization_granted:false,provider_operation_authorized:false,
@@ -81,6 +88,9 @@ const server=createServer(async(req,res)=>{
  if(path==='/readyz'&&req.method==='GET'){
   const [linked,coreLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest()]);
   const healthy=linked&&coreLinked;
+  const origin=String(req.headers.origin||'');
+  const cors=readinessOrigins.has(origin)?
+   {'access-control-allow-origin':origin,'vary':'Origin'}:null;
   return respond(res,healthy?200:503,{ok:healthy,contract,
    environment:'isolated_staging',
    linked_product_grants_readonly:linked,
@@ -91,7 +101,7 @@ const server=createServer(async(req,res)=>{
    a1_identity_verifier_ready:false,a3_consent_issuer_ready:false,
    atomic_writable_consent_adapter_ready:false,
    customer_grant_authorized:false,provider_operation_authorized:false,
-   production_authorized:false});
+   production_authorized:false},cors);
  }
  if(path==='/healthz'&&req.method==='GET'){
   return respond(res,200,{ok:true,contract,environment:'isolated_staging',
