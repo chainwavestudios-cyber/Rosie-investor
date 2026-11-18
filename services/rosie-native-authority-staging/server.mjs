@@ -11,6 +11,31 @@ const max=4096;
 // Pinned peer-only health dependency: Authority -> Product Grants -> restricted
 // Neon reader. No customer payload, service secret, or authorization passes here.
 const grantsHealthUrl='https://rosie-native-product-grants-a2-staging.onrender.com/healthz';
+const corePublicManifestUrl='https://rosie-ai-core-46e10df3.base44.app/api/apps/6aeabe88ef37542746e10df3/functions/coreSharedServicesManifest';
+async function verifyCorePublicManifest(){
+ try{
+  const response=await fetch(corePublicManifestUrl,{
+   method:'POST',redirect:'manual',cache:'no-store',
+   headers:{'content-type':'application/json','accept':'application/json'},
+   body:'{"action":"abracadabra_onboarding"}',
+   signal:AbortSignal.timeout(11000)});
+  if(response.status!==200||Number(response.headers.get('content-length')||0)>4096)
+   return false;
+  const body=await response.text();
+  if(Buffer.byteLength(body,'utf8')>4096)return false;
+  const data=JSON.parse(body);
+  const onboarding=data?.onboarding;
+  return data?.ok===true&&data?.issuer==='rosie-core'&&
+   data?.contract==='rosie.core.abracadabra-onboarding.v1'&&
+   onboarding?.service_key==='abracadabra'&&
+   onboarding?.first_screen===true&&
+   onboarding?.production_pairing_allowed===false&&
+   onboarding?.encrypted_data_sync_allowed===false&&
+   data?.customer_identity_or_org_authorized===false&&
+   data?.encrypted_data_sync_authorized===false&&
+   data?.production_pairing_authorized===false;
+ }catch{return false;}
+}
 async function verifyGrantsReadonlyPeer(){
  try{
   const result=await fetch(grantsHealthUrl,{method:'GET',redirect:'manual',
@@ -54,11 +79,13 @@ function fail(res,reason='native_customer_authority_not_accepted',status=503){
 const server=createServer(async(req,res)=>{
  const path=new URL(req.url||'/', 'http://localhost').pathname;
  if(path==='/readyz'&&req.method==='GET'){
-  const linked=await verifyGrantsReadonlyPeer();
-  return respond(res,linked?200:503,{ok:linked,contract,
+  const [linked,coreLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest()]);
+  const healthy=linked&&coreLinked;
+  return respond(res,healthy?200:503,{ok:healthy,contract,
    environment:'isolated_staging',
    linked_product_grants_readonly:linked,
    restricted_neon_reader_verified:linked,
+   linked_core_public_manifest:coreLinked,
    // Network reachability and database visibility are NOT customer consent.
    authority_accepted:false,product_grants_accepted:false,
    a1_identity_verifier_ready:false,a3_consent_issuer_ready:false,
