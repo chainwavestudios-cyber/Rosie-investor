@@ -13,6 +13,8 @@ const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
 const INGEST_KEY=process.env.CORE_INGEST_HMAC_KEY||'';
 const WORKER_KEY=process.env.WORKER_HMAC_KEY||'';
+// Worker lease grants are never enabled just because a database row looks ready.
+const WORKER_EXECUTION_ENABLED=process.env.WORKER_EXECUTION_ENABLED==='true';
 const ORG='rosie-core-internal';
 const MAX_BYTES=8192;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,17 +85,31 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
       (SELECT count(*)::integer FROM core_agents.identities) AS registered`;
     if(roles[0]?.name!=='rosie_agent_gateway')throw Error('unexpected_db_principal');
     return reply(res,200,{ready:true,registered_agents:roles[0].registered,
-      worker_runtime_verified:false,automatic_execution_enabled:false});
+      worker_runtime_verified:WORKER_EXECUTION_ENABLED,automatic_execution_enabled:WORKER_EXECUTION_ENABLED});
    }catch{return reply(res,503,{ready:false,worker_runtime_verified:false});}
   }
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
-  if(!['/v1/events','/v1/worker/claim','/v1/worker/heartbeat',
+  if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
     '/v1/worker/checkpoint','/v1/worker/finish'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
    const key=path==='/v1/events'?ingestKey:workerKey;
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   if(path==='/v1/admin/status'){
+    if(Object.keys(x).length!==1||x.action!=='status')return reply(res,400,{error:'status_only'});
+    const result=await sql`SELECT
+      (SELECT count(*)::integer FROM core_agents.identities) AS registered_agents,
+      (SELECT count(*)::integer FROM core_agents.jobs WHERE state='queued') AS queued_jobs,
+      (SELECT count(*)::integer FROM core_agents.jobs WHERE state IN ('leased','running','checkpointed')) AS leased_jobs,
+      (SELECT count(*)::integer FROM core_agents.jobs WHERE state='completed') AS completed_jobs,
+      (SELECT count(*)::integer FROM core_agents.jobs WHERE state='dead_letter') AS dead_letter_jobs,
+      (SELECT count(*)::integer FROM core_agents.acks WHERE stage='persisted') AS durable_acks,
+      (SELECT count(*)::integer FROM core_agents.identities WHERE runtime_state='running') AS running_identities`;
+    return reply(res,200,{ok:true,contract:'rosie.core.agent_gateway.ops.v1',
+      ...result[0],worker_runtime_verified:WORKER_EXECUTION_ENABLED,
+      automatic_execution_enabled:WORKER_EXECUTION_ENABLED});
+   }
    if(path==='/v1/events'){
     if(!validateEvent(x))return reply(res,400,{error:'invalid_event'});
     const receipt=await sql.begin(async t=>{
@@ -131,6 +147,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
       idempotent:!!receipt.idempotent,worker_started:false});
    }
    if(path==='/v1/worker/claim'){
+    if(!WORKER_EXECUTION_ENABLED)return reply(res,503,{claimed:false,execute_authorized:false,error:'worker_runtime_not_verified'});
     if(!checkWorker(x)||Object.keys(x).some(k=>!['org_id','agent_id','worker_id','nonce'].includes(k)))
       return reply(res,400,{error:'invalid_worker_claim'});
     await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES (${x.nonce},${ORG})`;
@@ -155,6 +172,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
       execute_authorized:claimed.length===1,job:claimed.length?{...claimed[0],
        event:event[0]||null}:null});
    }
+   if(!WORKER_EXECUTION_ENABLED)return reply(res,503,{accepted:false,execute_authorized:false,error:'worker_runtime_not_verified'});
    if(!checkLease(x))return reply(res,400,{error:'invalid_fenced_worker_request'});
    await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES (${x.nonce},${ORG})`;
    if(path==='/v1/worker/heartbeat'){
