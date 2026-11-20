@@ -104,3 +104,8 @@ services:
           name: rosie-probo-grc-staging
           type: web
           envVarKey: PROBOD_MAILER_SENDER_NAME
+      - key: PROBOD_OPENAI_API_KEY
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_OPENAI_API_KEY
