@@ -85,7 +85,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
       (SELECT count(*)::integer FROM core_agents.identities) AS registered`;
     if(roles[0]?.name!=='rosie_agent_gateway')throw Error('unexpected_db_principal');
     return reply(res,200,{ready:true,registered_agents:roles[0].registered,
-      worker_runtime_verified:WORKER_EXECUTION_ENABLED,automatic_execution_enabled:WORKER_EXECUTION_ENABLED});
+      worker_claims_enabled:WORKER_EXECUTION_ENABLED,
+      worker_runtime_verified:false,automatic_execution_enabled:false});
    }catch{return reply(res,503,{ready:false,worker_runtime_verified:false});}
   }
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
@@ -107,8 +108,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
       (SELECT count(*)::integer FROM core_agents.acks WHERE stage='persisted') AS durable_acks,
       (SELECT count(*)::integer FROM core_agents.identities WHERE runtime_state='running') AS running_identities`;
     return reply(res,200,{ok:true,contract:'rosie.core.agent_gateway.ops.v1',
-      ...result[0],worker_runtime_verified:WORKER_EXECUTION_ENABLED,
-      automatic_execution_enabled:WORKER_EXECUTION_ENABLED});
+      ...result[0],worker_claims_enabled:WORKER_EXECUTION_ENABLED,
+      worker_runtime_verified:false,automatic_execution_enabled:false});
    }
    if(path==='/v1/events'){
     if(!validateEvent(x))return reply(res,400,{error:'invalid_event'});
