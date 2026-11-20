@@ -1,0 +1,106 @@
+# Temporary isolated first-owner enrollment ONLY.
+# Auto-sync and app auto-deploy are OFF. Never expose signup on the public Probo service.
+# After chainwavestudios@gmail.com is verified and Rosie AI organization exists,
+# remove this service and keep the public service PROBOD_AUTH_DISABLE_SIGNUP=true.
+services:
+  - type: pserv
+    name: rosie-probo-private-bootstrap
+    runtime: docker
+    region: ohio
+    plan: 0.5c-512mb
+    repo: https://github.com/chainwavestudios-cyber/Rosie-investor
+    branch: probo-private-bootstrap-20261120
+    dockerfilePath: services/probo-grc/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    envVars:
+      - key: PROBOD_AUTH_DISABLE_SIGNUP
+        value: "false"
+      - key: PROBOD_AUTH_COOKIE_SECURE
+        value: "false"
+      - key: PROBOD_AUTH_COOKIE_SAMESITE
+        value: "lax"
+      - key: PROBOD_BASE_URL
+        value: "http://localhost:8787"
+      - key: PROBOD_API_ADDR
+        value: "0.0.0.0:8080"
+      - key: PROBOD_PG_CA_BUNDLE_PATH
+        value: "/etc/ssl/certs/ca-certificates.crt"
+      - key: PROBOD_PG_POOL_SIZE
+        value: "5"
+      - key: PROBOD_PG_MIN_POOL_SIZE
+        value: "1"
+      - key: PROBOD_TRUST_CENTER_TLS_MODE
+        value: "external"
+      - key: PROBOD_TRUST_CENTER_HTTP_ADDR
+        value: "127.0.0.1:10080"
+      - key: PROBOD_ENCRYPTION_KEY
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_ENCRYPTION_KEY
+      - key: PROBOD_AUTH_COOKIE_SECRET
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_AUTH_COOKIE_SECRET
+      - key: PROBOD_AUTH_PASSWORD_PEPPER
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_AUTH_PASSWORD_PEPPER
+      - key: PROBOD_OAUTH2_SERVER_SIGNING_KEY
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_OAUTH2_SERVER_SIGNING_KEY
+      - key: PROBOD_PG_ADDR
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_PG_ADDR
+      - key: PROBOD_PG_USERNAME
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_PG_USERNAME
+      - key: PROBOD_PG_PASSWORD
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_PG_PASSWORD
+      - key: PROBOD_PG_DATABASE
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_PG_DATABASE
+      - key: PROBOD_SMTP_ADDR
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_SMTP_ADDR
+      - key: PROBOD_SMTP_USER
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_SMTP_USER
+      - key: PROBOD_SMTP_PASSWORD
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_SMTP_PASSWORD
+      - key: PROBOD_SMTP_TLS_REQUIRED
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_SMTP_TLS_REQUIRED
+      - key: PROBOD_MAILER_SENDER_EMAIL
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_MAILER_SENDER_EMAIL
+      - key: PROBOD_MAILER_SENDER_NAME
+        fromService:
+          name: rosie-probo-grc-staging
+          type: web
+          envVarKey: PROBOD_MAILER_SENDER_NAME
