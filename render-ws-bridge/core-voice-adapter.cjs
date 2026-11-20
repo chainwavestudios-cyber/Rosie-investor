@@ -33,6 +33,7 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
   if(!enabled){ws.close(1013,'Core voice unavailable');return}
   let sid='',initialized=false,callSid='';
   const guard=setTimeout(()=>{if(!initialized)ws.close(1008,'signed Core start required')},5000);
+  guard.unref?.();let durationTimer=null;
   ws.isAlive=true;ws.on('pong',()=>{ws.isAlive=true});
   ws.on('message',raw=>{
    let m;try{m=JSON.parse(raw.toString())}catch{return}
@@ -45,7 +46,8 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
     }
     initialized=true;clearTimeout(guard);sid=start.streamSid;callSid=start.callSid;
     onStart(ws,sid,{streamSid:sid,callSid,customParameters:{core:true,leadId:'rosie_core_vip'}});
-    setTimeout(()=>{if(ws.readyState===WebSocket.OPEN)ws.close(1000,'Core test time limit')},300000);
+    durationTimer=setTimeout(()=>{if(ws.readyState===WebSocket.OPEN)ws.close(1000,'Core test time limit')},300000);
+    durationTimer.unref?.();
     return;
    }
    if(m.streamSid!==sid)return;
@@ -53,7 +55,7 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
    if(m.event==='mark')onMark(sid,m.mark);
    if(m.event==='stop')onStop(sid);
   });
-  ws.on('close',()=>{clearTimeout(guard);if(sid)onStop(sid)});
+  ws.on('close',()=>{clearTimeout(guard);if(durationTimer)clearTimeout(durationTimer);if(sid)onStop(sid)});
   ws.on('error',()=>{});
  });
  return {wss,path:PATH,ready};
