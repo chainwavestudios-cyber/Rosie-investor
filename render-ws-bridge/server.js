@@ -550,6 +550,7 @@ async function handleStreamStart(ws, streamSid, start) {
     session.error = e?.message;
     log('init failed', e?.message);
     if(session.browser)sendToTwilio(session.ws,{event:'bob_error',message:String(e?.message||'Training initialization failed').slice(0,180)});
+    if(session.core){session.coreProviders=null;try{session.ws.close(1011,'Core session initialization failed')}catch{}}
   }
 }
 
@@ -856,6 +857,7 @@ async function handleUtterance(streamSid, transcript) {
           ' No customer credits were deducted.' });
     }
     session.state = 'listening';
+    if(session.core){try{session.ws.close(1011,'Core dialogue failed')}catch{}}
   }
 }
 
@@ -1012,7 +1014,8 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   let markSent = false;
   const clean = value => {
     let message = String(value || '');
-    if (CARTESIA_API_KEY) message = message.split(CARTESIA_API_KEY).join('[redacted]');
+    for(const key of [CARTESIA_API_KEY,session.coreProviders?.cartesiaKey])
+      if(key)message=message.split(key).join('[redacted]');
     return message.slice(0, 500);
   };
   const ensureMark = () => {
@@ -1280,7 +1283,7 @@ async function coreClaudeTurn(session){
   log('[CORE] Anthropic HTTP',response.status);throw Error('Core Anthropic provider HTTP '+response.status);}
  const data=await response.json();
  const text=Array.isArray(data.content)?data.content.filter(x=>x.type==='text')
-  .map(x=>String(x.text||'')).join(' ').replace(/[\\x00-\\x1f]/g,' ').trim().slice(0,600):'';
+  .map(x=>String(x.text||'')).join(' ').replace(/\s+/g,' ').trim().slice(0,600):'';
  if(!text)throw Error('Core Anthropic empty text response');
  log('[CORE] Haiku response generated');
  return {action:'speak',text,llmRuntime:{state:'accepted',provider:'anthropic',model:'claude-haiku-4-5-20251001'}};
