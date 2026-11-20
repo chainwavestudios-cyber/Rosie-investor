@@ -3,7 +3,7 @@ const s=fs.readFileSync(__dirname+'/server.js','utf8');
 test('Core live call uses provider lease only after isolated auth',()=>{
  for(const k of ['session.coreProviders={anthropicKey:lease.anthropicKey','coreClaudeTurn(session)','session.core?await coreClaudeTurn(session)','session.core?session.coreProviders?.cartesiaKey:CARTESIA_API_KEY','session.coreProviders=null','Core provider session bootstrap unavailable'])assert.ok(s.includes(k),k);
 });
-test('Core speech requests are direct to Anthropic and Cartesia and don't redirect BOB or Fronter',()=>{
+test("Core speech requests are direct to Anthropic and Cartesia and don't redirect BOB or Fronter",()=>{
  assert.ok(s.includes("https://api.anthropic.com/v1/messages"));
  assert.ok(s.includes("https://api.cartesia.ai/tts/bytes"));
  assert.ok(s.includes("'claude-haiku-4-5-20251001'"));
