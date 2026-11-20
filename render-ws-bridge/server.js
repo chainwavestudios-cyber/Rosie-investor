@@ -43,6 +43,7 @@ const { WebSocket, WebSocketServer } = require('ws');
 const nodeCrypto = require('crypto');
 const {startPlainBobAgent} = require('./managed-voice-agent.cjs');
 const {installInsureIqBobTransport} = require('./insureiq-bob-adapter.cjs');
+const {installRosieCoreVoice} = require('./core-voice-adapter.cjs');
 
 // ── Config ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT || 10000);
@@ -345,13 +346,15 @@ app.get('/bob/runtime',(req,res)=>{
 const bobWss = new WebSocketServer({noServer:true,path:'/bob/ws'});
 const plainBobSessions=new Map();
 const insureIqBob=installInsureIqBobTransport({app,WebSocket,WebSocketServer,deepgramKey:DEEPGRAM_API_KEY,startPlainBobAgent});
+const coreVoice=installRosieCoreVoice({app,WebSocket,WebSocketServer,deepgramReady:!!DEEPGRAM_API_KEY,
+ onStart:handleStreamStart,onAudio:handleInboundAudio,onMark:handleMark,onStop:handleStreamStop});
 // ONE HTTP upgrade listener owns both mutually exclusive paths. Fronter's
 // legacy /ws handshake and BOB's /bob/ws handshake never compete.
 if(WS_PATH==='/bob/ws')throw new Error('Legacy Twilio path may not overlap BOB route');
 server.on('upgrade',(req,socket,head)=>{
  let pathname='';
  try{pathname=new URL(req.url||'/', 'http://localhost').pathname}catch{socket.destroy();return}
- const handler=pathname===WS_PATH?wss:pathname==='/bob/ws'?bobWss:pathname===insureIqBob.path?insureIqBob.wss:null;
+ const handler=pathname===WS_PATH?wss:pathname==='/bob/ws'?bobWss:pathname===insureIqBob.path?insureIqBob.wss:pathname===coreVoice.path?coreVoice.wss:null;
  if(!handler){socket.destroy();return}
  handler.handleUpgrade(req,socket,head,ws=>handler.emit('connection',ws,req));
 });
@@ -462,6 +465,7 @@ async function handleStreamStart(ws, streamSid, start) {
   const leadId = start.customParameters?.leadId || '';
   const session = {
     browser:!!start.customParameters?.browser,
+    core:start.customParameters?.core===true,
     trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
     sttBytesSent:0,ttsMeterSequence:0,
     ws,
@@ -507,13 +511,13 @@ async function handleStreamStart(ws, streamSid, start) {
         ok = await streamFluxTTS(initResp.greeting, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(initResp.greeting, streamSid, session, gen);
-      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser)) {
+      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser || session.core)) {
         ok = await streamCartesiaTTS(initResp.greeting, streamSid, session, gen);
       }
       if (!ok) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated
         // Deepgram/ElevenLabs fallback. Fronter is unaffected.
-        if (session.browser && ttsEngine === 'cartesia') {
+        if ((session.browser || session.core) && ttsEngine === 'cartesia') {
           session.state = 'listening';
           clearSpeakingWatchdog(session);
           sendToTwilio(session.ws, { event: 'bob_error',
@@ -542,7 +546,7 @@ function handleInboundAudio(streamSid, audioPayload) {
   if (!session) return;
 
   // Add to recording buffer
-  session.recordingBuffer.push(audioPayload);
+  if(!session.core)session.recordingBuffer.push(audioPayload);
 
   // Forward to Deepgram if connected (backpressure check)
   if (session.dgWs && session.dgWs.readyState === WebSocket.OPEN) {
@@ -587,7 +591,7 @@ async function handleStreamStop(streamSid) {
   // Serialized: wait for all pending events, then send stop
   await enqueue(session, async () => {
     let recordingBase64 = '';
-    if (session.recordingBuffer.length > 0) {
+    if (!session.core && session.recordingBuffer.length > 0) {
       recordingBase64 = session.recordingBuffer.join('');
     }
     try {
@@ -601,12 +605,12 @@ async function handleStreamStop(streamSid) {
       }
       await callRelay({
         event: 'stop',
-        _bobTransport:session.browser,
+        _bobTransport:session.browser,_coreTransport:session.core,
         streamSid,
         callSid: session.callSid,
-        conversation: session.browser?[]:session.conversation,
+        conversation: session.browser||session.core?[]:session.conversation,
         ...(session.browser?{durationSeconds:Math.max(0,Math.round((Date.now()-session.startedAt)/1000))}:{}),
-        recordingBase64:session.browser?'':recordingBase64,
+        recordingBase64:session.browser||session.core?'':recordingBase64,
         leadId: session.leadId,
       });
     } catch (e) {
@@ -801,13 +805,13 @@ async function handleUtterance(streamSid, transcript) {
         ok = await streamFluxTTS(text, streamSid, session, gen);
       } else if (ttsEngine === 'deepgram-aura' && DEEPGRAM_API_KEY) {
         ok = await streamDeepgramTTS(text, streamSid, session, gen);
-      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser)) {
+      } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser || session.core)) {
         ok = await streamCartesiaTTS(text, streamSid, session, gen);
       }
       if (!ok) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated
         // Deepgram/ElevenLabs fallback. Fronter is unaffected.
-        if (session.browser && ttsEngine === 'cartesia') {
+        if ((session.browser || session.core) && ttsEngine === 'cartesia') {
           session.state = 'listening';
           clearSpeakingWatchdog(session);
           sendToTwilio(session.ws, { event: 'bob_error',
@@ -1010,10 +1014,10 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   // Cartesia credential, not the rejected Render-local Cartesia key.
   // Only the BOB browser route enters this branch; investor/Fronter routes
   // preserve their existing provider calls and settings unchanged.
-  if (session.browser) {
+  if (session.browser || session.core) {
     try {
       const remote = await callRelay({
-        _bobTransport: true, event: 'tts', streamSid,
+        _bobTransport: session.browser===true, _coreTransport:session.core===true, event: 'tts', streamSid,
         callSid: session.callSid, leadId: session.leadId,
         ttsVoiceId: voice, ttsText: String(text).slice(0, 700),
         requestId: 'skylar-' + streamSid + '-' + generation,
@@ -1038,7 +1042,7 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
         if (generation !== session.generation || session.stopping) break;
         const payload = Buffer.from(audio.subarray(offset, offset + 4096)).toString('base64');
         sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
-        session.recordingBuffer.push(payload);
+        if(!session.core)session.recordingBuffer.push(payload);
         chunkCount++;
       }
       session.tts.providerRequestId = remote.providerRequestId || '';
@@ -1286,11 +1290,13 @@ async function callRelay(payload) {
   // Never forward a BOB training transcript to the debt/investor relay.
   // The final stop event may run after stream deletion; its private marker
   // survives that transition but is stripped before transmission.
-  const isBob=payload._bobTransport===true||streams.get(payload.streamSid)?.browser===true;
-  const { _bobTransport, ...safePayload }=payload;
+  const isCore=payload._coreTransport===true||streams.get(payload.streamSid)?.core===true;
+  const isBob=!isCore&&(payload._bobTransport===true||streams.get(payload.streamSid)?.browser===true);
+  const { _bobTransport, _coreTransport, ...safePayload }=payload;
+  if(isCore&&!coreVoice.ready().ready)throw Error('Core voice bridge disabled');
   if(isBob && !bobBridgeReadiness().ready)throw new Error('BOB callback disabled or unconfigured');
-  const endpoint=isBob?BOB_APP_WEBHOOK_URL:APP_WEBHOOK_URL;
-  const bearer=isBob?BOB_APP_AUTH_TOKEN:APP_AUTH_TOKEN;
+  const endpoint=isCore?'https://rosie-ai-core-46e10df3.base44.app/functions/coreRosieVoiceMediaRelay':isBob?BOB_APP_WEBHOOK_URL:APP_WEBHOOK_URL;
+  const bearer=isCore?(process.env.CORE_ROSIE_RELAY_AUTH||''):isBob?BOB_APP_AUTH_TOKEN:APP_AUTH_TOKEN;
   if(!endpoint)throw new Error(isBob?'BOB callback not configured':'APP_WEBHOOK_URL not configured');
   const headers = { 'Content-Type': 'application/json' };
   if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
@@ -1306,7 +1312,7 @@ async function callRelay(payload) {
 
 // ── Keepalive pings ─────────────────────────────────────────────────────
 const pingInterval = setInterval(() => {
-  for(const group of [wss,bobWss,insureIqBob.wss])group.clients.forEach(ws=>{
+  for(const group of [wss,bobWss,insureIqBob.wss,coreVoice.wss])group.clients.forEach(ws=>{
     if(ws.isAlive===false)return ws.terminate();
     ws.isAlive=false;ws.ping();
   });
@@ -1318,7 +1324,7 @@ function shutdown(sig) {
   log('shutdown', sig);
   clearInterval(pingInterval);
   for(const agent of plainBobSessions.values())agent.finish();
-  for(const group of [wss,bobWss,insureIqBob.wss])group.clients.forEach(ws=>{try{ws.close(1001,'server_shutdown')}catch{}});
+  for(const group of [wss,bobWss,insureIqBob.wss,coreVoice.wss])group.clients.forEach(ws=>{try{ws.close(1001,'server_shutdown')}catch{}});
   streams.clear();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
@@ -1327,5 +1333,5 @@ process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(PORT, () => {
-  log('listening on :', PORT, 'ws paths', WS_PATH, '/bob/ws', insureIqBob.path);
+  log('listening on :', PORT, 'ws paths', WS_PATH, '/bob/ws', insureIqBob.path,coreVoice.path);
 });
