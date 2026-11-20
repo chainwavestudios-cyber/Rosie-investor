@@ -1,0 +1,30 @@
+name: Connected Future ticket gateway security tests
+
+on:
+  push:
+    branches:
+      - 'p0/warroom-independent-receipt-policy-20261115'
+    paths:
+      - 'integration/connected-future/**'
+      - '.github/workflows/connected-future-ticket-gateway-tests.yml'
+  pull_request:
+    paths:
+      - 'integration/connected-future/**'
+      - '.github/workflows/connected-future-ticket-gateway-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Install Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run fail-closed receipt tests
+        run: node --test integration/connected-future/*.test.mjs
