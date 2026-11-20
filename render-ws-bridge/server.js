@@ -466,6 +466,7 @@ async function handleStreamStart(ws, streamSid, start) {
   const session = {
     browser:!!start.customParameters?.browser,
     core:start.customParameters?.core===true,
+    coreProviders:null,
     trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
     sttBytesSent:0,ttsMeterSequence:0,
     ws,
@@ -493,6 +494,16 @@ async function handleStreamStart(ws, streamSid, start) {
     if (session.stopping) return;
     if (!initResp.pipeline?.valid || initResp.pipeline.version !== PIPELINE_VERSION) throw new Error('Relay pipeline is missing or outdated; update the relay.');
     session.leadId = initResp.leadId || leadId;
+    if(session.core){
+      const lease=initResp.providerLease;
+      if(!lease||typeof lease.anthropicKey!=='string'||lease.anthropicKey.length<16||
+         typeof lease.cartesiaKey!=='string'||lease.cartesiaKey.length<16||
+         typeof lease.system!=='string'||lease.system.length<60||
+         Math.abs(Date.now()-Number(lease.issuedAt||0))>60000)
+        throw Error('Core provider session bootstrap unavailable');
+      session.coreProviders={anthropicKey:lease.anthropicKey,cartesiaKey:lease.cartesiaKey,system:lease.system};
+      log('[CORE] Provider session accepted for',streamSid,'Deepgram + Claude Haiku 4.5 + Cartesia');
+    }
     session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
     session.state = 'listening';
     openDeepgram(session, streamSid);
@@ -518,6 +529,7 @@ async function handleStreamStart(ws, streamSid, start) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated
         // Deepgram/ElevenLabs fallback. Fronter is unaffected.
         if ((session.browser || session.core) && ttsEngine === 'cartesia') {
+          if(session.core){log('[CORE] Greeting audio could not be generated');try{session.ws.close(1011,'Core Cartesia unavailable')}catch{};return;}
           session.state = 'listening';
           clearSpeakingWatchdog(session);
           sendToTwilio(session.ws, { event: 'bob_error',
@@ -538,6 +550,7 @@ async function handleStreamStart(ws, streamSid, start) {
     session.error = e?.message;
     log('init failed', e?.message);
     if(session.browser)sendToTwilio(session.ws,{event:'bob_error',message:String(e?.message||'Training initialization failed').slice(0,180)});
+    if(session.core){session.coreProviders=null;try{session.ws.close(1011,'Core session initialization failed')}catch{}}
   }
 }
 
@@ -576,6 +589,7 @@ async function handleStreamStop(streamSid) {
   if (!session || session.stopping) return; // idempotent
   session.stopping = true;
   clearSpeakingWatchdog(session);
+  session.coreProviders=null;
   streams.delete(streamSid);
 
   // Close Deepgram connection (flush final results)
@@ -693,7 +707,7 @@ function openDeepgram(session, streamSid) {
             session.state = 'listening';
           }
           if (transcript.trim() && session.state === 'listening') {
-            log('speech_final:', transcript);
+            if(session.core)log('[CORE] speech turn finalized');else log('speech_final:', transcript);
             handleUtterance(streamSid, transcript);
           }
         }
@@ -753,7 +767,7 @@ async function handleUtterance(streamSid, transcript) {
   if(session.browser)sendToTwilio(session.ws,{event:'bob_transcript',role:'user',text:String(transcript).slice(0,2500)});
 
   try {
-    const resp = await callRelay({
+    const resp = session.core?await coreClaudeTurn(session):await callRelay({
       event: 'turn',
       streamSid,
       callSid: session.callSid,
@@ -812,6 +826,7 @@ async function handleUtterance(streamSid, transcript) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated
         // Deepgram/ElevenLabs fallback. Fronter is unaffected.
         if ((session.browser || session.core) && ttsEngine === 'cartesia') {
+          if(session.core){log('[CORE] Reply audio could not be generated');try{session.ws.close(1011,'Core Cartesia unavailable')}catch{};return;}
           session.state = 'listening';
           clearSpeakingWatchdog(session);
           sendToTwilio(session.ws, { event: 'bob_error',
@@ -842,6 +857,7 @@ async function handleUtterance(streamSid, transcript) {
           ' No customer credits were deducted.' });
     }
     session.state = 'listening';
+    if(session.core){try{session.ws.close(1011,'Core dialogue failed')}catch{}}
   }
 }
 
@@ -998,7 +1014,8 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   let markSent = false;
   const clean = value => {
     let message = String(value || '');
-    if (CARTESIA_API_KEY) message = message.split(CARTESIA_API_KEY).join('[redacted]');
+    for(const key of [CARTESIA_API_KEY,session.coreProviders?.cartesiaKey])
+      if(key)message=message.split(key).join('[redacted]');
     return message.slice(0, 500);
   };
   const ensureMark = () => {
@@ -1014,7 +1031,7 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   // Cartesia credential, not the rejected Render-local Cartesia key.
   // Only the BOB browser route enters this branch; investor/Fronter routes
   // preserve their existing provider calls and settings unchanged.
-  if (session.browser || session.core) {
+  if (session.browser) {
     try {
       const remote = await callRelay({
         _bobTransport: session.browser===true, _coreTransport:session.core===true, event: 'tts', streamSid,
@@ -1059,17 +1076,22 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
   }
 
   try {
+    const cartesiaKey=session.core?session.coreProviders?.cartesiaKey:CARTESIA_API_KEY;
+    if(!cartesiaKey)throw Error('Core Cartesia session credential unavailable');
     const res = await fetch('https://api.cartesia.ai/tts/bytes', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${CARTESIA_API_KEY}`,
+      method: 'POST',redirect:'error',
+      headers: session.core?{
+        'X-API-Key':cartesiaKey,'Cartesia-Version':'2026-08-14',
+        'Content-Type':'application/json','Accept':'audio/*'
+      }:{
+        'Authorization': `Bearer ${cartesiaKey}`,
         'Cartesia-Version': CARTESIA_VERSION,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model_id: CARTESIA_MODEL,
+        model_id: session.core?'sonic-3.6':CARTESIA_MODEL,
         transcript: text,
-        voice: { mode: 'id', id: voice },
+        voice: session.core?{id:voice}:{ mode: 'id', id: voice },
         output_format: { container: 'raw', encoding: 'pcm_mulaw', sample_rate: 8000 },
         language: 'en',
       }),
@@ -1095,9 +1117,10 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
       chunkCount++;
       if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
       sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
-      session.recordingBuffer.push(payload);
+      if(!session.core)session.recordingBuffer.push(payload);
     }
     ensureMark();
+    if(session.core&&chunkCount)log('[CORE] Cartesia audio delivered',chunkCount,'chunks');
     finish(chunkCount > 0 ? 'accepted' : 'empty');
     return chunkCount > 0;
   } catch (e) {
@@ -1239,6 +1262,31 @@ async function generateTTS(text, config = {}, session = null) {
   record(engine, engine === 'elevenlabs' ? synthesisModel : engine === 'cartesia' ? CARTESIA_MODEL : deepgramVoice, engine === 'elevenlabs' ? elevenLabsVoiceId : engine === 'cartesia' ? cartesiaVoice : deepgramVoice, 'error', `No provider returned audio.${elevenLabsFailure ? ` ${elevenLabsFailure.message}` : ''}`);
   log('TTS failed: no provider returned audio');
   return null;
+}
+
+async function coreClaudeTurn(session){
+ const auth=session.coreProviders?.anthropicKey;
+ if(!session.core||!auth)throw Error('Core Claude session unavailable');
+ const conversation=session.conversation.slice(-16).map(m=>({
+  role:m.role==='assistant'?'assistant':'user',
+  content:String(m.content||'').slice(0,650)
+ })).filter(m=>m.content);
+ while(conversation.length&&conversation[0].role!=='user')conversation.shift();
+ if(!conversation.length)return {action:'speak',text:'Could you say that again?'};
+ const response=await fetch('https://api.anthropic.com/v1/messages',{
+  method:'POST',redirect:'error',signal:AbortSignal.timeout(13000),
+  headers:{'x-api-key':auth,'anthropic-version':'2023-06-01','content-type':'application/json'},
+  body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:160,
+   temperature:0.25,system:session.coreProviders.system,messages:conversation})
+ });
+ if(!response.ok){if(response.body)await response.body.cancel().catch(()=>{});
+  log('[CORE] Anthropic HTTP',response.status);throw Error('Core Anthropic provider HTTP '+response.status);}
+ const data=await response.json();
+ const text=Array.isArray(data.content)?data.content.filter(x=>x.type==='text')
+  .map(x=>String(x.text||'')).join(' ').replace(/\s+/g,' ').trim().slice(0,600):'';
+ if(!text)throw Error('Core Anthropic empty text response');
+ log('[CORE] Haiku response generated');
+ return {action:'speak',text,llmRuntime:{state:'accepted',provider:'anthropic',model:'claude-haiku-4-5-20251001'}};
 }
 
 // ── Turn response latency (caller stopped → agent's first audio out) ────
