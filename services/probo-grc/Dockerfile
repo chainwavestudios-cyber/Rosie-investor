@@ -4,5 +4,6 @@
 FROM artifact.probo.inc/probo/probo:v0.340.0
 USER root
 RUN setcap -r /usr/local/bin/probod && setcap -r /usr/local/bin/probod-bootstrap || true
+RUN install -d -m 0700 -o probo -g probo /home/probo/.ssh
 USER probo
 EXPOSE 8080
