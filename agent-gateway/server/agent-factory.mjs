@@ -55,9 +55,10 @@ async function generateAgent(sql,x){
   if(count[0].n>=4)return {error:'team_capacity_four_reached',status:409};
   let agentId=null;
   if(x.mode==='register'){
-   const latest=await t`SELECT coalesce(max(substring(agent_id FROM 2)::integer),18)::int AS n
-     FROM core_agents.identities WHERE org_id=${x.org_id}`;
-   const seq=Math.max(18,latest[0].n)+1;
+   // A never-cycling Neon sequence prevents accidental re-use after revocation
+   // or deletion. Missing sequence is a hard error rather than an unsafe fallback.
+   const allocated=await t`SELECT nextval('core_agents.agent_identity_seq')::int AS n`;
+   const seq=allocated[0].n;
    if(seq>9999)return {error:'identity_namespace_exhausted',status:409};
    agentId='A'+String(seq).padStart(2,'0');
    await t`INSERT INTO core_agents.identities
