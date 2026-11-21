@@ -208,9 +208,11 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
        FROM core_agents.events WHERE event_id=${x.event_id}`;
      if(existing.length){
       const e=existing[0];
+      const same=await t`SELECT 1 FROM core_agents.events
+        WHERE event_id=${x.event_id} AND payload=${t.json(body)}::jsonb`;
       if(e.recipient_agent_id!==x.recipient_agent_id||
          e.sender!==x.agent_id||e.ticket_key!==(x.ticket_key||null)||
-         JSON.stringify(e.payload)!==JSON.stringify(body))return {conflict:true};
+         same.length!==1)return {conflict:true};
       const ack=await t`SELECT ack_id FROM core_agents.acks
         WHERE event_id=${x.event_id} AND stage='persisted'`;
       return {idempotent:true,ack_id:ack[0]?.ack_id||null};
