@@ -14,20 +14,20 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
   return res.status(enabled?200:503).json(ready());
  });
  const validTicket=(signed,callSid)=>{
-  if(!enabled)return false;
+  if(!enabled)return null;
   const p=String(signed||'').split('.');
-  if(p.length!==2||!/^[A-Za-z0-9_-]{32,1024}$/.test(p[0])||!/^[a-f0-9]{64}$/.test(p[1]))return false;
+  if(p.length!==2||!/^[A-Za-z0-9_-]{32,1024}$/.test(p[0])||!/^[a-f0-9]{64}$/.test(p[1]))return null;
   const expected=crypto.createHmac('sha256',SECRET).update(p[0]).digest('hex');
-  if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(p[1],'hex')))return false;
-  let item;try{item=JSON.parse(Buffer.from(p[0],'base64url').toString('utf8'))}catch{return false}
+  if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(p[1],'hex')))return null;
+  let item;try{item=JSON.parse(Buffer.from(p[0],'base64url').toString('utf8'))}catch{return null}
   const now=Math.floor(Date.now()/1000);
-  if(item?.app_key!=='rosie_core_vip'||item.call_sid!==callSid||!/^CA[a-f0-9]{32}$/i.test(callSid)||
+  if(!/^[\p{L}][\p{L}'-]{0,39}$/u.test(String(item?.first_name||''))||item?.app_key!=='rosie_core_vip'||item.call_sid!==callSid||!/^CA[a-f0-9]{32}$/i.test(callSid)||
      !Number.isInteger(item.issued_at)||!Number.isInteger(item.expires_at)||
-     item.issued_at>now+30||item.expires_at<now||item.expires_at>item.issued_at+90)return false;
+     item.issued_at>now+30||item.expires_at<now||item.expires_at>item.issued_at+90)return null;
   for(const [k,exp] of replay)if(exp<now)replay.delete(k);
-  if(replay.has(p[1])||replay.size>3000)return false;
+  if(replay.has(p[1])||replay.size>3000)return null;
   replay.set(p[1],item.expires_at);
-  return true;
+  return item;
  };
  wss.on('connection',(ws)=>{
   if(!enabled){ws.close(1013,'Core voice unavailable');return}
@@ -41,11 +41,12 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
    if(!initialized){
     if(m.event!=='start')return;
     const start=m.start||{};
-    if(!/^MZ[a-f0-9]{32}$/i.test(start.streamSid||'')||!validTicket(start.customParameters?.coreTicket,start.callSid)){
+    const verified=/^MZ[a-f0-9]{32}$/i.test(start.streamSid||'')?validTicket(start.customParameters?.coreTicket,start.callSid):null;
+    if(!verified){
      clearTimeout(guard);ws.close(1008,'invalid Core ticket');return;
     }
     initialized=true;clearTimeout(guard);sid=start.streamSid;callSid=start.callSid;
-    onStart(ws,sid,{streamSid:sid,callSid,customParameters:{core:true,leadId:'rosie_core_vip'}});
+    onStart(ws,sid,{streamSid:sid,callSid,customParameters:{core:true,leadId:'rosie_core_vip',firstName:verified.first_name}});
     durationTimer=setTimeout(()=>{if(ws.readyState===WebSocket.OPEN)ws.close(1000,'Core test time limit')},300000);
     durationTimer.unref?.();
     return;
