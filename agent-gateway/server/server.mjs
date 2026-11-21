@@ -15,12 +15,23 @@ const INGEST_KEY=process.env.CORE_INGEST_HMAC_KEY||'';
 const WORKER_KEY=process.env.WORKER_HMAC_KEY||'';
 // Worker lease grants are never enabled just because a database row looks ready.
 const WORKER_EXECUTION_ENABLED=process.env.WORKER_EXECUTION_ENABLED==='true';
+const WORKER_AGENT_KEYS_JSON=process.env.WORKER_AGENT_KEYS_JSON||'{}';
+function parseWorkerAgentKeys(raw){
+ const keys=JSON.parse(raw);
+ if(!keys||Array.isArray(keys)||typeof keys!=='object')throw Error('invalid_worker_agent_keys');
+ for(const [agent,key] of Object.entries(keys))
+  if(!/^A[0-9]{2,4}$/.test(agent)||typeof key!=='string'||key.length<40)
+   throw Error('invalid_agent_scoped_key');
+ return keys;
+}
+const WORKER_AGENT_KEYS=parseWorkerAgentKeys(WORKER_AGENT_KEYS_JSON);
 const ORG='rosie-core-internal';
 const MAX_BYTES=8192;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AGENT=/^A[0-9]{2,4}$/;
 const TICKET=/^rwt-[0-9a-f]{32}$/;
 const WORKER=/^[a-zA-Z0-9_:-]{8,100}$/;
+const ALLOWED_REPLY_KEYS=new Set(['org_id','agent_id','worker_id','job_id','fencing_token','nonce','event_id','recipient_agent_id','ticket_key','payload']);
 const kinds=new Set(['ticket.assigned','rcis.message','support.call.received']);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function reply(res,code,data){
@@ -69,11 +80,19 @@ function checkWorker(x){
  return x.org_id===ORG&&AGENT.test(x.agent_id||'')&&
     WORKER.test(x.worker_id||'')&&UUID.test(x.nonce||'');
 }
+function validateReply(x){
+ return checkLease(x)&&UUID.test(x.event_id||'')&&AGENT.test(x.recipient_agent_id||'')&&
+   x.recipient_agent_id!==x.agent_id&&
+   (x.ticket_key==null||TICKET.test(x.ticket_key))&&
+   x.payload&&typeof x.payload==='object'&&!Array.isArray(x.payload)&&
+   JSON.stringify(x.payload).length<=3500&&
+   Object.keys(x).every(k=>ALLOWED_REPLY_KEYS.has(k));
+}
 function checkLease(x){
  return checkWorker(x)&&UUID.test(x.job_id||'')&&
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
-function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
+function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
@@ -91,11 +110,12 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
   }
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
   if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
-    '/v1/worker/checkpoint','/v1/worker/finish'].includes(path))
+    '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
-   const key=path==='/v1/events'?ingestKey:workerKey;
+   const key=path==='/v1/events'?ingestKey:
+     path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
    if(path==='/v1/admin/status'){
     if(Object.keys(x).length!==1||x.action!=='status')return reply(res,400,{error:'status_only'});
@@ -176,6 +196,59 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
    if(!WORKER_EXECUTION_ENABLED)return reply(res,503,{accepted:false,execute_authorized:false,error:'worker_runtime_not_verified'});
    if(!checkLease(x))return reply(res,400,{error:'invalid_fenced_worker_request'});
    await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES (${x.nonce},${ORG})`;
+   if(path==='/v1/worker/reply'){
+    if(!validateReply(x))return reply(res,400,{error:'invalid_agent_reply'});
+    const receipt=await sql.begin(async t=>{
+     await t`SET LOCAL statement_timeout='5000ms'`;
+     const leases=await t`SELECT j.job_id,j.event_id,e.ticket_key
+       FROM core_agents.jobs j JOIN core_agents.events e ON e.event_id=j.event_id
+       WHERE j.job_id=${x.job_id} AND j.org_id=${ORG}
+         AND j.agent_id=${x.agent_id} AND j.lease_owner=${x.worker_id}
+         AND j.fencing_token=${x.fencing_token}
+         AND j.lease_until>now() AND j.state IN ('running','checkpointed')
+       FOR UPDATE OF j`;
+     if(!leases.length)return {denied:true};
+     if((leases[0].ticket_key||null)!==(x.ticket_key||null))return {denied:true};
+     const target=await t`SELECT agent_id FROM core_agents.identities
+       WHERE org_id=${ORG} AND agent_id=${x.recipient_agent_id}`;
+     if(target.length!==1)return {unknown:true};
+     const body={...x.payload,causation_event_id:leases[0].event_id,
+       source_job_id:x.job_id};
+     if(JSON.stringify(body).length>3500)return {invalid:true};
+     const existing=await t`SELECT event_id,recipient_agent_id,sender,ticket_key,payload
+       FROM core_agents.events WHERE event_id=${x.event_id}`;
+     if(existing.length){
+      const e=existing[0];
+      const same=await t`SELECT 1 FROM core_agents.events
+        WHERE event_id=${x.event_id} AND payload=${t.json(body)}::jsonb`;
+      if(e.recipient_agent_id!==x.recipient_agent_id||
+         e.sender!==x.agent_id||e.ticket_key!==(x.ticket_key||null)||
+         same.length!==1)return {conflict:true};
+      const ack=await t`SELECT ack_id FROM core_agents.acks
+        WHERE event_id=${x.event_id} AND stage='persisted'`;
+      return {idempotent:true,ack_id:ack[0]?.ack_id||null};
+     }
+     await t`INSERT INTO core_agents.events(event_id,org_id,recipient_agent_id,
+       sender,event_type,ticket_key,payload,nonce)
+       VALUES(${x.event_id},${ORG},${x.recipient_agent_id},${x.agent_id},
+         'rcis.message',${x.ticket_key||null},${t.json(body)},${x.nonce})`;
+     const job=await t`INSERT INTO core_agents.jobs(event_id,org_id,agent_id)
+       VALUES(${x.event_id},${ORG},${x.recipient_agent_id}) RETURNING job_id`;
+     const ack=await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
+       VALUES(${x.event_id},${ORG},'persisted',${x.agent_id})
+       RETURNING ack_id`;
+     return {job_id:job[0].job_id,ack_id:ack[0].ack_id};
+    });
+    if(receipt.denied)return reply(res,403,{error:'sender_lease_not_authorized'});
+    if(receipt.unknown)return reply(res,404,{error:'recipient_unregistered'});
+    if(receipt.invalid)return reply(res,400,{error:'reply_payload_too_large'});
+    if(receipt.conflict)return reply(res,409,{error:'reply_id_collision'});
+    return reply(res,receipt.idempotent?200:202,{
+      accepted:true,durable_commit:true,idempotent:!!receipt.idempotent,
+      delivery_ack:receipt.ack_id,event_id:x.event_id,
+      job_id:receipt.job_id||null
+    });
+   }
    if(path==='/v1/worker/heartbeat'){
     const rows=await sql`UPDATE core_agents.jobs SET
       state='running',lease_until=now()+interval '90 seconds',updated_at=now()
@@ -237,6 +310,8 @@ async function recoverExpired(sql){
 async function main(){
  if(!DSN||INGEST_KEY.length<40||WORKER_KEY.length<40)
   throw Error('Gateway missing database or signed service keys');
+ if(WORKER_EXECUTION_ENABLED&&(!WORKER_AGENT_KEYS.A02||!WORKER_AGENT_KEYS.A05))
+  throw Error('Required agent-scoped worker keys not configured');
  const sql=postgres(DSN,{max:5,ssl:'require',connect_timeout:8,prepare:false,
   idle_timeout:15});
  const [{name}]=await sql`SELECT current_user AS name`;
@@ -254,4 +329,4 @@ async function main(){
 }
 if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href)
  main().catch(e=>{console.error('gateway_start_refused',e.message);process.exit(1);});
-export {makeServer,authentic,signature,validateEvent,recoverExpired};
+export {makeServer,authentic,signature,validateEvent,validateReply,parseWorkerAgentKeys,recoverExpired};
