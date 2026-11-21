@@ -21,13 +21,14 @@ module.exports.installRosieCoreVoice=({app,WebSocket,WebSocketServer,onStart,onA
   if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(p[1],'hex')))return null;
   let item;try{item=JSON.parse(Buffer.from(p[0],'base64url').toString('utf8'))}catch{return null}
   const now=Math.floor(Date.now()/1000);
-  if(!/^[\p{L}][\p{L}'-]{0,39}$/u.test(String(item?.first_name||''))||item?.app_key!=='rosie_core_vip'||item.call_sid!==callSid||!/^CA[a-f0-9]{32}$/i.test(callSid)||
+  const firstName=String(item?.first_name||'there');
+  if(!/^[\p{L}][\p{L}'-]{0,39}$/u.test(firstName)||item?.app_key!=='rosie_core_vip'||item.call_sid!==callSid||!/^CA[a-f0-9]{32}$/i.test(callSid)||
      !Number.isInteger(item.issued_at)||!Number.isInteger(item.expires_at)||
      item.issued_at>now+30||item.expires_at<now||item.expires_at>item.issued_at+90)return null;
   for(const [k,exp] of replay)if(exp<now)replay.delete(k);
   if(replay.has(p[1])||replay.size>3000)return null;
   replay.set(p[1],item.expires_at);
-  return item;
+  return {...item,first_name:firstName};
  };
  wss.on('connection',(ws)=>{
   if(!enabled){ws.close(1013,'Core voice unavailable');return}
