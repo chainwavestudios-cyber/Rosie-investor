@@ -42,7 +42,7 @@ async function generateAgent(sql,x){
   const prior=await t`SELECT request_id,agent_id,blueprint,mode
     FROM core_agents.agent_generation_requests WHERE request_id=${x.request_id}`;
   if(prior.length){
-   if(JSON.stringify(prior[0].blueprint)!==JSON.stringify(plan)||prior[0].mode!==x.mode)
+   if(prior[0].mode!==x.mode || !(await t`SELECT 1 FROM core_agents.agent_generation_requests WHERE request_id=${x.request_id} AND blueprint=${t.json(plan)}::jsonb`).length)
     return {error:'request_id_conflict',status:409};
    return {accepted:true,idempotent:true,request_id:x.request_id,
     agent_id:prior[0].agent_id,plan:prior[0].blueprint};
