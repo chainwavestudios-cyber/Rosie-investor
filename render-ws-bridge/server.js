@@ -471,6 +471,7 @@ async function handleStreamStart(ws, streamSid, start) {
     coreRole:'rosie',coreCaseKey:null,coreTurnSeq:0,
     trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
     sttBytesSent:0,ttsMeterSequence:0,
+    coreInboundFrames:0,coreInboundBytes:0,coreDroppedFrames:0,coreSttResults:0,coreNonemptyResults:0,coreSpeechFinals:0,
     ws,
     callSid: start.callSid,
     streamSid,
@@ -570,6 +571,7 @@ async function handleStreamStart(ws, streamSid, start) {
 function handleInboundAudio(streamSid, audioPayload) {
   const session = streams.get(streamSid);
   if (!session) return;
+  if(session.core){session.coreInboundFrames++;session.coreInboundBytes+=Buffer.byteLength(audioPayload,'base64');}
 
   // Add to recording buffer
   if(!session.core)session.recordingBuffer.push(audioPayload);
@@ -577,6 +579,7 @@ function handleInboundAudio(streamSid, audioPayload) {
   // Forward to Deepgram if connected (backpressure check)
   if (session.dgWs && session.dgWs.readyState === WebSocket.OPEN) {
     if (session.dgWs.bufferedAmount > 500000) {
+      if(session.core)session.coreDroppedFrames++;
       debug('deepgram backpressure, dropping audio');
       return;
     }
@@ -646,6 +649,12 @@ async function handleStreamStop(streamSid) {
     }
   });
 
+  if(session.core)log('[CORE] Speech input diagnostic',JSON.stringify({
+    stream:streamSid,received_frames:session.coreInboundFrames,received_bytes:session.coreInboundBytes,
+    sent_to_deepgram_bytes:session.sttBytesSent,dropped_frames:session.coreDroppedFrames,
+    deepgram_results:session.coreSttResults,nonempty_results:session.coreNonemptyResults,
+    speech_final_events:session.coreSpeechFinals,stt_state:session.stt?.state||'unknown'
+  }));
   lastCall = { ...runtimeSnapshot(session), state: 'completed' };
   log('stream stop', streamSid, 'dur', Math.round((Date.now() - session.startedAt) / 1000) + 's');
 }
@@ -694,6 +703,7 @@ function openDeepgram(session, streamSid) {
     if(msg?.metadata?.request_id && /^[a-z0-9-]{8,80}$/i.test(String(msg.metadata.request_id)))session.sttRequestId=String(msg.metadata.request_id);
     if(msg?.request_id && !session.sttRequestId && /^[a-z0-9-]{8,80}$/i.test(String(msg.request_id)))session.sttRequestId=String(msg.request_id);
     if (msg.type === 'Results') {
+      if(session.core){session.coreSttResults++;if(String(msg.channel?.alternatives?.[0]?.transcript||'').trim())session.coreNonemptyResults++;if(msg.speech_final)session.coreSpeechFinals++;}
       session.stt.state = 'accepted'; session.stt.at = new Date().toISOString();
       const modelInfo = Object.values(msg.metadata?.model_info || {})[0];
       if (modelInfo?.name) session.stt.providerModel = modelInfo.name;
