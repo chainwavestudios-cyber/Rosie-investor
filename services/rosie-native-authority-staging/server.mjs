@@ -41,12 +41,15 @@ async function verifyGrantsReadonlyPeer(){
   const result=await fetch(grantsHealthUrl,{method:'GET',redirect:'manual',
    cache:'no-store',headers:{accept:'application/json'},
    signal:AbortSignal.timeout(11000)});
-  if(result.status!==200||Number(result.headers.get('content-length')||0)>2048)
-   return false;
+  if(result.status!==200)return {ok:false,reason:'peer_http_non_200'};
+  if(Number(result.headers.get('content-length')||0)>2048)
+   return {ok:false,reason:'peer_response_oversized'};
   const body=await result.text();
-  if(Buffer.byteLength(body,'utf8')>2048)return false;
-  const data=JSON.parse(body);
-  return data?.ok===true&&
+  if(Buffer.byteLength(body,'utf8')>2048)
+   return {ok:false,reason:'peer_response_oversized'};
+  let data;
+  try{data=JSON.parse(body)}catch{return {ok:false,reason:'peer_invalid_json'}}
+  const verified=data?.ok===true&&
    data?.contract==='rosie.core.native-product-grants.isolated-staging.v1'&&
    data?.environment==='isolated_staging'&&
    data?.database_readonly_connected===true&&
@@ -56,7 +59,10 @@ async function verifyGrantsReadonlyPeer(){
    data?.current_a1_signed_identity_ready===false&&
    data?.current_a3_consent_issuer_ready===false&&
    data?.atomic_writable_consent_adapter_ready===false;
- }catch{return false;}
+  return {ok:verified,reason:verified?'peer_verified':'peer_contract_mismatch'};
+ }catch(error){
+  return {ok:false,reason:error?.name==='TimeoutError'?'peer_timeout':'peer_transport_unavailable'};
+ }
 }
 const headers={
  'content-type':'application/json; charset=utf-8',
@@ -86,7 +92,8 @@ function fail(res,reason='native_customer_authority_not_accepted',status=503){
 const server=createServer(async(req,res)=>{
  const path=new URL(req.url||'/', 'http://localhost').pathname;
  if(path==='/readyz'&&req.method==='GET'){
-  const [linked,coreLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest()]);
+  const [peer,coreLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest()]);
+  const linked=peer.ok;
   const healthy=linked&&coreLinked;
   const origin=String(req.headers.origin||'');
   const cors=readinessOrigins.has(origin)?
@@ -95,6 +102,7 @@ const server=createServer(async(req,res)=>{
    environment:'isolated_staging',
    linked_product_grants_readonly:linked,
    restricted_neon_reader_verified:linked,
+   peer_readiness_reason:peer.reason,
    linked_core_public_manifest:coreLinked,
    // Network reachability and database visibility are NOT customer consent.
    authority_accepted:false,product_grants_accepted:false,
