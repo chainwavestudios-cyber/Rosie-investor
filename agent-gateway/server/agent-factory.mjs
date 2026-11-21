@@ -19,7 +19,7 @@ function validateBlueprint(x){
  if(typeof x.captain_id!=='string'||!/^A[0-9]{2,4}$/.test(x.captain_id))return 'invalid_captain';
  if(typeof x.mission!=='string'||x.mission.trim().length<15||x.mission.length>2000)return 'invalid_mission';
  if(!Array.isArray(x.capabilities)||x.capabilities.length>8||new Set(x.capabilities).size!==x.capabilities.length||x.capabilities.some(c=>!CAPS.has(c)))return 'invalid_capabilities';
- if(x.model!==undefined&&(typeof x.model!=='string'||!/^[-a-zA-Z0-9_.]{2,70}$/.test(x.model)))return 'invalid_model';
+ if(x.model!==undefined&&!['core_default','gpt-6-luna'].includes(x.model))return 'invalid_model';
  if(x.monthly_budget_usd!==undefined&&(!Number.isInteger(x.monthly_budget_usd)||x.monthly_budget_usd<0||x.monthly_budget_usd>1000))return 'invalid_budget';
  // Code writes and deploys can be requested in a blueprint but NEVER granted by the generator.
  return null;
@@ -77,4 +77,48 @@ async function generateAgent(sql,x){
     agent_id:agentId,plan,status:x.mode==='register'?'registered_not_provisioned':'draft'};
  });
 }
-export {validateBlueprint,planBlueprint,generateAgent,TEAMS,TEMPLATES};
+/**
+ * Read-only status contract. Core signs requests; unauthenticated browsers
+ * never get direct database access or a copy of the shared gateway credential.
+ */
+function validateFactoryStatus(x){
+ if(!x||typeof x!=='object'||Array.isArray(x))return 'invalid_status_request';
+ if(Object.keys(x).some(k=>!['org_id','nonce','action','agent_id'].includes(k))||
+    x.org_id!=='rosie-core-internal'||!UUID.test(x.nonce||'')||
+    x.action!=='status'||(x.agent_id!==undefined&&!/^A[0-9]{2,4}$/.test(x.agent_id)))
+  return 'invalid_status_request';
+ return null;
+}
+async function inspectFactory(sql,x){
+ const bad=validateFactoryStatus(x);
+ if(bad)return {error:bad,status:400};
+ const [counts,teams,recent]=await Promise.all([
+  sql`SELECT
+    (SELECT count(*)::int FROM core_agents.identities) AS registered_identities,
+    (SELECT count(*)::int FROM core_agents.agent_generation_requests
+       WHERE mode='register') AS generated_registrations,
+    (SELECT count(*)::int FROM core_agents.agent_generation_requests
+       WHERE mode='draft') AS drafts,
+    (SELECT count(*)::int FROM core_agents.identities
+       WHERE desired_state='ready' AND runtime_state='available') AS runnable_identities`,
+  sql`SELECT team_key,count(*)::int AS reserved_slots
+    FROM core_agents.agent_team_assignments
+    WHERE assignment_state IN ('reserved','assigned')
+    GROUP BY team_key ORDER BY team_key`,
+  x.agent_id?sql`SELECT g.agent_id,g.request_id,g.mode,g.state,g.team_key,
+      i.desired_state,i.runtime_state
+      FROM core_agents.agent_generation_requests g JOIN core_agents.identities i
+       ON i.org_id=g.org_id AND i.agent_id=g.agent_id
+      WHERE g.agent_id=${x.agent_id} AND g.org_id='rosie-core-internal'
+      LIMIT 1`:sql`SELECT g.agent_id,g.request_id,g.mode,g.state,g.team_key,
+      i.desired_state,i.runtime_state
+      FROM core_agents.agent_generation_requests g JOIN core_agents.identities i
+       ON i.org_id=g.org_id AND i.agent_id=g.agent_id
+      WHERE g.org_id='rosie-core-internal' AND g.agent_id IS NOT NULL
+      ORDER BY g.created_at DESC LIMIT 24`
+ ]);
+ return {ok:true,contract:'rosie.core.agent_factory.status.v1',
+  ...counts[0],teams,recent,execution_enabled:false};
+}
+
+export {validateBlueprint,planBlueprint,generateAgent,validateFactoryStatus,inspectFactory,TEAMS,TEMPLATES};
