@@ -8,6 +8,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import postgres from 'postgres';
+import {generateAgent} from './agent-factory.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -15,6 +16,7 @@ const INGEST_KEY=process.env.CORE_INGEST_HMAC_KEY||'';
 const WORKER_KEY=process.env.WORKER_HMAC_KEY||'';
 // Worker lease grants are never enabled just because a database row looks ready.
 const WORKER_EXECUTION_ENABLED=process.env.WORKER_EXECUTION_ENABLED==='true';
+const AGENT_FACTORY_ENABLED=process.env.AGENT_FACTORY_ENABLED==='true';
 const WORKER_AGENT_KEYS_JSON=process.env.WORKER_AGENT_KEYS_JSON||'{}';
 function parseWorkerAgentKeys(raw){
  const keys=JSON.parse(raw);
@@ -111,13 +113,22 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
   if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
     '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply','/v1/worker/result',
-    '/v1/agent/send','/v1/agent/inbox','/v1/agent/ack'].includes(path))
+    '/v1/agent/send','/v1/agent/inbox','/v1/agent/ack','/v1/factory/generate'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
-   const key=path==='/v1/events'?ingestKey:
+   const key=(path==='/v1/events'||path==='/v1/factory/generate')?ingestKey:
      path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   if(path==='/v1/factory/generate'){
+    if(!AGENT_FACTORY_ENABLED)return reply(res,503,{error:'agent_factory_staging_disabled'});
+    if(!UUID.test(x.nonce||''))return reply(res,400,{error:'invalid_factory_nonce'});
+    await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id)
+      VALUES(${x.nonce},${ORG})`;
+    const outcome=await generateAgent(sql,x);
+    return reply(res,outcome.status&&outcome.status>=400?outcome.status:
+      outcome.idempotent?200:outcome.agent_id?201:200,outcome);
+   }
    // Agent messaging uses a separate signed transport path: no worker lease,
    // inference endpoint, provider credential, or execution flag is involved.
    if(path.startsWith('/v1/agent/')){
