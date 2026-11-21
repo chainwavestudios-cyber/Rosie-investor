@@ -1313,6 +1313,24 @@ async function coreClaudeTurn(session){
     llmRuntime:{state:'blocked',agent_role:'rosie',handoff_acknowledged:false}};
   }
  }
+ // A verified in-call Tier 1 receipt can open a scoped engineering request.
+ // It cannot authorize a worker, production deployment or system mutation.
+ if(session.coreRole==='captain_patch'&&/^patch-[a-f0-9]{32}$/i.test(session.coreCaseKey||'')){
+  const said=String(conversation.at(-1)?.content||'');
+  const requested=/(?:\b(?:please\s+)?(?:fix|repair|resolve|investigate)\b|\b(?:create|open)\b.{0,28}\b(?:ticket|repair request)\b|\b(?:send|assign|route)\b.{0,28}\b(?:engineering|developer|worker)\b)/i.test(said);
+  if(requested){
+   try{
+    const receipt=await callRelay({_coreTransport:true,event:'patch_repair_request',
+     streamSid:session.streamSid,callSid:session.callSid,case_key:session.coreCaseKey});
+    if(receipt?.ok===true&&receipt?.queued===true&&/^rwt-[a-f0-9]{32}$/i.test(receipt.ticket_key||'')){
+     return {action:'speak',text:'Your engineering repair request has been saved in Core. Work has not started until an engineering worker acknowledges it.',
+      llmRuntime:{state:'accepted',agent_role:'captain_patch',repair_request_queued:true,worker_started:false}};
+    }
+   }catch(e){log('[CORE] Patch repair request not acknowledged',String(e?.message||'').slice(0,75))}
+   return {action:'speak',text:'I could not verify an engineering repair request. Please use the Patch Cases section in Core.',
+    llmRuntime:{state:'blocked',agent_role:'captain_patch',repair_request_queued:false}};
+  }
+ }
  const isRosie=session.coreRole!=='captain_patch';
  const system=session.coreProviders.system+(isRosie?
   '\nListen until the caller finishes. Reply in no more than one short sentence. Do not ask diagnostic questions. Technical requests go to Captain Patch.':'');
