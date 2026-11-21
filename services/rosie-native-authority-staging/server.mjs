@@ -62,7 +62,7 @@ async function verifyCoreProviderDirectory(){
   const keys=new Set();
   for(const p of providers){
    if(!p||typeof p.provider_key!=='string'||
-      !/^[a-z][a-z0-9_]{1,63}$/.test(p.provider_key)||keys.has(p.provider_key)||
+      !/^[a-z][a-z0-9_]{0,63}$/.test(p.provider_key)||keys.has(p.provider_key)||
       typeof p.name!=='string'||p.name.length>100||
       !['all','shared_only','byo_shared_and_app_user','custom_required'].includes(p.native_mode)||
       p.requires_verified_customer_oauth!==true||
