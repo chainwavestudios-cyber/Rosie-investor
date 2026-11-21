@@ -110,7 +110,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   }
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
   if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
-    '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply'].includes(path))
+    '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply','/v1/worker/result'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
@@ -196,6 +196,31 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    if(!WORKER_EXECUTION_ENABLED)return reply(res,503,{accepted:false,execute_authorized:false,error:'worker_runtime_not_verified'});
    if(!checkLease(x))return reply(res,400,{error:'invalid_fenced_worker_request'});
    await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES (${x.nonce},${ORG})`;
+   if(path==='/v1/worker/result'){
+    const allowed=new Set(['org_id','agent_id','worker_id','job_id','fencing_token','nonce','provider','provider_response_id','result_text']);
+    if(Object.keys(x).some(k=>!allowed.has(k)) ||
+       x.provider!=='anthropic' ||
+       typeof x.provider_response_id!=='string' ||
+       !/^msg_[a-zA-Z0-9_-]{8,120}$/.test(x.provider_response_id) ||
+       typeof x.result_text!=='string' ||
+       !x.result_text.trim() ||
+       Buffer.byteLength(x.result_text,'utf8')>3000)
+      return reply(res,400,{error:'invalid_model_execution_receipt'});
+    const digest=crypto.createHash('sha256').update(x.result_text,'utf8').digest('hex');
+    const resultRef='core:jobs/'+x.job_id;
+    const checkpoint={ref:resultRef,provider:x.provider,
+      provider_response_id:x.provider_response_id,
+      result_text:x.result_text,result_sha256:digest};
+    const rows=await sql`UPDATE core_agents.jobs
+      SET state='checkpointed',checkpoint=${sql.json(checkpoint)},updated_at=now()
+      WHERE job_id=${x.job_id} AND org_id=${ORG} AND agent_id=${x.agent_id}
+        AND lease_owner=${x.worker_id} AND fencing_token=${x.fencing_token}
+        AND lease_until>now() AND state IN ('leased','running','checkpointed')
+      RETURNING job_id`;
+    return reply(res,rows.length?200:409,{
+      accepted:rows.length===1,durable_commit:rows.length===1,
+      result_ref:rows.length?resultRef:null,result_sha256:rows.length?digest:null});
+   }
    if(path==='/v1/worker/reply'){
     if(!validateReply(x))return reply(res,400,{error:'invalid_agent_reply'});
     const receipt=await sql.begin(async t=>{
@@ -205,7 +230,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
        WHERE j.job_id=${x.job_id} AND j.org_id=${ORG}
          AND j.agent_id=${x.agent_id} AND j.lease_owner=${x.worker_id}
          AND j.fencing_token=${x.fencing_token}
-         AND j.lease_until>now() AND j.state IN ('running','checkpointed')
+         AND j.lease_until>now() AND j.state='checkpointed'
        FOR UPDATE OF j`;
      if(!leases.length)return {denied:true};
      if((leases[0].ticket_key||null)!==(x.ticket_key||null))return {denied:true};
