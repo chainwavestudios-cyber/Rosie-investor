@@ -490,6 +490,7 @@ async function handleStreamStart(ws, streamSid, start) {
   // Load the selected pipeline FIRST; environment defaults must not override selectors.
   try {
     const initResp = await callRelay({ event: 'init', streamSid, callSid: start.callSid, leadId,
+      ...(session.core?{firstName:String(start.customParameters?.firstName||'')}:{}),
       ...(session.browser?{trainingPrompt:session.trainingPrompt}:{}) });
     if (session.stopping) return;
     if (!initResp.pipeline?.valid || initResp.pipeline.version !== PIPELINE_VERSION) throw new Error('Relay pipeline is missing or outdated; update the relay.');
