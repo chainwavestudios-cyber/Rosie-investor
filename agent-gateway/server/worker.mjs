@@ -75,15 +75,24 @@ async function completeJob(cfg,job) {
     body:JSON.stringify(payload),signal:AbortSignal.timeout(60000)
   });
   const receipt=await execution.json().catch(()=>null);
-  // The verified executor must durably store the output and return a Core reference.
+  // A provider ID alone is not sufficient: commit the actual output to Core
+  // before notifying a recipient or marking the source job complete.
   if(!execution.ok || receipt?.status!=='completed' ||
-     typeof receipt?.result_ref!=='string' ||
-     !/^core:[a-zA-Z0-9_.:/-]{8,240}$/.test(receipt.result_ref))
-    throw Error('executor_has_no_durable_completion_receipt');
-  const checkpoint=await signedPost(cfg.gateway,'/v1/worker/checkpoint',
-    {...common,nonce:uuid(),checkpoint_ref:receipt.result_ref},cfg.hmac);
-  if(checkpoint.status!==200||checkpoint.body.accepted!==true)
-    throw Error('checkpoint_not_committed');
+     receipt?.provider!=='anthropic' ||
+     typeof receipt?.provider_response_id!=='string' ||
+     !/^msg_[a-zA-Z0-9_-]{8,120}$/.test(receipt.provider_response_id) ||
+     typeof receipt?.result_text!=='string' ||
+     !receipt.result_text.trim() ||
+     Buffer.byteLength(receipt.result_text,'utf8')>3000)
+    throw Error('executor_has_no_verified_provider_output');
+  const stored=await signedPost(cfg.gateway,'/v1/worker/result',
+    {...common,nonce:uuid(),provider:receipt.provider,
+      provider_response_id:receipt.provider_response_id,
+      result_text:receipt.result_text},cfg.hmac);
+  if(stored.status!==200||stored.body.accepted!==true||
+     stored.body.durable_commit!==true||!stored.body.result_ref||
+     !stored.body.result_sha256)
+    throw Error('model_output_not_durably_committed');
   // A real agent may return a durable, explicitly addressed message for another agent.
   // The reply is committed before the source job can be marked completed.
   if(receipt.reply!==undefined){
