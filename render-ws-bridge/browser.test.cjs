@@ -23,7 +23,8 @@ function setup(overrides={}){
   close(code,reason){this.closed={code,reason};this.readyState=3;this.emit('close',code,Buffer.from(reason))}
   ping(){}terminate(){}
  }
- const ctx={require(name){if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(args){managedCalls.push(args);return {audio(payload){managedAudio.push(payload)},finish(){managedStops.push(args.sessionId)}}}};if(name==='express')return express;if(name==='http')return {createServer: () => ({ listen() {}, close() {}, on() {} })};if(name==='ws')return {WebSocket:WS,WebSocketServer:WSServer};if(name==='crypto')return crypto;throw Error(name)},
+ const ctx={require(name){if(name==='./core-support-routing.cjs')return require('./core-support-routing.cjs');if(name==='./core-voice-adapter.cjs')return {installRosieCoreVoice:()=>({
+  wss:{clients:new Set(),on(){},handleUpgrade(){}},path:'/core/ws',ready:()=>({ready:false})})};if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(args){managedCalls.push(args);return {audio(payload){managedAudio.push(payload)},finish(){managedStops.push(args.sessionId)}}}};if(name==='express')return express;if(name==='http')return {createServer: () => ({ listen() {}, close() {}, on() {} })};if(name==='ws')return {WebSocket:WS,WebSocketServer:WSServer};if(name==='crypto')return crypto;throw Error(name)},
   process:{env:{NODE_ENV:'development',APP_WEBHOOK_URL:'https://fronter.invalid/functions/mediaStreamRelay',
    APP_AUTH_TOKEN:'legacy-fronter-token-0123456789',
    BOB_BRIDGE_ENABLED:'true',BOB_APP_WEBHOOK_URL:'https://bob.invalid/functions/bobMediaRelay',
