@@ -31,7 +31,8 @@ function harness(file, settings) {
   }
   class MockServer extends EventEmitter { constructor() { super(); this.clients = new Set(); if(!server)if(!server)server = this; } }
   const context = {
-    require(name) {if(name==='./core-support-routing.cjs')return require('./core-support-routing.cjs');if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}};
+    require(name) {if(name==='./core-support-routing.cjs')return require('./core-support-routing.cjs');if(name==='./core-voice-adapter.cjs')return {installRosieCoreVoice:()=>({
+  wss:{clients:new Set(),on(){},handleUpgrade(){}},path:'/core/ws',ready:()=>({ready:false})})};if (name === './insureiq-bob-adapter.cjs') return {installInsureIqBobTransport(){return {path:'/insureiq/bob/ws',wss:{clients:new Set(),on(){}}}}}; if(name==='./managed-voice-agent.cjs')return {startPlainBobAgent(){throw Error('Managed Deepgram mock is not configured')}};
       if (name === 'express') return express;
       if (name === 'http') return { createServer: () => ({ listen() {}, close() {}, on() {} }) };
       if (name === 'crypto') return require('node:crypto');
