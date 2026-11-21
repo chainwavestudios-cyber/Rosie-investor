@@ -141,4 +141,4 @@ async function run() {
 }
 if(process.argv[1] && import.meta.url===new URL('file://'+process.argv[1]).href)
   run().catch(e=>{console.error('worker_start_refused',e.message);process.exit(1);});
-export {validateConfig,signedHeaders,completeJob};
+export {validateConfig,signedHeaders,completeJob,run};
