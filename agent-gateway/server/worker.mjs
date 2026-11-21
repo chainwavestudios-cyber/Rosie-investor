@@ -32,15 +32,16 @@ async function signedPost(base, path, payload, key) {
   return {status:res.status,body:json};
 }
 function validateConfig(env) {
+  const get=(name)=>{const v=env[name];if(!v)throw Error('missing_'+name.toLowerCase());return v;};
   if (env.RACP_WORKER_ENABLED !== 'true') throw Error('worker_explicitly_disabled');
-  const url=new URL(required('RACP_GATEWAY_URL'));
-  const executor=new URL(required('RACP_EXECUTOR_URL'));
+  const url=new URL(get('RACP_GATEWAY_URL'));
+  const executor=new URL(get('RACP_EXECUTOR_URL'));
   if(url.protocol!=='https:' || executor.protocol!=='https:') throw Error('https_required');
   if(url.username||url.password||executor.username||executor.password) throw Error('url_credentials_forbidden');
-  if(!/^A[0-9]{2,4}$/.test(required('RACP_AGENT_ID'))) throw Error('invalid_canonical_agent_id');
-  if(!/^[a-zA-Z0-9_:-]{8,100}$/.test(required('RACP_WORKER_ID'))) throw Error('invalid_worker_id');
-  if(required('RACP_WORKER_HMAC_KEY').length<40) throw Error('short_worker_key');
-  if(required('RACP_EXECUTOR_TOKEN').length<40) throw Error('short_executor_token');
+  if(!/^A[0-9]{2,4}$/.test(get('RACP_AGENT_ID'))) throw Error('invalid_canonical_agent_id');
+  if(!/^[a-zA-Z0-9_:-]{8,100}$/.test(get('RACP_WORKER_ID'))) throw Error('invalid_worker_id');
+  if(get('RACP_WORKER_HMAC_KEY').length<40) throw Error('short_worker_key');
+  if(get('RACP_EXECUTOR_TOKEN').length<40) throw Error('short_executor_token');
   if(url.pathname!=='/' && url.pathname!=='') throw Error('gateway_root_url_required');
   if(executor.pathname==='/' || !executor.pathname) throw Error('executor_explicit_path_required');
   return {
