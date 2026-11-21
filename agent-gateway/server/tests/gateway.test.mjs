@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {authentic,signature,validateEvent} from '../server.mjs';
+import {authentic,signature,validateEvent,validateReply} from '../server.mjs';
 const KEY='t'.repeat(64);
 const body=JSON.stringify({agent_id:'A04',event_type:'ticket.assigned'});
 const ts=String(Math.floor(Date.now()/1000));
@@ -39,4 +39,18 @@ test('internal event validation pins tenant and known role address',()=>{
  assert.equal(validateEvent({...e,agent_id:'A99999'}),false);
  assert.equal(validateEvent({...e,event_type:'deploy.production'}),false);
  assert.equal(validateEvent({...e,secret:'unallowed'}),false);
+});
+
+test('agent-to-agent reply requires a current fenced job and distinct canonical recipient',()=>{
+ const valid={org_id:'rosie-core-internal',agent_id:'A05',
+  worker_id:'worker-agent05',job_id:crypto.randomUUID(),
+  fencing_token:1,nonce:crypto.randomUUID(),event_id:crypto.randomUUID(),
+  recipient_agent_id:'A02',ticket_key:null,payload:{type:'task_result',ok:true}};
+ assert.equal(validateReply(valid),true);
+ assert.equal(validateReply({...valid,recipient_agent_id:'A05'}),false);
+ assert.equal(validateReply({...valid,recipient_agent_id:'agent2-sim'}),false);
+ assert.equal(validateReply({...valid,fencing_token:0}),false);
+ assert.equal(validateReply({...valid,worker_id:'xx'}),false);
+ assert.equal(validateReply({...valid,payload:{text:'x'.repeat(3501)}}),false);
+ assert.equal(validateReply({...valid,unexpected:true}),false);
 });
