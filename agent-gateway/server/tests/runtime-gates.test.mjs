@@ -13,7 +13,7 @@ function bodyRequest(path,object){
 }
 async function withServer(fn){
  const sql=()=>{throw Error('database_must_not_be_touched');};
- const server=makeServer({sql,workerKey:MASTER,ingestKey:MASTER});
+ const server=makeServer({sql,workerKey:MASTER,ingestKey:MASTER,agentKeys:{A04:MASTER}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{
   const url='http://127.0.0.1:'+server.address().port;
