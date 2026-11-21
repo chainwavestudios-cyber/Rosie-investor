@@ -12,11 +12,12 @@ test('Core route requires a signed, call-scoped, one-time ticket and isolated ca
    onStart:(...args)=>starts.push(args),onAudio:()=>{},onMark:()=>{},onStop:()=>{}});
   assert.equal(handler.path,'/core/ws');assert.equal(handler.ready().ready,true);
   const streamSid='MZ'+'1'.repeat(32),callSid='CA'+'2'.repeat(32),now=Math.floor(Date.now()/1000);
-  const payload=Buffer.from(JSON.stringify({app_key:'rosie_core_vip',call_sid:callSid,issued_at:now,expires_at:now+60})).toString('base64url');
+  const payload=Buffer.from(JSON.stringify({app_key:'rosie_core_vip',call_sid:callSid,first_name:'Ada',issued_at:now,expires_at:now+60})).toString('base64url');
   const sig=crypto.createHmac('sha256',process.env.CORE_ROSIE_STREAM_HMAC).update(payload).digest('hex');
   const m={event:'start',start:{streamSid,callSid,customParameters:{coreTicket:payload+'.'+sig}}};
   const authorized=new MockWs();handler.wss.emit('connection',authorized);authorized.emit('message',Buffer.from(JSON.stringify(m)));
   assert.equal(starts.length,1);assert.equal(starts[0][2].customParameters.core,true);
+  assert.equal(starts[0][2].customParameters.firstName,'Ada');
   const replay=new MockWs();handler.wss.emit('connection',replay);replay.emit('message',Buffer.from(JSON.stringify(m)));
   assert.equal(replay.closed.code,1008);
   const altered=new MockWs();handler.wss.emit('connection',altered);
