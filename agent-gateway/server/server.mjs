@@ -15,6 +15,16 @@ const INGEST_KEY=process.env.CORE_INGEST_HMAC_KEY||'';
 const WORKER_KEY=process.env.WORKER_HMAC_KEY||'';
 // Worker lease grants are never enabled just because a database row looks ready.
 const WORKER_EXECUTION_ENABLED=process.env.WORKER_EXECUTION_ENABLED==='true';
+const WORKER_AGENT_KEYS_JSON=process.env.WORKER_AGENT_KEYS_JSON||'{}';
+function parseWorkerAgentKeys(raw){
+ const keys=JSON.parse(raw);
+ if(!keys||Array.isArray(keys)||typeof keys!=='object')throw Error('invalid_worker_agent_keys');
+ for(const [agent,key] of Object.entries(keys))
+  if(!/^A[0-9]{2,4}$/.test(agent)||typeof key!=='string'||key.length<40)
+   throw Error('invalid_agent_scoped_key');
+ return keys;
+}
+const WORKER_AGENT_KEYS=parseWorkerAgentKeys(WORKER_AGENT_KEYS_JSON);
 const ORG='rosie-core-internal';
 const MAX_BYTES=8192;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -82,7 +92,7 @@ function checkLease(x){
  return checkWorker(x)&&UUID.test(x.job_id||'')&&
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
-function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
+function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
@@ -104,7 +114,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY}){
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
-   const key=path==='/v1/events'?ingestKey:workerKey;
+   const key=path==='/v1/events'?ingestKey:
+     path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
    if(path==='/v1/admin/status'){
     if(Object.keys(x).length!==1||x.action!=='status')return reply(res,400,{error:'status_only'});
@@ -299,6 +310,8 @@ async function recoverExpired(sql){
 async function main(){
  if(!DSN||INGEST_KEY.length<40||WORKER_KEY.length<40)
   throw Error('Gateway missing database or signed service keys');
+ if(WORKER_EXECUTION_ENABLED&&(!WORKER_AGENT_KEYS.A02||!WORKER_AGENT_KEYS.A05))
+  throw Error('Required agent-scoped worker keys not configured');
  const sql=postgres(DSN,{max:5,ssl:'require',connect_timeout:8,prepare:false,
   idle_timeout:15});
  const [{name}]=await sql`SELECT current_user AS name`;
@@ -316,4 +329,4 @@ async function main(){
 }
 if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href)
  main().catch(e=>{console.error('gateway_start_refused',e.message);process.exit(1);});
-export {makeServer,authentic,signature,validateEvent,validateReply,recoverExpired};
+export {makeServer,authentic,signature,validateEvent,validateReply,parseWorkerAgentKeys,recoverExpired};
