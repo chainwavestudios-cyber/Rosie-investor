@@ -502,7 +502,8 @@ async function handleStreamStart(ws, streamSid, start) {
          typeof lease.system!=='string'||lease.system.length<60||
          Math.abs(Date.now()-Number(lease.issuedAt||0))>60000)
         throw Error('Core provider session bootstrap unavailable');
-      session.coreProviders={anthropicKey:lease.anthropicKey,cartesiaKey:lease.cartesiaKey,system:lease.system};
+      session.coreProviders={anthropicKey:lease.anthropicKey,cartesiaKey:lease.cartesiaKey,system:lease.system, captainPatchSystem:typeof lease.captainPatchSystem==='string'?lease.captainPatchSystem:'', captainPatchVoiceId:typeof lease.captainPatchVoiceId==='string'?lease.captainPatchVoiceId:''};
+      session.coreAgent='rosie';
       log('[CORE] Provider session accepted for',streamSid,'Deepgram + Claude Haiku 4.5 + Cartesia');
     }
     session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
@@ -1268,6 +1269,21 @@ async function generateTTS(text, config = {}, session = null) {
 async function coreClaudeTurn(session){
  const auth=session.coreProviders?.anthropicKey;
  if(!session.core||!auth)throw Error('Core Claude session unavailable');
+ // Rosie-first, explicit caller-requested Tier 1 in-call persona handoff.
+ // This is NOT a separate A17 worker acknowledgement or ticket creation.
+ const latestUser=[...session.conversation].reverse().find(x=>x.role==='user');
+ const askedForPatch=/\b(?:captain\s+patch|(?:technical|tech)\s+support)\b/i.test(String(latestUser?.content||''));
+ if(session.coreAgent!=='captain_patch'&&askedForPatch){
+  const configured=session.coreProviders.captainPatchSystem?.length>80&&
+   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.coreProviders.captainPatchVoiceId||'');
+  if(!configured)return {action:'speak',text:'I can help with general guidance, but Captain Patch is not configured for a verified voice handoff yet.'};
+  session.coreAgent='captain_patch';
+  session.coreProviders.system=session.coreProviders.captainPatchSystem;
+  session.config.cartesiaVoiceId=session.coreProviders.captainPatchVoiceId;
+  log('[CORE] In-call Tier 1 persona switched; voice selection updated',session.streamSid||'');
+  return {action:'speak',text:'Captain Patch here! Tell me which Rosie product you are having trouble with and what happens when you try to use it.',llmRuntime:{state:'accepted',agent_role:'captain_patch',external_worker_ack:false}};
+ }
+
  const conversation=session.conversation.slice(-16).map(m=>({
   role:m.role==='assistant'?'assistant':'user',
   content:String(m.content||'').slice(0,650)
