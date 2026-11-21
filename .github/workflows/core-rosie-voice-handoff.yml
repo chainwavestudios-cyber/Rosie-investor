@@ -1,0 +1,24 @@
+name: Rosie Core Voice Patch Verification
+on:
+  pull_request:
+    paths:
+      - 'render-ws-bridge/**'
+      - '.github/workflows/core-rosie-voice-handoff.yml'
+  workflow_dispatch:
+jobs:
+  bridge-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Core-only voice syntax
+        run: |
+          node --check render-ws-bridge/server.js
+          node --check render-ws-bridge/core-support-routing.cjs
+          node --check render-ws-bridge/core-support-routing.test.cjs
+      - name: Unit and voice regression tests
+        working-directory: render-ws-bridge
+        run: npm test
