@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import {authentic,signature,validateEvent,validateReply} from '../server.mjs';
+import {authentic,signature,validateEvent,validateReply,parseWorkerAgentKeys} from '../server.mjs';
 const KEY='t'.repeat(64);
 const body=JSON.stringify({agent_id:'A04',event_type:'ticket.assigned'});
 const ts=String(Math.floor(Date.now()/1000));
@@ -53,4 +53,11 @@ test('agent-to-agent reply requires a current fenced job and distinct canonical 
  assert.equal(validateReply({...valid,worker_id:'xx'}),false);
  assert.equal(validateReply({...valid,payload:{text:'x'.repeat(3501)}}),false);
  assert.equal(validateReply({...valid,unexpected:true}),false);
+});
+
+test('agent worker credentials are scoped and cannot be short or shared identifiers',()=>{
+ const keys=parseWorkerAgentKeys(JSON.stringify({A02:'a'.repeat(64),A05:'b'.repeat(64)}));
+ assert.equal(keys.A02.length,64);
+ assert.throws(()=>parseWorkerAgentKeys('{"agent2-sim":"bad"}'),/invalid_agent_scoped_key/);
+ assert.throws(()=>parseWorkerAgentKeys('{"A02":"short"}'),/invalid_agent_scoped_key/);
 });
