@@ -531,6 +531,13 @@ async function handleStreamStart(ws, streamSid, start) {
       } else if (ttsEngine === 'cartesia' && (CARTESIA_API_KEY || session.browser || session.core)) {
         ok = await streamCartesiaTTS(initResp.greeting, streamSid, session, gen);
       }
+      if (!ok && session.core && session.coreRole==='captain_patch' &&
+          session.config.cartesiaVoiceId===session.coreProviders?.patchVoiceId &&
+          session.coreProviders?.rosieVoiceId && session.generation===gen){
+        // Voice fallback only. The server-verified Patch role remains active.
+        session.config.cartesiaVoiceId=session.coreProviders.rosieVoiceId;
+        ok=await streamCartesiaTTS(text,streamSid,session,gen);
+      }
       if (!ok) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated
         // Deepgram/ElevenLabs fallback. Fronter is unaffected.
