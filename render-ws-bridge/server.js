@@ -171,7 +171,7 @@ function scheduleBargeIn(session, streamSid) {
     sendToTwilio(session.ws, { event: 'clear', streamSid });
     clearSpeakingWatchdog(session);
     session.state = 'listening';
-  }, session.core ? 140 : BARGE_IN_GRACE_MS);
+  }, session.core ? 420 : BARGE_IN_GRACE_MS);
 }
 
 // ── Express ──────────────────────────────────────────────────────────────
