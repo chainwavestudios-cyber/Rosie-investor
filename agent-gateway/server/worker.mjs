@@ -84,6 +84,23 @@ async function completeJob(cfg,job) {
     {...common,nonce:uuid(),checkpoint_ref:receipt.result_ref},cfg.hmac);
   if(checkpoint.status!==200||checkpoint.body.accepted!==true)
     throw Error('checkpoint_not_committed');
+  // A real agent may return a durable, explicitly addressed message for another agent.
+  // The reply is committed before the source job can be marked completed.
+  if(receipt.reply!==undefined){
+    if(!receipt.reply||!/^A[0-9]{2,4}$/.test(receipt.reply.recipient_agent_id||'')||
+       receipt.reply.recipient_agent_id===cfg.agent||
+       !receipt.reply.payload||typeof receipt.reply.payload!=='object'||
+       Array.isArray(receipt.reply.payload))
+      throw Error('invalid_executor_reply');
+    const sent=await signedPost(cfg.gateway,'/v1/worker/reply',{
+      ...common,nonce:uuid(),event_id:job.job_id,
+      recipient_agent_id:receipt.reply.recipient_agent_id,
+      ticket_key:job.event.ticket_key||null,payload:receipt.reply.payload
+    },cfg.hmac);
+    if(![200,202].includes(sent.status)||sent.body.accepted!==true||
+       sent.body.durable_commit!==true||!sent.body.delivery_ack)
+      throw Error('reply_not_durably_committed');
+  }
   const finish=await signedPost(cfg.gateway,'/v1/worker/finish',
     {...common,nonce:uuid(),result:'completed'},cfg.hmac);
   if(finish.status!==200||finish.body.accepted!==true)
