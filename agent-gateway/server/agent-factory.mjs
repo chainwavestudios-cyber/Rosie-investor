@@ -63,7 +63,7 @@ async function generateAgent(sql,x){
    await t`INSERT INTO core_agents.identities
     (org_id,agent_id,display_name,role,inbox,desired_state,runtime_state)
     VALUES (${x.org_id},${agentId},${plan.display_name},${plan.role},
-    ${'core://agents/'+agentId+'/inbox'},'provisioning','unverified')`;
+    ${'agent.'+agentId.toLowerCase()},'provisioning','unverified')`;
    await t`INSERT INTO core_agents.agent_team_assignments
     (org_id,agent_id,team_key,captain_id,assignment_state)
     VALUES (${x.org_id},${agentId},${x.team},${x.captain_id},'reserved')`;
