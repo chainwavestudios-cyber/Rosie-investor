@@ -78,9 +78,9 @@ async function completeJob(cfg,job) {
   // A provider ID alone is not sufficient: commit the actual output to Core
   // before notifying a recipient or marking the source job complete.
   if(!execution.ok || receipt?.status!=='completed' ||
-     receipt?.provider!=='anthropic' ||
+     receipt?.provider!=='openai' ||
      typeof receipt?.provider_response_id!=='string' ||
-     !/^msg_[a-zA-Z0-9_-]{8,120}$/.test(receipt.provider_response_id) ||
+     !/^resp_[a-zA-Z0-9_-]{8,120}$/.test(receipt.provider_response_id) ||
      typeof receipt?.result_text!=='string' ||
      !receipt.result_text.trim() ||
      Buffer.byteLength(receipt.result_text,'utf8')>3000)

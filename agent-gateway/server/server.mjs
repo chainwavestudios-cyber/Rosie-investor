@@ -199,9 +199,9 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    if(path==='/v1/worker/result'){
     const allowed=new Set(['org_id','agent_id','worker_id','job_id','fencing_token','nonce','provider','provider_response_id','result_text']);
     if(Object.keys(x).some(k=>!allowed.has(k)) ||
-       x.provider!=='anthropic' ||
+       x.provider!=='openai' ||
        typeof x.provider_response_id!=='string' ||
-       !/^msg_[a-zA-Z0-9_-]{8,120}$/.test(x.provider_response_id) ||
+       !/^resp_[a-zA-Z0-9_-]{8,120}$/.test(x.provider_response_id) ||
        typeof x.result_text!=='string' ||
        !x.result_text.trim() ||
        Buffer.byteLength(x.result_text,'utf8')>3000)

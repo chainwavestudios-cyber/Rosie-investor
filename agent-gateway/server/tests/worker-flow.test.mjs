@@ -18,7 +18,7 @@ test('real reply is persisted before the source worker can finish',async()=>{
  globalThis.fetch=async url=>{
   const path=new URL(url).pathname;paths.push(path);
   if(path==='/v1/execute')
-   return reply(200,{status:'completed',provider:'anthropic',provider_response_id:'msg_abc123456789',result_text:'genuine provider reply',
+   return reply(200,{status:'completed',provider:'openai',provider_response_id:'resp_abc123456789',result_text:'genuine provider reply',
     reply:{recipient_agent_id:'A02',payload:{answer:'verified'}}});
   if(path==='/v1/worker/result')return reply(200,{accepted:true,durable_commit:true,result_ref:'core:jobs/id',result_sha256:'hash'});
   if(path==='/v1/worker/reply')return reply(202,{accepted:true,durable_commit:true,delivery_ack:'ack1'});
@@ -37,7 +37,7 @@ test('missing durable reply ACK prevents false completion',async()=>{
  globalThis.fetch=async url=>{
   const path=new URL(url).pathname;paths.push(path);
   if(path==='/v1/execute')
-   return reply(200,{status:'completed',provider:'anthropic',provider_response_id:'msg_abc123456789',result_text:'genuine provider reply',
+   return reply(200,{status:'completed',provider:'openai',provider_response_id:'resp_abc123456789',result_text:'genuine provider reply',
     reply:{recipient_agent_id:'A02',payload:{answer:'verified'}}});
   if(path==='/v1/worker/result')return reply(200,{accepted:true,durable_commit:true,result_ref:'core:jobs/id',result_sha256:'hash'});
   if(path==='/v1/worker/reply')return reply(503,{accepted:false});
