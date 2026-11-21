@@ -44,6 +44,7 @@ const nodeCrypto = require('crypto');
 const {startPlainBobAgent} = require('./managed-voice-agent.cjs');
 const {installInsureIqBobTransport} = require('./insureiq-bob-adapter.cjs');
 const {installRosieCoreVoice} = require('./core-voice-adapter.cjs');
+const {classifyTechnicalIssue,PATCH_SYSTEM}=require('./core-support-routing.cjs');
 
 // ── Config ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT || 10000);
@@ -170,7 +171,7 @@ function scheduleBargeIn(session, streamSid) {
     sendToTwilio(session.ws, { event: 'clear', streamSid });
     clearSpeakingWatchdog(session);
     session.state = 'listening';
-  }, BARGE_IN_GRACE_MS);
+  }, session.core ? 140 : BARGE_IN_GRACE_MS);
 }
 
 // ── Express ──────────────────────────────────────────────────────────────
@@ -467,10 +468,12 @@ async function handleStreamStart(ws, streamSid, start) {
     browser:!!start.customParameters?.browser,
     core:start.customParameters?.core===true,
     coreProviders:null,
+    coreRole:'rosie',coreCaseKey:null,coreTurnSeq:0,
     trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
     sttBytesSent:0,ttsMeterSequence:0,
     ws,
     callSid: start.callSid,
+    streamSid,
     leadId,
     dgWs: null,
     generation: 0,        // increments on each AI response (barge-in tracking)
@@ -502,7 +505,9 @@ async function handleStreamStart(ws, streamSid, start) {
          typeof lease.system!=='string'||lease.system.length<60||
          Math.abs(Date.now()-Number(lease.issuedAt||0))>60000)
         throw Error('Core provider session bootstrap unavailable');
-      session.coreProviders={anthropicKey:lease.anthropicKey,cartesiaKey:lease.cartesiaKey,system:lease.system};
+      session.coreProviders={anthropicKey:lease.anthropicKey,cartesiaKey:lease.cartesiaKey,system:lease.system,
+        rosieVoiceId:String(initResp.pipeline.cartesiaVoiceId||''),
+        patchVoiceId:initResp.pipeline.patchCartesiaVoiceId==='3e39e9a5-585c-4f5f-bac6-5e4905c51095'?initResp.pipeline.patchCartesiaVoiceId:null};
       log('[CORE] Provider session accepted for',streamSid,'Deepgram + Claude Haiku 4.5 + Cartesia');
     }
     session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
@@ -577,6 +582,7 @@ function handleInboundAudio(streamSid, audioPayload) {
 function handleMark(streamSid, mark) {
   const session = streams.get(streamSid);
   if (!session) return;
+  if(session.core&&/^gen-\d+$/.test(String(mark?.name||''))&&mark.name!==`gen-${session.generation}`)return;
   // Mark received = playback completed → resume listening
   if (session.state === 'speaking') {
     session.state = 'listening';
@@ -659,7 +665,7 @@ function openDeepgram(session, streamSid) {
     params = new URLSearchParams({
       encoding: 'mulaw', sample_rate: '8000', channels: '1', model: sttModel,
       smart_format: 'true', punctuate: 'true', interim_results: 'true',
-      endpointing: '200', vad_events: 'true',
+      endpointing: session.core?'850':'200', vad_events: 'true',
     });
     endpoint = 'v1/listen';
   }
@@ -763,6 +769,7 @@ async function handleUtterance(streamSid, transcript) {
     at: new Date().toISOString(),
   };
 
+  const coreTurnSeq=session.core?++session.coreTurnSeq:0;
   session.state = 'thinking';
   session.conversation.push({ role: 'user', content: transcript });
   if(session.browser)sendToTwilio(session.ws,{event:'bob_transcript',role:'user',text:String(transcript).slice(0,2500)});
@@ -779,6 +786,9 @@ async function handleUtterance(streamSid, transcript) {
       ...(session.browser?{trainingPrompt:session.trainingPrompt}:{}),
     });
 
+    if(session.core&&(session.callerSpeaking||coreTurnSeq!==session.coreTurnSeq)){
+      session.state='listening';return;
+    }
     session.llm = resp.llmRuntime || { state: 'unverified' };
     const { action, text, disposition } = resp;
     session.conversation.push({ role: 'assistant', content: text || '' });
@@ -1273,21 +1283,47 @@ async function coreClaudeTurn(session){
   content:String(m.content||'').slice(0,650)
  })).filter(m=>m.content);
  while(conversation.length&&conversation[0].role!=='user')conversation.shift();
- if(!conversation.length)return {action:'speak',text:'Could you say that again?'};
+ if(!conversation.length)return {action:'speak',text:'Please continue.'};
+ // The receptionist does not interrogate the caller about technical issues.
+ if(session.coreRole==='rosie'){
+  const issueCode=classifyTechnicalIssue(conversation.at(-1)?.content||'');
+  if(issueCode){
+   try{
+    const receipt=await callRelay({_coreTransport:true,event:'patch_handoff',
+     streamSid:session.streamSid,callSid:session.callSid,issueCode});
+    if(receipt?.ok===true&&receipt.accepted===true&&
+       receipt.support_role==='captain_patch'&&/^patch-[a-f0-9]{32}$/.test(receipt.case_key||'')){
+     session.coreRole='captain_patch';session.coreCaseKey=receipt.case_key;
+     const original=String(session.coreProviders.system||'');
+     const point=original.indexOf('Authenticated caller diagnostic metadata');
+     session.coreProviders.system=PATCH_SYSTEM+(point<0?'':'\n'+original.slice(point,point+1800));
+     if(session.coreProviders.patchVoiceId)session.config.cartesiaVoiceId=session.coreProviders.patchVoiceId;
+     return {action:'speak',text:'Captain Patch here. I have the technical issue. Go ahead.',
+      llmRuntime:{state:'accepted',agent_role:'captain_patch',handoff_acknowledged:true}};
+    }
+   }catch(e){log('[CORE] Patch handoff not acknowledged',String(e?.message||'').slice(0,75))}
+   return {action:'speak',text:'I have your technical issue, but Tier One support is unavailable right now. Please use the secure Core support dashboard.',
+    llmRuntime:{state:'blocked',agent_role:'rosie',handoff_acknowledged:false}};
+  }
+ }
+ const isRosie=session.coreRole!=='captain_patch';
+ const system=session.coreProviders.system+(isRosie?
+  '\nListen until the caller finishes. Reply in no more than one short sentence. Do not ask diagnostic questions. Technical requests go to Captain Patch.':'');
  const response=await fetch('https://api.anthropic.com/v1/messages',{
   method:'POST',redirect:'error',signal:AbortSignal.timeout(13000),
   headers:{'x-api-key':auth,'anthropic-version':'2023-06-01','content-type':'application/json'},
-  body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:160,
-   temperature:0.25,system:session.coreProviders.system,messages:conversation})
+  body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:isRosie?70:140,
+   temperature:0.2,system,messages:conversation})
  });
  if(!response.ok){if(response.body)await response.body.cancel().catch(()=>{});
   log('[CORE] Anthropic HTTP',response.status);throw Error('Core Anthropic provider HTTP '+response.status);}
  const data=await response.json();
  const text=Array.isArray(data.content)?data.content.filter(x=>x.type==='text')
-  .map(x=>String(x.text||'')).join(' ').replace(/\s+/g,' ').trim().slice(0,600):'';
+  .map(x=>String(x.text||'')).join(' ').replace(/\s+/g,' ').trim().slice(0,isRosie?220:500):'';
  if(!text)throw Error('Core Anthropic empty text response');
- log('[CORE] Haiku response generated');
- return {action:'speak',text,llmRuntime:{state:'accepted',provider:'anthropic',model:'claude-haiku-4-5-20251001'}};
+ log('[CORE] Haiku response generated',session.coreRole);
+ return {action:'speak',text,llmRuntime:{state:'accepted',provider:'anthropic',
+  model:'claude-haiku-4-5-20251001',agent_role:session.coreRole}};
 }
 
 // ── Turn response latency (caller stopped → agent's first audio out) ────
