@@ -110,13 +110,98 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   }
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
   if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
-    '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply','/v1/worker/result'].includes(path))
+    '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply','/v1/worker/result',
+    '/v1/agent/send','/v1/agent/inbox','/v1/agent/ack'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
    const key=path==='/v1/events'?ingestKey:
      path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   // Agent messaging uses a separate signed transport path: no worker lease,
+   // inference endpoint, provider credential, or execution flag is involved.
+   if(path.startsWith('/v1/agent/')){
+    if(!AGENT.test(x.agent_id||'')||x.org_id!==ORG||!UUID.test(x.nonce||'')||
+       !agentKeys[x.agent_id]||Object.keys(x).length>11)
+      return reply(res,400,{error:'invalid_agent_transport_identity'});
+    await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES(${x.nonce},${ORG})`;
+    const live=await sql`SELECT agent_id,desired_state FROM core_agents.identities
+      WHERE org_id=${ORG} AND agent_id=${x.agent_id}`;
+    if(live.length!==1||live[0].desired_state==='revoked')
+      return reply(res,403,{error:'agent_identity_not_authorized'});
+    if(path==='/v1/agent/send'){
+     const validKeys=new Set(['org_id','agent_id','recipient_agent_id',
+      'event_id','nonce','kind','message','trace_id','reply_to']);
+     if(Object.keys(x).some(k=>!validKeys.has(k))||
+        !AGENT.test(x.recipient_agent_id||'')||
+        x.agent_id===x.recipient_agent_id||
+        !UUID.test(x.event_id||'')||!UUID.test(x.trace_id||'')||
+        (x.reply_to!==undefined&&!UUID.test(x.reply_to))||
+        !['probe','probe_ack','note'].includes(x.kind)||
+        typeof x.message!=='string'||!x.message.trim()||
+        Buffer.byteLength(x.message,'utf8')>1600)
+       return reply(res,400,{error:'invalid_agent_message'});
+     const data={contract:'rosie.core.rcis.transport.v1',
+       kind:x.kind,message:x.message,trace_id:x.trace_id,
+       reply_to:x.reply_to||null};
+     const receipt=await sql.begin(async t=>{
+      await t`SET LOCAL statement_timeout='5000ms'`;
+      const target=await t`SELECT agent_id FROM core_agents.identities
+       WHERE org_id=${ORG} AND agent_id=${x.recipient_agent_id}
+         AND desired_state<>'revoked'`;
+      if(target.length!==1)return {unknown:true};
+      const added=await t`INSERT INTO core_agents.events
+       (event_id,org_id,recipient_agent_id,sender,event_type,ticket_key,payload,nonce)
+       VALUES(${x.event_id},${ORG},${x.recipient_agent_id},${x.agent_id},
+         'rcis.message',NULL,${t.json(data)},${x.nonce})
+       ON CONFLICT(event_id) DO NOTHING RETURNING event_id`;
+      if(!added.length)return {collision:true};
+      const ack=await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
+        VALUES(${x.event_id},${ORG},'persisted','gateway')
+        RETURNING ack_id`;
+      return {ack_id:ack[0].ack_id};
+     });
+     if(receipt.unknown)return reply(res,404,{error:'recipient_unregistered'});
+     if(receipt.collision)return reply(res,409,{error:'message_id_collision'});
+     return reply(res,202,{accepted:true,durable_commit:true,
+       event_id:x.event_id,delivery_ack:receipt.ack_id,
+       recipient_agent_id:x.recipient_agent_id,model_calls:0});
+    }
+    if(path==='/v1/agent/inbox'){
+     if(Object.keys(x).some(k=>!['org_id','agent_id','nonce','limit'].includes(k))||
+        (x.limit!==undefined&&(!Number.isInteger(x.limit)||x.limit<1||x.limit>20)))
+       return reply(res,400,{error:'invalid_agent_inbox_query'});
+     const events=await sql`SELECT e.event_id,e.sender,e.payload,e.received_at
+      FROM core_agents.events e
+      LEFT JOIN core_agents.agent_message_receipts mr ON mr.event_id=e.event_id
+        AND mr.recipient_agent_id=${x.agent_id}
+      WHERE e.org_id=${ORG} AND e.recipient_agent_id=${x.agent_id}
+       AND e.event_type='rcis.message'
+       AND e.payload->>'contract'='rosie.core.rcis.transport.v1'
+       AND mr.event_id IS NULL
+      ORDER BY e.received_at LIMIT ${x.limit||20}`;
+     return reply(res,200,{ok:true,agent_id:x.agent_id,messages:events,
+       model_calls:0});
+    }
+    if(path==='/v1/agent/ack'){
+     if(Object.keys(x).some(k=>!['org_id','agent_id','nonce','event_id'].includes(k))||
+       !UUID.test(x.event_id||''))return reply(res,400,{error:'invalid_agent_receipt'});
+     const receipts=await sql`INSERT INTO core_agents.agent_message_receipts
+       (event_id,org_id,recipient_agent_id)
+       SELECT event_id,${ORG},${x.agent_id} FROM core_agents.events
+       WHERE event_id=${x.event_id} AND org_id=${ORG}
+        AND recipient_agent_id=${x.agent_id}
+        AND event_type='rcis.message'
+        AND payload->>'contract'='rosie.core.rcis.transport.v1'
+       ON CONFLICT(event_id,recipient_agent_id) DO UPDATE
+        SET received_at=core_agents.agent_message_receipts.received_at
+       RETURNING event_id,received_at`;
+     if(!receipts.length)return reply(res,404,{error:'message_not_addressed_to_agent'});
+     return reply(res,200,{accepted:true,durable_commit:true,
+       event_id:x.event_id,recipient_agent_id:x.agent_id,
+       received_at:receipts[0].received_at,model_calls:0});
+    }
+   }
    if(path==='/v1/admin/status'){
     if(Object.keys(x).length!==1||x.action!=='status')return reply(res,400,{error:'status_only'});
     const result=await sql`SELECT
