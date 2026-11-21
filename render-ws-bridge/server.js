@@ -171,7 +171,7 @@ function scheduleBargeIn(session, streamSid) {
     sendToTwilio(session.ws, { event: 'clear', streamSid });
     clearSpeakingWatchdog(session);
     session.state = 'listening';
-  }, session.core ? 140 : BARGE_IN_GRACE_MS);
+  }, session.core ? 420 : BARGE_IN_GRACE_MS);
 }
 
 // ── Express ──────────────────────────────────────────────────────────────
@@ -1126,16 +1126,66 @@ async function streamCartesiaTTS(text, streamSid, session, generation) {
     }
 
     const reader = res.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (generation !== session.generation) { await reader.cancel().catch(() => {}); break; }
-      const payload = Buffer.from(value).toString('base64');
-      if (!payload.length) continue;
-      chunkCount++;
-      if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
-      sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
-      if(!session.core)session.recordingBuffer.push(payload);
+    if (session.core) {
+      // Twilio expects raw mono G.711 mu-law at 8000 Hz. Cartesia's HTTP
+      // chunks have arbitrary boundaries and may arrive in large bursts.
+      // Pace ONLY Core playback at the telephony sample rate; do not change
+      // commercial BOB, Fronter, or investor streams.
+      const FRAME_BYTES=160, FRAME_MS=20, MAX_AUDIO_BYTES=8_000*120;
+      const MAX_WS_BUFFER_BYTES=256_000;
+      let pending=Buffer.alloc(0),totalBytes=0,frameCount=0;
+      let nextFrameAt=Date.now();
+      const stopped=()=>session.stopping||generation!==session.generation||
+        session.ws.readyState!==WebSocket.OPEN;
+      const emitFrame=async frame=>{
+        if(stopped())return false;
+        // Wait for a single 20ms media frame instead of dumping an entire
+        // HTTP response chunk into Twilio's asynchronous playback buffer.
+        const wait=Math.max(0,nextFrameAt-Date.now());
+        if(wait)await new Promise(resolve=>setTimeout(resolve,wait));
+        if(stopped())return false;
+        if(session.ws.bufferedAmount>MAX_WS_BUFFER_BYTES)
+          throw Error('Core outbound WebSocket buffer exceeded safe threshold');
+        if(!played){sendToTwilio(session.ws,{event:'clear',streamSid});noteAudioOut(session);played=true;}
+        sendToTwilio(session.ws,{event:'media',streamSid,
+          media:{payload:frame.toString('base64')}});
+        frameCount++;chunkCount++;
+        // Don't send catch-up bursts after network/provider stalls.
+        nextFrameAt=Math.max(nextFrameAt,Date.now())+FRAME_MS;
+        return true;
+      };
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        if(stopped()){await reader.cancel().catch(()=>{});break;}
+        const bytes=Buffer.from(value);
+        if(!bytes.length)continue;
+        if(totalBytes===0&&(bytes.subarray(0,4).toString('ascii')==='RIFF'||
+          bytes.subarray(0,3).toString('ascii')==='ID3'))
+          throw Error('Core Cartesia response contained a file header; raw mu-law required');
+        totalBytes+=bytes.length;
+        if(totalBytes>MAX_AUDIO_BYTES)throw Error('Core Cartesia audio duration limit exceeded');
+        pending=pending.length?Buffer.concat([pending,bytes]):bytes;
+        while(pending.length>=FRAME_BYTES){
+          if(!await emitFrame(pending.subarray(0,FRAME_BYTES)))break;
+          pending=pending.subarray(FRAME_BYTES);
+        }
+        if(stopped()){await reader.cancel().catch(()=>{});break;}
+      }
+      if(pending.length&&!stopped())await emitFrame(pending);
+      if(frameCount)log('[CORE] Paced 8kHz mu-law frames delivered',frameCount,'audio_bytes',totalBytes);
+    }else{
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (generation !== session.generation) { await reader.cancel().catch(() => {}); break; }
+        const payload = Buffer.from(value).toString('base64');
+        if (!payload.length) continue;
+        chunkCount++;
+        if (!played) { sendToTwilio(session.ws, { event: 'clear', streamSid }); noteAudioOut(session); played = true; }
+        sendToTwilio(session.ws, { event: 'media', streamSid, media: { payload } });
+        session.recordingBuffer.push(payload);
+      }
     }
     ensureMark();
     if(session.core&&chunkCount)log('[CORE] Cartesia audio delivered',chunkCount,'chunks');
