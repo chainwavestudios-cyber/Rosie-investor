@@ -29,6 +29,6 @@ test('worker signs byte-exact method/path/timestamp/body',()=>{
  const raw=JSON.stringify({nonce:'abc',worker_id:'worker-agent02'});
  const headers=signedHeaders('x'.repeat(48),'POST','/v1/worker/claim',raw);
  const expected='sha256='+crypto.createHmac('sha256','x'.repeat(48))
- .update('POST\\n/v1/worker/claim\\n'+headers['x-rosie-timestamp']+'\\n'+raw).digest('hex');
+ .update('POST\n/v1/worker/claim\n'+headers['x-rosie-timestamp']+'\n'+raw).digest('hex');
  assert.equal(headers['x-rosie-signature'],expected);
 });
