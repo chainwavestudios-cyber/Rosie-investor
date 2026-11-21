@@ -12,6 +12,7 @@ const max=4096;
 // Neon reader. No customer payload, service secret, or authorization passes here.
 const grantsHealthUrl='https://rosie-native-product-grants-a2-staging.onrender.com/healthz';
 const corePublicManifestUrl='https://rosie-ai-core-46e10df3.base44.app/api/apps/6aeabe88ef37542746e10df3/functions/coreSharedServicesManifest';
+const coreProviderDirectoryUrl='https://rosie-ai-core-46e10df3.base44.app/api/apps/6aeabe88ef37542746e10df3/functions/coreProviderDirectory';
 async function verifyCorePublicManifest(){
  try{
   const response=await fetch(corePublicManifestUrl,{
@@ -35,6 +36,43 @@ async function verifyCorePublicManifest(){
    data?.encrypted_data_sync_authorized===false&&
    data?.production_pairing_authorized===false;
  }catch{return false;}
+}
+/**
+ * Core's single 94-provider metadata source. Public discovery only:
+ * this check does not issue customer identity or product access.
+ */
+async function verifyCoreProviderDirectory(){
+ try{
+  const response=await fetch(coreProviderDirectoryUrl,{
+   method:'POST',redirect:'manual',cache:'no-store',
+   headers:{'content-type':'application/json','accept':'application/json'},
+   body:'{"action":"catalog"}',signal:AbortSignal.timeout(11000)});
+  if(response.status!==200||Number(response.headers.get('content-length')||0)>65536)
+   return false;
+  const raw=await response.text();
+  if(Buffer.byteLength(raw,'utf8')>65536)return false;
+  const data=JSON.parse(raw),providers=data?.providers;
+  if(data?.ok!==true||data?.issuer!=='rosie-core'||
+     data?.contract!=='rosie.core.provider_directory.v1'||
+     data?.provider_count!==94||!Array.isArray(providers)||providers.length!==94||
+     data?.customer_connections_verified!==false||
+     data?.customer_installation_authorized!==false||
+     data?.provider_api_execution_authorized!==false||
+     data?.cross_product_access_authorized!==false)return false;
+  const keys=new Set();
+  for(const p of providers){
+   if(!p||typeof p.provider_key!=='string'||
+      !/^[a-z][a-z0-9_]{1,63}$/.test(p.provider_key)||keys.has(p.provider_key)||
+      typeof p.name!=='string'||p.name.length>100||
+      !['all','shared_only','byo_shared_and_app_user','custom_required'].includes(p.native_mode)||
+      p.requires_verified_customer_oauth!==true||
+      p.requires_signed_core_tenant_grant!==true||
+      p.requires_explicit_product_scope!==true)return false;
+   keys.add(p.provider_key);
+  }
+  return ['googlecalendar','gmail','salesforce','zohocrm','twilio','ringcentral','droid_sms','zendesk_alt']
+   .every(k=>keys.has(k));
+ }catch{return false}
 }
 async function verifyGrantsReadonlyPeer(){
  try{
@@ -92,9 +130,9 @@ function fail(res,reason='native_customer_authority_not_accepted',status=503){
 const server=createServer(async(req,res)=>{
  const path=new URL(req.url||'/', 'http://localhost').pathname;
  if(path==='/readyz'&&req.method==='GET'){
-  const [peer,coreLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest()]);
+  const [peer,coreLinked,providerLinked]=await Promise.all([verifyGrantsReadonlyPeer(),verifyCorePublicManifest(),verifyCoreProviderDirectory()]);
   const linked=peer.ok;
-  const healthy=linked&&coreLinked;
+  const healthy=linked&&coreLinked&&providerLinked;
   const origin=String(req.headers.origin||'');
   const cors=readinessOrigins.has(origin)?
    {'access-control-allow-origin':origin,'vary':'Origin'}:null;
@@ -104,6 +142,8 @@ const server=createServer(async(req,res)=>{
    restricted_neon_reader_verified:linked,
    peer_readiness_reason:peer.reason,
    linked_core_public_manifest:coreLinked,
+   linked_core_provider_directory:providerLinked,
+   provider_directory_count:providerLinked?94:0,
    // Network reachability and database visibility are NOT customer consent.
    authority_accepted:false,product_grants_accepted:false,
    a1_identity_verifier_ready:false,a3_consent_issuer_ready:false,
