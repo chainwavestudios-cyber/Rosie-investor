@@ -18,8 +18,9 @@ test('real reply is persisted before the source worker can finish',async()=>{
  globalThis.fetch=async url=>{
   const path=new URL(url).pathname;paths.push(path);
   if(path==='/v1/execute')
-   return reply(200,{status:'completed',result_ref:'core:results/A05/valid',
+   return reply(200,{status:'completed',provider:'anthropic',provider_response_id:'msg_abc123456789',result_text:'genuine provider reply',
     reply:{recipient_agent_id:'A02',payload:{answer:'verified'}}});
+  if(path==='/v1/worker/result')return reply(200,{accepted:true,durable_commit:true,result_ref:'core:jobs/id',result_sha256:'hash'});
   if(path==='/v1/worker/reply')return reply(202,{accepted:true,durable_commit:true,delivery_ack:'ack1'});
   return reply(200,{accepted:true,execution_receipt:'ack2'});
  };
@@ -27,7 +28,7 @@ test('real reply is persisted before the source worker can finish',async()=>{
   const done=await completeJob(cfg,job);
   assert.equal(done.accepted,true);
   assert.deepEqual(paths,[
-   '/v1/worker/heartbeat','/v1/execute','/v1/worker/checkpoint',
+   '/v1/worker/heartbeat','/v1/execute','/v1/worker/result',
    '/v1/worker/reply','/v1/worker/finish']);
  }finally{globalThis.fetch=old;}
 });
@@ -36,8 +37,9 @@ test('missing durable reply ACK prevents false completion',async()=>{
  globalThis.fetch=async url=>{
   const path=new URL(url).pathname;paths.push(path);
   if(path==='/v1/execute')
-   return reply(200,{status:'completed',result_ref:'core:results/A05/valid',
+   return reply(200,{status:'completed',provider:'anthropic',provider_response_id:'msg_abc123456789',result_text:'genuine provider reply',
     reply:{recipient_agent_id:'A02',payload:{answer:'verified'}}});
+  if(path==='/v1/worker/result')return reply(200,{accepted:true,durable_commit:true,result_ref:'core:jobs/id',result_sha256:'hash'});
   if(path==='/v1/worker/reply')return reply(503,{accepted:false});
   return reply(200,{accepted:true});
  };
@@ -46,7 +48,7 @@ test('missing durable reply ACK prevents false completion',async()=>{
   assert.equal(paths.includes('/v1/worker/finish'),false);
  }finally{globalThis.fetch=old;}
 });
-test('executor must provide durable Core reference',async()=>{
+test('executor must provide verifiable provider receipt',async()=>{
  const old=globalThis.fetch;const paths=[];
  globalThis.fetch=async url=>{
   const path=new URL(url).pathname;paths.push(path);
@@ -54,7 +56,7 @@ test('executor must provide durable Core reference',async()=>{
   return reply(200,{accepted:true});
  };
  try{
-  await assert.rejects(()=>completeJob(cfg,job),/executor_has_no_durable_completion_receipt/);
+  await assert.rejects(()=>completeJob(cfg,job),/executor_has_no_verified_provider_output/);
   assert.equal(paths.includes('/v1/worker/finish'),false);
  }finally{globalThis.fetch=old;}
 });
