@@ -3,7 +3,7 @@ const h=x=>createHash('sha256').update(x).digest('hex');
 export const CONNECTOR_DEFINITIONS=Object.freeze({
  googleworkspace:Object.freeze({authorize:'https://accounts.google.com/o/oauth2/v2/auth',
   token:'https://oauth2.googleapis.com/token',
-  scopes:['https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/calendar.events.readonly'],
+  scopes:['https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/calendar.events.readonly','https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/calendar.events'],
   clientPrefix:'ROSIE_CONNECTOR_GOOGLE'}),
  dropbox:Object.freeze({authorize:'https://www.dropbox.com/oauth2/authorize',
   token:'https://api.dropboxapi.com/oauth2/token',scopes:['files.metadata.read','account_info.read'],
