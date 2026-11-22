@@ -10,6 +10,10 @@ export const CONNECTOR_DEFINITIONS=Object.freeze({
   clientPrefix:'ROSIE_CONNECTOR_DROPBOX'})
 });
 export const CONNECTOR_ORIGIN=process.env.ROSIE_IDENTITY_ORIGIN||'https://rosie-central-identity-staging.onrender.com';
+export function connectorRedirectUri(provider) {
+ if (provider === 'googleworkspace') return 'https://core.rosieai.tech/api/apps/6aeabe88ef37542746e10df3/functions/coreGoogleOAuthCallback';
+ return CONNECTOR_ORIGIN + '/api/connectors/callback/' + provider;
+}
 export const b64url=buf=>Buffer.from(buf).toString('base64url');
 export const hashSecret=v=>h(String(v));
 export function safeEqualHash(a,b){
@@ -52,7 +56,7 @@ export function validateConnectorScopes(provider,scopes){
   new Set(scopes).size===scopes.length&&scopes.every(scope=>def.scopes.includes(scope)));
 }
 export function authorizationPackage({provider,scopes,clientId,redirectUri}){
- if(!validateConnectorScopes(provider,scopes)||!clientId||!redirectUri.startsWith(CONNECTOR_ORIGIN+'/api/connectors/callback/'))throw Error('oauth_policy_denied');
+ if(!validateConnectorScopes(provider,scopes)||!clientId||redirectUri !== connectorRedirectUri(provider))throw Error('oauth_policy_denied');
  const state=b64url(randomBytes(32)),verifier=b64url(randomBytes(32));
  const challenge=b64url(createHash('sha256').update(verifier).digest());
  const def=CONNECTOR_DEFINITIONS[provider],url=new URL(def.authorize);
