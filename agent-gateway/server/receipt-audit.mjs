@@ -108,7 +108,9 @@ export async function receiptAudit(sql, path, input, scope) {
         WHERE job_id=${job.job_id} RETURNING fencing_token`;
       await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
         VALUES(${job.event_id},${org},'worker_started',${agent}) ON CONFLICT(event_id,stage) DO NOTHING`;
-      return {claimed:true,job_id:job.job_id,fencing_token:lease[0].fencing_token,step,rows,
+      const fence=Number(lease[0].fencing_token);
+      if (!Number.isSafeInteger(fence) || fence<1) throw Error('audit_fence_out_of_range');
+      return {claimed:true,job_id:job.job_id,fencing_token:fence,step,rows,
         submitted:step==='review'?job.payload.report:null};
     }
     let report = null;
