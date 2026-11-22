@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
 import {auditScope,receiptAudit} from './receipt-audit.mjs';
-import {auditIngress,relayAuditAssignment} from './audit-relay.mjs';
+import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -455,11 +455,17 @@ async function main(){
  const scope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||'';
  let relayTimer;
  if(scope && auditKey.length>=40){
-  let delay=5000;
+  let delay=5000,assigned=false;
   const relay=async()=>{
    try{
-    const ack=await relayAuditAssignment({scope,key:auditKey,port:PORT});
-    console.log('core_audit_dispatch_received',ack.event_id);
+    if(await publishAuditResult(sql,scope,auditKey)){
+     console.log('core_audit_review_recorded',scope.ticket);return;
+    }
+    if(!assigned){
+     const ack=await relayAuditAssignment({scope,key:auditKey,port:PORT});
+     console.log('core_audit_dispatch_received',ack.event_id);assigned=true;
+    }
+    relayTimer=setTimeout(relay,5000);relayTimer.unref();
    }catch(e){
     console.warn('core_audit_dispatch_pending',e.message);
     delay=Math.min(60000,delay*2);relayTimer=setTimeout(relay,delay);relayTimer.unref();

@@ -29,3 +29,20 @@ test('relay forwards Core-issued bytes and requires a matching durable acknowled
  };
  assert.equal((await relayAuditAssignment({scope,key,port:10000,request})).event_id,event.event_id);
 });
+
+test('projection sends separate assignment, execution and verification receipts only after the jobs complete',async()=>{
+ const {publishAuditResult}=await import('../audit-relay.mjs');const report={messages:2,receipts:2,elapsed_ms:2278};
+ const rows=['assign','audit','review'].map((step,i)=>({event_id:randomUUID(),job_id:randomUUID(),ack_id:randomUUID(),
+   agent_id:['A05','A02','A05'][i],sender:['rosie_core','A05','A02'][i],completed_at:new Date(),checkpoint:{step,report:i?report:null}}));
+ rows[0].checkpoint.handoff_event=rows[1].event_id;rows[1].checkpoint.handoff_event=rows[2].event_id;
+ assert.equal(await publishAuditResult(async()=>rows.slice(0,2),scope,key,()=>{throw Error('no partial results');}),false);
+ const request=async(url,opts)=>{
+  const packet=JSON.parse(opts.body);assert.equal(packet.action,'record_result');assert.equal(packet.proof[2].ack_id,rows[2].ack_id);
+  const expected=createHmac('sha256',key).update(['POST',new URL(url).pathname,opts.headers['x-rosie-timestamp'],opts.body].join('\n')).digest('hex');
+  assert.equal(opts.headers['x-rosie-signature'],'sha256='+expected);
+  return Response.json({verified:true,ticket_key:ticket,review_receipt:rows[2].ack_id});
+ };
+ assert.equal(await publishAuditResult(async()=>rows,scope,key,request),true);
+ rows[1].checkpoint.handoff_event=randomUUID();
+ await assert.rejects(publishAuditResult(async()=>rows,scope,key,request),/audit_history_mismatch/);
+});
