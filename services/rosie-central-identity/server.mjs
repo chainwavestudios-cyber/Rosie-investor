@@ -74,7 +74,7 @@ app.get('/api/identity/consent-context',async(req,res)=>{
 });
 app.use(express.static(join(dir,'dist'),{index:false,immutable:false,maxAge:0}));
 app.get('/styles.css',(_req,res)=>res.sendFile(join(dir,'public','styles.css')));
-const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve']);
+const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve','/connect/directd/google']);
 app.get('*',async(req,res)=>{
  if(!pages.has(req.path))return res.status(404).type('text').send('Not found');
  try{res.type('html').send(await readFile(join(dir,'public','index.html'),'utf8'));}
