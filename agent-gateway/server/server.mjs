@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
 import {auditScope,receiptAudit} from './receipt-audit.mjs';
+import {auditIngress,relayAuditAssignment} from './audit-relay.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -96,7 +97,7 @@ function checkLease(x){
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
-  receiptScope=auditScope(process.env)}){
+  receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
@@ -122,7 +123,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    const {text,object:x}=await readBody(req);
    const key=(path==='/v1/events'||path.startsWith('/v1/factory/'))?ingestKey:
      path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
-   if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   const scopedIngress=path==='/v1/events' && auditIngress(x,receiptScope) && authentic(req,path,text,auditKey);
+   if(!scopedIngress&&!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
    if(path.startsWith('/v1/receipt-audit/')){
     const outcome=await receiptAudit(sql,path,x,receiptScope);
     return reply(res,outcome.status||200,outcome);
@@ -450,11 +452,26 @@ async function main(){
  if(name!=='rosie_agent_gateway')throw Error('Wrong database identity');
  const server=makeServer({sql});
  server.listen(PORT,'0.0.0.0',()=>console.log('core_agent_gateway_listening',PORT));
+ const scope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||'';
+ let relayTimer;
+ if(scope && auditKey.length>=40){
+  let delay=5000;
+  const relay=async()=>{
+   try{
+    const ack=await relayAuditAssignment({scope,key:auditKey,port:PORT});
+    console.log('core_audit_dispatch_received',ack.event_id);
+   }catch(e){
+    console.warn('core_audit_dispatch_pending',e.message);
+    delay=Math.min(60000,delay*2);relayTimer=setTimeout(relay,delay);relayTimer.unref();
+   }
+  };
+  relayTimer=setTimeout(relay,1000);relayTimer.unref();
+ }
  const supervisor=setInterval(()=>recoverExpired(sql)
    .catch(()=>console.error('supervisor_recovery_attempt_failed')),15000);
  supervisor.unref();
  const shutdown=async()=>{
-  clearInterval(supervisor);server.close();await sleep(50);
+  clearTimeout(relayTimer);clearInterval(supervisor);server.close();await sleep(50);
   await sql.end({timeout:3});process.exit(0);
  };
  process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);
