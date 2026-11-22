@@ -9,6 +9,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
+import {auditScope,receiptAudit} from './receipt-audit.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -94,7 +95,8 @@ function checkLease(x){
  return checkWorker(x)&&UUID.test(x.job_id||'')&&
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
-function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS}){
+function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
+  receiptScope=auditScope(process.env)}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
@@ -113,13 +115,18 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
   if(!['/v1/events','/v1/admin/status','/v1/worker/claim','/v1/worker/heartbeat',
     '/v1/worker/checkpoint','/v1/worker/finish','/v1/worker/reply','/v1/worker/result',
-    '/v1/agent/send','/v1/agent/inbox','/v1/agent/ack','/v1/factory/generate','/v1/factory/status'].includes(path))
+    '/v1/agent/send','/v1/agent/inbox','/v1/agent/ack','/v1/factory/generate','/v1/factory/status',
+    '/v1/receipt-audit/claim','/v1/receipt-audit/finish'].includes(path))
     return reply(res,404,{error:'not_found'});
   try{
    const {text,object:x}=await readBody(req);
    const key=(path==='/v1/events'||path.startsWith('/v1/factory/'))?ingestKey:
      path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
    if(!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   if(path.startsWith('/v1/receipt-audit/')){
+    const outcome=await receiptAudit(sql,path,x,receiptScope);
+    return reply(res,outcome.status||200,outcome);
+   }
    if(path==='/v1/factory/generate'||path==='/v1/factory/status'){
     if(!AGENT_FACTORY_ENABLED)return reply(res,503,{error:'agent_factory_staging_disabled'});
     if(!UUID.test(x.nonce||''))return reply(res,400,{error:'invalid_factory_nonce'});
@@ -274,7 +281,10 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
      return t`WITH next AS(
        SELECT j.job_id FROM core_agents.jobs j
        JOIN core_agents.identities a ON a.org_id=j.org_id AND a.agent_id=j.agent_id
+       JOIN core_agents.events e ON e.event_id=j.event_id AND e.org_id=j.org_id
        WHERE j.org_id=${ORG} AND j.agent_id=${x.agent_id} AND j.state='queued'
+         AND e.ticket_key IS DISTINCT FROM ${receiptScope?.ticket||'no-audit-selected'}
+         AND (e.payload->>'contract') IS DISTINCT FROM 'rosie.core.delivery-audit.v1'
          AND j.attempts<3 AND a.desired_state='ready' AND a.runtime_state='available'
        ORDER BY j.enqueued_at FOR UPDATE OF j SKIP LOCKED LIMIT 1
       ) UPDATE core_agents.jobs j

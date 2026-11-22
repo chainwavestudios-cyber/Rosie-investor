@@ -5,6 +5,7 @@
  * Zero LLM calls; no execution-worker lease or model secrets.
  */
 import crypto from 'node:crypto';
+import {auditScope,auditOnce} from './receipt-audit.mjs';
 const uuid=()=>crypto.randomUUID();
 const nap=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function cfg(env=process.env){
@@ -59,6 +60,7 @@ async function receiveOnce(c,transportFetch=fetch){
 }
 async function runTransport(env=process.env,transportFetch=fetch){
  const c=cfg(env);
+ const receiptScope=auditScope(env);
  if(!c.enabled||!c.valid)throw Error('transport_identity_not_configured');
  if(c.probe&&c.agent==='A05'){
   const sent=await send(c,{recipient:'A02',kind:'probe',
@@ -68,6 +70,10 @@ async function runTransport(env=process.env,transportFetch=fetch){
  while(true){
   try{await receiveOnce(c,transportFetch);}
   catch(e){console.error('rcis_transport_poll_failed',e.message);}
+  if(receiptScope){
+   try{await auditOnce(c,receiptScope,(cfg,path,payload)=>signedPost(cfg,path,payload,transportFetch));}
+   catch(e){console.error('receipt_audit_failed',c.agent,e.message);}
+  }
   await nap(2000);
  }
 }
