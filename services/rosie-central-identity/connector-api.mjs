@@ -182,6 +182,9 @@ export function createConnectorRouter({auth,pool}){
      JSON.stringify(row.scopes),encAccess.ciphertext,encAccess.iv,encRefresh.ciphertext,
      encRefresh.iv,new Date(Date.now()+Math.max(60,Math.min(86400,Number(token.expires_in)||3600))*1000),
       hash(row.organization_id),hash(s.user.id)]);
+   if(row.product_key==='directd' && provider==='googleworkspace' && req.accepts(['html','json'])==='html'){
+    return res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}).redirect(303,'https://directd.tech/core-app?view=integrations');
+   }
    return reply(res,200,{connected:true,provider,organizationId:row.organization_id,
     productKey:row.product_key,crossProductAccessGranted:false,
     note:'Verified scoped staging connector. No access granted to other Rosie products.'});
