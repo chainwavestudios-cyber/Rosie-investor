@@ -44,3 +44,8 @@ test('review carries its own computed report and lease into the signed completio
   };
   assert.equal(await auditOnce({agent:'A05'},scope,post),true);
 });
+
+test('database Date values and serialized wire values retain millisecond precision',()=>{
+  const postgresRows=rows.map(row=>({...row,delivered:new Date(row.delivered),received:new Date(row.received)}));
+  assert.deepEqual(summarizeDelivery(postgresRows),report);
+});

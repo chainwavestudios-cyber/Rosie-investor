@@ -18,11 +18,11 @@ export function summarizeDelivery(rows) {
   const [first, reply] = rows;
   if (first.sender !== 'A05' || first.recipient !== 'A02' || first.parent !== null ||
       reply.sender !== 'A02' || reply.recipient !== 'A05' || reply.parent !== first.id ||
-      rows.some(row => !Number.isFinite(Date.parse(row.delivered)) || !Number.isFinite(Date.parse(row.received)) ||
-        Date.parse(row.received) < Date.parse(row.delivered))) {
+      rows.some(row => !row.delivered || !row.received || !Number.isFinite(new Date(row.delivered).getTime()) ||
+        !Number.isFinite(new Date(row.received).getTime()) || new Date(row.received) < new Date(row.delivered))) {
     throw Error('receipt_chain_incomplete');
   }
-  const elapsedMs = Date.parse(reply.received) - Date.parse(first.delivered);
+  const elapsedMs = new Date(reply.received).getTime() - new Date(first.delivered).getTime();
   if (!Number.isSafeInteger(elapsedMs) || elapsedMs < 0) throw Error('invalid_receipt_times');
   return {messages: rows.length, receipts: rows.filter(row => row.received).length, elapsed_ms: elapsedMs};
 }
