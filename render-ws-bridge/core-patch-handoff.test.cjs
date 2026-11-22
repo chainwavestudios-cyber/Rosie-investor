@@ -68,7 +68,7 @@ test('After confirmed handoff Patch, not Rosie, receives next user turn',async()
 });
 test('Core pacing is distinct from BOB/Fronter and stale replies are invalidated',()=>{
  assert.match(source,/session\.core \? 850 : BARGE_IN_GRACE_MS/);
- assert.match(source,/endpointing: session\.core\?'850':'200'/);
+ assert.match(source,/endpointing: session\.core\?'1250':'200'/);
  assert.match(source,/session\.callerSpeaking\|\|coreTurnSeq!==session\.coreTurnSeq/);
 });
 

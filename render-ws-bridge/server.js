@@ -681,7 +681,7 @@ function openDeepgram(session, streamSid) {
     params = new URLSearchParams({
       encoding: 'mulaw', sample_rate: '8000', channels: '1', model: sttModel,
       smart_format: 'true', punctuate: 'true', interim_results: 'true',
-      endpointing: session.core?'850':'200', vad_events: 'true',
+      endpointing: session.core?'1250':'200', vad_events: 'true',
     });
     endpoint = 'v1/listen';
   }
