@@ -468,7 +468,7 @@ async function handleStreamStart(ws, streamSid, start) {
     browser:!!start.customParameters?.browser,
     core:start.customParameters?.core===true,
     coreProviders:null,
-    coreRole:'rosie',coreCaseKey:null,coreTurnSeq:0,
+    coreRole:'captain_patch',coreCaseKey:null,coreTurnSeq:0,
     trainingPrompt:String(start.customParameters?.trainingPrompt||'').slice(0,16000),
     sttBytesSent:0,ttsMeterSequence:0,
     coreInboundFrames:0,coreInboundBytes:0,coreDroppedFrames:0,coreSttResults:0,coreNonemptyResults:0,coreSpeechFinals:0,
@@ -511,6 +511,18 @@ async function handleStreamStart(ws, streamSid, start) {
         patchVoiceId:initResp.pipeline.patchCartesiaVoiceId==='3e39e9a5-585c-4f5f-bac6-5e4905c51095'?initResp.pipeline.patchCartesiaVoiceId:null};
       log('[CORE] Provider session accepted for',streamSid,'Deepgram + Claude Haiku 4.5 + Cartesia');
     }
+    if(session.core){
+      // All Core VIP calls start directly with Patch; require a signed case.
+      if(initResp.support_role!=='captain_patch')throw Error('Direct Patch route not authorized by Core');
+      const receipt=await callRelay({_coreTransport:true,event:'patch_handoff',
+        streamSid,callSid:session.callSid,issueCode:'general_technical'});
+      if(receipt?.ok!==true||receipt?.accepted!==true||
+         receipt.support_role!=='captain_patch'||!/^patch-[a-f0-9]{32}$/i.test(receipt.case_key||''))
+        throw Error('Direct Patch support case not acknowledged');
+      session.coreCaseKey=receipt.case_key;
+      if(session.coreProviders.patchVoiceId)
+        initResp.pipeline.cartesiaVoiceId=session.coreProviders.patchVoiceId;
+    }
     session.config = { ...initResp.pipeline, configUpdatedAt: initResp.configUpdatedAt };
     session.state = 'listening';
     openDeepgram(session, streamSid);
@@ -537,7 +549,7 @@ async function handleStreamStart(ws, streamSid, start) {
           session.coreProviders?.rosieVoiceId && session.generation===gen){
         // Voice fallback only. The server-verified Patch role remains active.
         session.config.cartesiaVoiceId=session.coreProviders.rosieVoiceId;
-        ok=await streamCartesiaTTS(text,streamSid,session,gen);
+        ok=await streamCartesiaTTS(initResp.greeting,streamSid,session,gen);
       }
       if (!ok) {
         // Premium BOB must NEVER masquerade as Skylar using an unrelated

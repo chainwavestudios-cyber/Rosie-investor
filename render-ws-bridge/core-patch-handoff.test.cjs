@@ -92,3 +92,12 @@ test('Patch never invents repair receipt when Core rejects voice repair request'
  assert.equal(result.llmRuntime.repair_request_queued,false);
  assert.match(result.text,/could not verify/);
 });
+
+test('Core Help Desk starts directly with Captain Patch, never Rosie receptionist',()=>{
+ assert.match(source,/coreRole:'captain_patch',coreCaseKey:null/);
+ assert.match(source,/initResp\.support_role!=='captain_patch'/);
+ assert.match(source,/event:'patch_handoff'[\s\S]*issueCode:'general_technical'/);
+ assert.match(source,/session\.coreCaseKey=receipt\.case_key/);
+ assert.match(source,/Direct Patch support case not acknowledged/);
+ assert.match(source,/session\.coreProviders\.patchVoiceId/);
+});
