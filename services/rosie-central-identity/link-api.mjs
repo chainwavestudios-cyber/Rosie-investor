@@ -24,7 +24,7 @@ const POST_BODY=express.raw({type:'application/json',limit:'1500b'});
 // Pinned destinations. The browser cannot supply a redirect_uri for a link.
 const REDIRECTS=Object.freeze({
  bob:'https://bob-training-intelligence-8019bf2b.base44.app/identity/link',
- directd:'https://direct-d-investment-capital-manag-9322d972.base44.app/identity/link',
+ directd:'https://directd.tech/core-app?view=integrations',
  insureiq:'https://underwriteriq-platform.base44.app/identity/link',
  settlementiq:'https://settlement-iq-cf53340e.base44.app/identity/link',
  emailiq:'https://email-iq-7fe0bfa2.base44.app/identity/link'
@@ -40,7 +40,8 @@ async function productAuth(req,res,pool,operation){
  const body=Buffer.isBuffer(req.body)?req.body.toString('utf8'):'';
  if(!body||body.length>1500)return {error:reply(res,400,{error:'invalid_request_body'})};
  const product=String(req.header('x-rosie-product')||'');
- const secret=process.env[keys[product]]||'';
+ const nativeDirectD = product === 'directd' && req.header('x-rosie-signer') === 'directd-native-v1';
+ const secret=process.env[nativeDirectD ? 'ROSIE_LINK_DIRECTD_NATIVE_V1_KEY' : keys[product]]||'';
  const checked=verifyProductHeaders({
   path:'/api/links/'+operation,body,method:'POST',headers:req.headers,secret
  });
