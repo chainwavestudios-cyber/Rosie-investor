@@ -153,11 +153,16 @@ export function createConnectorRouter({auth,pool}){
    // This records provider credentials for *one* verified organization/product.
    // Cross-product grant issuance remains disabled.
    await pool.query(
-    "INSERT INTO rosie_connector.provider_connection(organization_id,product_key,central_subject,provider_key,provider_subject_hash,state,scopes,access_token_cipher,access_token_iv,refresh_token_cipher,refresh_token_iv,token_expires_at,last_verified_at) VALUES($1,$2,$3,$4,$5,'authorized',$6::jsonb,$7,$8,$9,$10,$11,now())",
+    `WITH saved_connection AS (
+      INSERT INTO rosie_connector.provider_connection(organization_id,product_key,central_subject,provider_key,provider_subject_hash,state,scopes,access_token_cipher,access_token_iv,refresh_token_cipher,refresh_token_iv,token_expires_at,last_verified_at) VALUES($1,$2,$3,$4,$5,'authorized',$6::jsonb,$7,$8,$9,$10,$11,now())
+      RETURNING provider_key
+     )
+     INSERT INTO rosie_connector.audit(provider_key,action,result,org_hash,subject_hash)
+     SELECT provider_key,'callback','verified',$12,$13 FROM saved_connection`,
     [row.organization_id,row.product_key,s.user.id,provider,hash(providerSubject),
      JSON.stringify(row.scopes),encAccess.ciphertext,encAccess.iv,encRefresh.ciphertext,
-     encRefresh.iv,new Date(Date.now()+Math.max(60,Math.min(86400,Number(token.expires_in)||3600))*1000)]);
-   await audit(pool,provider,'callback','verified',row.organization_id,s.user.id);
+     encRefresh.iv,new Date(Date.now()+Math.max(60,Math.min(86400,Number(token.expires_in)||3600))*1000),
+      hash(row.organization_id),hash(s.user.id)]);
    return reply(res,200,{connected:true,provider,organizationId:row.organization_id,
     productKey:row.product_key,crossProductAccessGranted:false,
     note:'Verified scoped staging connector. No access granted to other Rosie products.'});
@@ -168,3 +173,4 @@ export function createConnectorRouter({auth,pool}){
  });
  return R;
 }
+
