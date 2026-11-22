@@ -71,6 +71,7 @@ export function createConnectorRouter({auth,pool}){
   const s=await identitySession(req,auth);
   if(!s)return reply(res,401,{error:'verified_email_and_totp_required'});
   const {organizationId,productKey,scopes}=req.body||{};
+  if(provider==='googleworkspace' && productKey!=='directd' && Array.isArray(scopes) && scopes.some(scope=>['https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/calendar.events'].includes(scope)))return reply(res,403,{error:'product_scope_not_permitted'});
   if(!validateConnectorScopes(provider,scopes))return reply(res,400,{error:'scopes_not_permitted'});
   try{
    if(!await verifiedLinkedSeat(pool,s,organizationId,productKey))
