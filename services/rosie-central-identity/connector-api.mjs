@@ -5,7 +5,7 @@
  */
 import express from 'express';
 import {createHash} from 'node:crypto';
-import {CONNECTOR_DEFINITIONS,CONNECTOR_ORIGIN,connectorConfig,hashSecret,safeEqualHash,loadVaultKey,encryptVault,decryptVault,validateConnectorScopes,authorizationPackage} from './connector-security.mjs';
+import {CONNECTOR_DEFINITIONS,CONNECTOR_ORIGIN,connectorRedirectUri,connectorConfig,hashSecret,safeEqualHash,loadVaultKey,encryptVault,decryptVault,validateConnectorScopes,authorizationPackage} from './connector-security.mjs';
 const R=express.Router();
 const allowedProducts=new Set(['bob','directd','insureiq','settlementiq','emailiq']);
 const reply=(res,status,body)=>res.status(status).set('Cache-Control','no-store').json(body);
@@ -64,7 +64,7 @@ export function createConnectorRouter({auth,pool}){
      "DELETE FROM rosie_identity_link.mfa_stepup WHERE session_id=$1 AND user_id=$2 AND method='totp' AND expires_at>now() RETURNING session_id",
      [s.session.id,s.user.id]);
     if(mfa.rowCount!==1){await client.query('ROLLBACK');return reply(res,403,{error:'fresh_totp_stepup_required'})}
-    const redirectUri=CONNECTOR_ORIGIN+'/api/connectors/callback/'+provider;
+    const redirectUri=connectorRedirectUri(provider);
     const tx=authorizationPackage({provider,scopes,clientId:config.clientId,redirectUri});
     const aad=tx.stateHash+':'+provider+':'+organizationId;
     const encrypted=encryptVault(tx.verifier,key,aad);
@@ -117,7 +117,7 @@ export function createConnectorRouter({auth,pool}){
   try{
    const aad=stateHash+':'+provider+':'+row.organization_id;
    const verifier=decryptVault({ciphertext:row.verifier_cipher,iv:row.verifier_iv},loadVaultKey(),aad);
-   const redirectUri=CONNECTOR_ORIGIN+'/api/connectors/callback/'+provider;
+   const redirectUri=connectorRedirectUri(provider);
    const payload=new URLSearchParams({
     grant_type:'authorization_code',code,client_id:config.clientId,client_secret:config.clientSecret,
     redirect_uri:redirectUri,code_verifier:verifier
