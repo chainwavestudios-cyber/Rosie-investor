@@ -6,6 +6,25 @@
 import express from 'express';
 import {createHash} from 'node:crypto';
 import {CONNECTOR_DEFINITIONS,CONNECTOR_ORIGIN,connectorRedirectUri,connectorConfig,hashSecret,safeEqualHash,loadVaultKey,encryptVault,decryptVault,validateConnectorScopes,authorizationPackage} from './connector-security.mjs';
+const coreGoogleExchangeUrl = 'https://core.rosieai.tech/api/apps/6aeabe88ef37542746e10df3/functions/coreGoogleGatewayExchange';
+async function callCoreGoogle(input) {
+ const key = process.env.ROSIE_GOOGLE_EXCHANGE_GATEWAY_KEY;
+ if (!key) throw Error('core_google_gateway_unconfigured');
+ return fetch(coreGoogleExchangeUrl, {method:'POST', redirect:'error', signal:AbortSignal.timeout(12000),
+  headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify(input)});
+}
+async function providerConfig(provider) {
+ if (!Object.hasOwn(CONNECTOR_DEFINITIONS, provider)) return null;
+ if (provider !== 'googleworkspace') return connectorConfig(provider);
+ try {
+  const response = await callCoreGoogle({action:'config'});
+  if (response.ok) {
+   const {configured,clientId} = await response.json();
+   if (configured === true && typeof clientId === 'string') return {configured:true,clientId,def:CONNECTOR_DEFINITIONS.googleworkspace};
+  }
+ } catch {}
+ return {configured:false,def:CONNECTOR_DEFINITIONS.googleworkspace};
+}
 const R=express.Router();
 const allowedProducts=new Set(['bob','directd','insureiq','settlementiq','emailiq']);
 const reply=(res,status,body)=>res.status(status).set('Cache-Control','no-store').json(body);
@@ -37,13 +56,13 @@ export function createConnectorRouter({auth,pool}){
   try{
    await pool.query('SELECT 1 FROM rosie_connector.oauth_transaction LIMIT 0');
    const vaultReady=Boolean(loadVaultKey());
-   const ready=Object.fromEntries(Object.keys(CONNECTOR_DEFINITIONS).map(k=>[k,connectorConfig(k).configured]));
+   const ready=Object.fromEntries(await Promise.all(Object.keys(CONNECTOR_DEFINITIONS).map(async k=>[k,(await providerConfig(k)).configured])));
    return reply(res,200,{stage:'isolated',databaseReady:true,vaultReady,providerConfigured:ready,
     centralIdentityEnrollmentRequired:true,crossProductGatewayEnabled:false});
   }catch{return reply(res,503,{databaseReady:false,installationEnabled:false})}
  });
  R.post('/start',express.json({limit:'900b'}),async(req,res)=>{
-  const provider=req.body?.provider,config=connectorConfig(provider);
+  const provider=req.body?.provider,config=await providerConfig(provider);
   if(!config)return reply(res,400,{error:'unsupported_provider'});
   if(req.get('Origin')!==CONNECTOR_ORIGIN)return reply(res,403,{error:'origin_not_trusted'});
   if(!config.configured)return reply(res,503,{error:'provider_configuration_pending'});
@@ -80,7 +99,7 @@ export function createConnectorRouter({auth,pool}){
   }catch{return reply(res,503,{error:'oauth_transaction_unavailable'})}
  });
  R.get('/callback/:provider',async(req,res)=>{
-  const provider=req.params.provider,config=connectorConfig(provider);
+  const provider=req.params.provider,config=await providerConfig(provider);
   if(!config)return reply(res,400,{error:'unsupported_provider'});
   if(!config.configured||!loadVaultKey())return reply(res,503,{error:'provider_gateway_not_ready'});
   const state=String(req.query.state||''),code=String(req.query.code||'');
@@ -118,14 +137,14 @@ export function createConnectorRouter({auth,pool}){
    const aad=stateHash+':'+provider+':'+row.organization_id;
    const verifier=decryptVault({ciphertext:row.verifier_cipher,iv:row.verifier_iv},loadVaultKey(),aad);
    const redirectUri=connectorRedirectUri(provider);
-   const payload=new URLSearchParams({
-    grant_type:'authorization_code',code,client_id:config.clientId,client_secret:config.clientSecret,
-    redirect_uri:redirectUri,code_verifier:verifier
-   });
-   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
    let tokenResponse;
-   try{tokenResponse=await fetch(config.def.token,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:payload,signal:controller.signal})}
-   finally{clearTimeout(timer)}
+   if (provider === 'googleworkspace') {
+    tokenResponse = await callCoreGoogle({action:'exchange',code,verifier});
+   } else {
+    const payload = new URLSearchParams({grant_type:'authorization_code',code,client_id:config.clientId,
+     client_secret:config.clientSecret,redirect_uri:redirectUri,code_verifier:verifier});
+    tokenResponse = await fetch(config.def.token,{method:'POST',body:payload,signal:AbortSignal.timeout(12000)});
+   }
    if(!tokenResponse.ok)return reply(res,502,{error:'provider_token_exchange_failed'});
    const token=await tokenResponse.json();
    if(!token?.access_token||typeof token.access_token!=='string'||!token.refresh_token||
