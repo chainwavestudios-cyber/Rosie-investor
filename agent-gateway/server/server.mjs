@@ -1,3 +1,4 @@
+import {getCommandCandidate} from './command-candidate.mjs';
 /**
  * Rosie Core internal Agent Gateway — durable staging control plane.
  * 18 registered agents; 1,000-identity design target; zero runtime claims
