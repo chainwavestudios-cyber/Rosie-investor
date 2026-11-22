@@ -7,7 +7,7 @@ const path=window.location.pathname;
 const suffix=window.location.search||'';
 const hasOAuth=new URLSearchParams(suffix).has('sig');
 const rawNext=new URLSearchParams(suffix).get('next')||'';
-const nextLink=/^\/link\/approve\?code=[A-Za-z0-9_-]{20,120}$/.test(rawNext)?rawNext:null;
+const nextLink=/^\/link\/approve\?code=[A-Za-z0-9_-]{20,120}$/.test(rawNext)||/^\/connect\/directd\/google\?tenant=[a-f0-9]{24}$/.test(rawNext)?rawNext:null;
 const oauthPage=name=>'/'+name+(hasOAuth?suffix:(nextLink?'?next='+encodeURIComponent(nextLink):''));
 const ui=document.querySelector('#screen');
 const status=document.querySelector('#status');
@@ -319,9 +319,31 @@ async function setupAccount(){
  $('security').onclick=()=>location.assign('/setup-mfa');
  $('logout').onclick=async()=>{await client.signOut();location.replace('/login')};
 }
+async function setupDirectDGoogle(){
+ const tenant = new URLSearchParams(suffix).get('tenant');
+ if(!/^[a-f0-9]{24}$/.test(tenant||''))throw Error('Open Google setup from your Direct D workspace.');
+ const next = '?next='+encodeURIComponent('/connect/directd/google?tenant='+tenant);
+ const who = await session();
+ if(!who?.user){location.replace('/login'+next);return}
+ if(!who.user.emailVerified||!who.user.twoFactorEnabled){location.assign('/setup-mfa'+next);return}
+ setHTML('<h1>Connect Google to Direct D</h1><p>Allow Direct D to view Google Drive file metadata and calendar events for this workspace.</p><form>'+field('code','Authenticator code','text','inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}"')+button('Continue to Google')+'</form>');
+ ui.querySelector('form').onsubmit=guard(async()=>{
+  const post=(url,data)=>fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const step=await post('/api/links/step-up',{code:$('code').value});
+  $('code').value='';
+  if(!step.ok)throw Error('Core could not verify that authenticator code.');
+  const start=await post('/api/connectors/start',{provider:'googleworkspace',productKey:'directd',organizationId:tenant,scopes:['https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/calendar.events.readonly']});
+  const result=await start.json();
+  if(!start.ok)throw Error(result.error==='verified_product_membership_required'?'Core could not verify a linked Direct D seat for this account and workspace.':fmtError(result,'Google setup is unavailable.'));
+  const url=new URL(result.authorizationUrl);
+  if(url.origin!=='https://accounts.google.com'||url.pathname!=='/o/oauth2/v2/auth')throw Error('Invalid Google consent address.');
+  location.assign(url.href);
+ });
+}
 (async()=>{
  try{
-  if(path==='/signup')await setupSignup();
+  if(path==='/connect/directd/google')await setupDirectDGoogle();
+  else if(path==='/signup')await setupSignup();
   else if(path==='/login'||path==='/')await setupLogin();
   else if(path==='/two-factor')await setupTwoFactor();
   else if(path==='/setup-mfa'||path==='/verify-email')await setupMfa();
