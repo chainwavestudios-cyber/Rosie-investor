@@ -12,8 +12,9 @@ test('only minimal configured scope lists pass',()=>{
 });
 test('OAuth authorization enforces fixed redirect and S256 code challenge',()=>{
  const x=authorizationPackage({provider:'googleworkspace',scopes:[CONNECTOR_DEFINITIONS.googleworkspace.scopes[0]],
-  clientId:'client_id_abc',redirectUri:'https://rosie-central-identity-staging.onrender.com/api/connectors/callback/googleworkspace'});
+  clientId:'client_id_abc',redirectUri:'https://core.rosieai.tech/api/apps/6aeabe88ef37542746e10df3/functions/coreGoogleOAuthCallback'});
  const u=new URL(x.url);
+ assert.equal(u.searchParams.get('redirect_uri'),'https://core.rosieai.tech/api/apps/6aeabe88ef37542746e10df3/functions/coreGoogleOAuthCallback');
  assert.equal(u.searchParams.get('code_challenge_method'),'S256');
  assert.equal(u.searchParams.get('state'),x.state);
  assert.equal(u.searchParams.get('access_type'),'offline');
