@@ -623,6 +623,7 @@ Agent line: "${firstAgentLines}"`,
   const supersededQaIdsRef = useRef(new Set());
   // Prevent previous-call AI responses from entering a new call's pilot UI.
   // The epoch advances at the start of a call and at the beginning of teardown.
+  const sharedSessionIdRef = useRef('');
   const sharedCallEpochRef = useRef(0);
   const sharedCallActiveRef = useRef(false);
   const interimPaintTimeRef = useRef({});
@@ -870,7 +871,26 @@ Agent line: "${firstAgentLines}"`,
     });
   }, [coachUser]);
 
-  const handleQa = useCallback((question) => {
+  const requestSharedLive = useCallback(async (mode, action, question = '') => {
+    const active = mode === 'qa' ? qaActiveRef : coachActiveRef;
+    const epoch = sharedCallEpochRef.current;
+    if (!sharedCallActiveRef.current || !active.current) throw Error('This live tool is switched off.');
+    const response = await base44.functions.invoke('investorBobPilotAI', {
+      mode, action, question, requestId: crypto.randomUUID(), sessionId: sharedSessionIdRef.current,
+      transcript: transcriptRef.current.filter(line => !line.interim &&
+        (mode === 'coach' || line.speaker === 1)).slice(-12).map(line => ({
+          text: line.text.slice(0, 1500), speaker: line.speaker,
+        })),
+      leadId: leadRef.current?.id, sessionUserId, sessionToken,
+    });
+    if (epoch !== sharedCallEpochRef.current || !sharedCallActiveRef.current || !active.current) {
+      throw Error('This call or live tool is no longer active.');
+    }
+    if (response?.data?.success !== true) throw Error('Rosie Core Live Intelligence is unavailable.');
+    return response;
+  }, [sessionUserId, sessionToken]);
+
+  const handleQa = useCallback((question, mode = 'auto') => {
     const requestEpoch = sharedCallEpochRef.current;
     const acceptPilotReply = () => investorPilotResponseCurrent({
       pilotEnabled: sharedPolicyEnabled, requestEpoch,
@@ -894,16 +914,13 @@ Agent line: "${firstAgentLines}"`,
     if (!sharedPolicyEnabled) logAI('qa');
     const pilotTranscript = transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12);
     const qaRequest = sharedPolicyEnabled
-      ? base44.functions.invoke('investorBobPilotAI', {
-          mode: 'qa', question, transcript: pilotTranscript,
-          leadId: leadRef.current?.id, sessionUserId, sessionToken,
-        })
+      ? requestSharedLive('qa', mode, question)
       : invokeAI('liveAssistantAI', { question, transcript: pilotTranscript, kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current });
     qaRequest.then(res => {
         if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
         if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
           setQaItems(prev => prev.map(x => x.id === id ? { ...x,
-            answer: 'BOB pilot blocked pending verified Core tenant, approved Investor KB and usage authority.', loading: false,
+            answer: 'Rosie Core Live Q&A is unavailable for this call.', loading: false,
           } : x));
           return;
         }
@@ -926,18 +943,18 @@ Agent line: "${firstAgentLines}"`,
       .catch(() => {
         if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
         const answer = sharedPolicyEnabled
-          ? 'BOB pilot blocked pending verified Core tenant, approved Investor KB and usage authority.'
+          ? 'Rosie Core Live Q&A is unavailable for this call.'
           : 'Unable to answer.';
         setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x));
       });
-  }, [kbEntries, sharedPolicyEnabled, sessionUserId, sessionToken]);
+  }, [kbEntries, sharedPolicyEnabled, requestSharedLive]);
 
   // Handle pushed questions once, regardless of whether the panel is popped out.
   const handledPendingQuestionRef = useRef(null);
   useEffect(() => {
     if (!pendingQuestion?.question || handledPendingQuestionRef.current === pendingQuestion.ts) return;
     handledPendingQuestionRef.current = pendingQuestion.ts;
-    handleQa(pendingQuestion.question);
+    handleQa(pendingQuestion.question, 'manual');
   }, [pendingQuestion, handleQa]);
 
   // Auto-flush the agent question buffer — combines captured lines and sends
@@ -1023,25 +1040,22 @@ Agent line: "${firstAgentLines}"`,
     if (!acceptPilotReply()) return;
     if (!sharedPolicyEnabled) logAI('coach');
     const coachRequest = sharedPolicyEnabled
-      ? base44.functions.invoke('investorBobPilotAI', {
-          mode: 'coach', transcript: transcriptRef.current.slice(-6),
-          leadId: leadRef.current?.id, sessionUserId, sessionToken,
-        })
+      ? requestSharedLive('coach', 'objection')
       : invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' });
     coachRequest.then(res => {
         if (!acceptPilotReply()) return;
         if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
-          setError('BOB pilot Coach blocked: Core tenant, approved Investor KB and usage authority unverified.');
+          setError('Rosie Core Call Coach is unavailable for this call.');
           return;
         }
-        const tip = res?.tip || res?.response || res?.answer || '';
+        const tip = res?.data?.tip || res?.tip || res?.response || res?.answer || '';
         if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8));
       })
       .catch(() => {
         if (acceptPilotReply() && sharedPolicyEnabled)
-          setError('BOB pilot Coach blocked: Core tenant, approved Investor KB and usage authority unverified.');
+          setError('Rosie Core Call Coach is unavailable for this call.');
       });
-  }, [kbEntries, sharedPolicyEnabled, sessionUserId, sessionToken]);
+  }, [kbEntries, sharedPolicyEnabled, requestSharedLive]);
 
   // This debounce is independent of Q&A: Coach can run when Q&A is OFF.
   // Only a complete, settled prospect turn may trigger the shared Coach path.
@@ -1800,6 +1814,7 @@ ${recentText}`,
     setTestMode(testModeArg);
     sharedCallEpochRef.current += 1;
     sharedCallActiveRef.current = true;
+    sharedSessionIdRef.current = crypto.randomUUID();
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
@@ -2582,7 +2597,8 @@ ${recentText}`,
                 <LiveQAWindow panel={aiPanel} qaItems={qaItems} coachTips={coachTips} transcript={transcript}
                   kbEntries={kbEntries} lead={lead} qaActive={qaActive} coachActive={coachActive} intentActive={intentActive}
                   onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                  pendingQuestion={pendingQuestion} username={coachUser?.username} />
+                  pendingQuestion={sharedPolicyEnabled ? null : pendingQuestion} username={coachUser?.username}
+                  requestSharedLive={sharedPolicyEnabled ? requestSharedLive : undefined} />
               ) : (
                 <div style={{ position: 'relative' }}>
                   <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2599,6 +2615,7 @@ ${recentText}`,
                     onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
                     autoOpenPopup={false}
                     onOpenWorkspaceAI={aiPanel.openAtSavedPosition}
+                    requestSharedLive={sharedPolicyEnabled ? requestSharedLive : undefined}
                   />
                 </div>
               )}

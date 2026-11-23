@@ -28,6 +28,7 @@ export default function DebtAIPanel({
   micDeviceId = '',
   customerMicId = '',
   pendingQuestion = null,
+  requestSharedLive,
   liveQAItems = null,
   liveCoachTips = null,
   canAIAssistant = true,
@@ -436,6 +437,7 @@ export default function DebtAIPanel({
           pendingQuestion={pendingQuestion}
           liveQAItems={liveQAItems}
           liveCoachTips={liveCoachTips}
+          requestSharedLive={requestSharedLive}
           username={username}
         />
       )}

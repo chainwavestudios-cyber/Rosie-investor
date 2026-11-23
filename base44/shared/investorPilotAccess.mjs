@@ -9,11 +9,18 @@ const SEAT_ROLES=new Set(['super_admin','admin','super_manager','manager','diale
 const MANAGER_ROLES=new Set(['super_admin','admin','super_manager','manager']);
 const MODES=new Set(['qa','coach']);
 const CLIENT_AUTHORITY_FIELDS=['kbEntries','kbName','_ctx','organization_id','organizationId','tenantId','priceId','costUsd','stripeCustomerId','model','approvedKb'];
-const ALLOWED_FIELDS=new Set(['mode','question','leadId','sessionUserId','sessionToken','transcript']);
+const ALLOWED_FIELDS=new Set(['mode','question','leadId','sessionUserId','sessionToken','transcript','sessionId','requestId','action']);
 const fail=(status,code)=>({ok:false,status,code});
 export function validateInvestorPilotPayload(body){
   if(!body || typeof body!=='object' || Array.isArray(body))return fail(400,'PILOT_INVALID_REQUEST');
   if(!MODES.has(body.mode))return fail(400,'PILOT_INVALID_MODE');
+  const actions=body.mode==='qa'?['auto','manual','more','talking','research']:
+    ['open_strong','qualify_amount','urgency','objection','stat','reengage','close_now','context','worked','they_asked'];
+  // Legacy signed pilot payloads continue to validate in the shared policy.
+  // The new transport requires these fields before forwarding to Core.
+  if(body.action!==undefined&&!actions.includes(body.action))return fail(400,'PILOT_INVALID_ACTION');
+  if([body.sessionId,body.requestId].some(value=>value!==undefined&&
+    (typeof value!=='string'||!/^[a-zA-Z0-9_.:-]{8,120}$/.test(value))))return fail(400,'PILOT_INVALID_REQUEST_ID');
   if(CLIENT_AUTHORITY_FIELDS.some(key=>Object.prototype.hasOwnProperty.call(body,key)) ||
      Object.keys(body).some(key=>!ALLOWED_FIELDS.has(key)))
     return fail(400,'PILOT_CLIENT_AUTHORITY_FORBIDDEN');

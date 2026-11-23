@@ -1,50 +1,49 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import {
-  validateInvestorPilotPayload, authorizeInvestorPilotSession,
-  authorizeInvestorPilotLead, requireInvestorPilotAuthority,
+  validateInvestorPilotPayload, authorizeInvestorPilotSession, authorizeInvestorPilotLead,
 } from '../../shared/investorPilotAccess.mjs';
+import { requestCoreLiveAssistance } from '../../shared/coreLiveAssistanceClient.js';
 
-/**
- * Original Investor + Commercial BOB experimental inference gateway.
- * THIS IS A FAIL-CLOSED STAGING SCAFFOLD, NOT A LIVE PAID PROVIDER ROUTE.
- *
- * Legacy liveAssistantAI is unchanged. No tenant-to-Core link, approved
- * Investor KB/version, or authoritative metering record has been verified;
- * no LLM invocation is allowed until those are independently implemented.
- * Never trust client-sent role, organization, KB or usage/charge metadata.
- */
+const deny = (status: number, error: string) =>
+  Response.json({ error, blocked: true }, { status, headers: { 'Cache-Control': 'no-store' } });
+
 Deno.serve(async (req: Request): Promise<Response> => {
-  const deny=(status: number, code: string)=>Response.json({
-    error:code,
-    blocked:true,
-    message:'Investor BOB pilot is not yet approved for AI inference. No AI request was sent.',
-  },{status});
-  if(req.method!=='POST')return deny(405,'PILOT_METHOD_NOT_ALLOWED');
+  if (req.method !== 'POST') return deny(405, 'PILOT_METHOD_NOT_ALLOWED');
   let body: any;
-  try {body=await req.json()}catch{return deny(400,'PILOT_INVALID_JSON')}
-  const shape=validateInvestorPilotPayload(body);
-  if(!shape.ok)return deny(shape.status,shape.code);
-  let base44: any;
-  try {base44=createClientFromRequest(req)}catch{return deny(503,'PILOT_PLATFORM_UNAVAILABLE')}
-  let user: any;
-  try {user=await base44.asServiceRole.entities.DebtCoachUser.get(body.sessionUserId)}
-  catch{return deny(401,'PILOT_UNAUTHORIZED')}
-  const session=authorizeInvestorPilotSession({user,sessionToken:body.sessionToken,mode:body.mode});
-  if(!session.ok)return deny(session.status,session.code);
-  let lead: any;
-  try {lead=await base44.asServiceRole.entities.DebtLead.get(body.leadId)}
-  catch{return deny(403,'PILOT_LEAD_DENIED')}
-  const leadAccess=authorizeInvestorPilotLead({user,lead});
-  if(!leadAccess.ok)return deny(leadAccess.status,leadAccess.code);
+  try {
+    const raw = await req.text();
+    if (new TextEncoder().encode(raw).length > 28000) return deny(413, 'PILOT_REQUEST_TOO_LARGE');
+    body = JSON.parse(raw);
+  } catch { return deny(400, 'PILOT_INVALID_JSON'); }
+  const shape = validateInvestorPilotPayload(body);
+  if (!shape.ok) return deny(shape.status, shape.code);
+  if (!body.sessionId || !body.requestId || !body.action) return deny(400, 'PILOT_REQUEST_SCOPE_REQUIRED');
 
-  // No authoritative Core tenancy / approved Investor knowledge / Core
-  // usage-ledger bindings exist in this original app's verified sources.
-  // DO NOT replace this with client-supplied organization_id, kbEntries or _ctx.
-  const authority=requireInvestorPilotAuthority();
-  if(!authority.ok)return deny(authority.status,authority.code);
+  const db = createClientFromRequest(req).asServiceRole.entities;
+  const user = await db.DebtCoachUser.get(body.sessionUserId).catch(() => null);
+  const session = authorizeInvestorPilotSession({ user, sessionToken: body.sessionToken, mode: body.mode });
+  if (!session.ok) return deny(session.status, session.code);
+  const lead = await db.DebtLead.get(body.leadId).catch(() => null);
+  const leadAccess = authorizeInvestorPilotLead({ user, lead });
+  if (!leadAccess.ok) return deny(leadAccess.status, leadAccess.code);
 
-  // Deliberately unavailable: a separate, security-reviewed integration
-  // must fetch independently verified Core authority, signed KB, reserve
-  // ledger usage and dispatch provider calls. Never fall back to legacy AI.
-  return deny(503,'PILOT_PROVIDER_NOT_ENABLED');
+  const organizationId = Deno.env.get('INVESTOR_CORE_LIVE_STAGING_TENANT_ID') || '';
+  if (!/^[a-zA-Z0-9_.:-]{8,120}$/.test(organizationId)) return deny(503, 'PILOT_TENANT_LINK_PENDING');
+  const transcript = (body.transcript || []).filter((line: any) =>
+      !line.interim && (body.mode === 'coach' || line.speaker === 1))
+    .slice(-12).map((line: any) =>
+      (line.speaker === 1 ? 'Customer: ' : 'Agent: ') + line.text.trim()).join('\n').slice(-8400);
+  try {
+    const result = await requestCoreLiveAssistance({
+      appKey: 'investor', secret: Deno.env.get('CORE_HMAC_INVESTOR_LIVE_STAGING') || '',
+      organizationId, userId: String(user.id), sessionId: body.sessionId, requestId: body.requestId,
+      service: body.mode === 'qa' ? 'live_qa' : 'call_coach', mode: body.action,
+      question: body.mode === 'qa' ? body.question.trim() : '', transcript,
+    });
+    return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    const code = error instanceof Error && /^[a-z_]{5,80}$/.test(error.message)
+      ? error.message : 'core_live_service_unavailable';
+    return deny(code === 'request_already_reserved' ? 409 : 503, code);
+  }
 });
