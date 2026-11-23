@@ -63,14 +63,3 @@ export function authorizeInvestorPilotLead({user,lead}={}){
     return fail(403,'PILOT_LEAD_DENIED');
   return {ok:true,status:200,code:'PILOT_LEAD_AUTHORIZED'};
 }
-export function requireInvestorPilotAuthority({tenantLink,kbApproval,meteringAuthority}={}){
-  // Only **server-fetched** independent records may be passed by a future
-  // trusted gateway. Browser claims must never populate these arguments.
-  if(tenantLink?.verification_status!=='verified' || tenantLink?.source!=='rosie_core')
-    return fail(409,'PILOT_TENANT_LINK_PENDING');
-  if(kbApproval?.status!=='approved' || kbApproval?.source!=='server_verified' ||
-     !kbApproval?.version)return fail(409,'PILOT_APPROVED_KB_PENDING');
-  if(meteringAuthority?.status!=='verified' || meteringAuthority?.source!=='rosie_core' ||
-     !meteringAuthority?.ledger_id)return fail(409,'PILOT_METERING_PENDING');
-  return {ok:true,status:200,code:'PILOT_AUTHORITY_READY'};
-}

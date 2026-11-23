@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   validateInvestorPilotPayload, authorizeInvestorPilotSession,
-  authorizeInvestorPilotLead, requireInvestorPilotAuthority,
+  authorizeInvestorPilotLead, 
 } from './investorPilotAccess.mjs';
 
 const base={mode:'qa',question:'What is the investor minimum?',leadId:'owned-lead',sessionUserId:'agent-1',sessionToken:'private-token',transcript:[{speaker:1,text:'What is the minimum?'}]};
@@ -80,37 +80,23 @@ test('even managers cannot use app-wide privilege to bypass unverified tenant as
   const manager={...user,role:'admin'};
   assert.equal(authorizeInvestorPilotLead({user:manager,lead:{...lead,debtCoachOwner:'someone-else'}}).ok,false);
 });
-test('verified session and contact do not confer tenant authority',()=>{
-  assert.equal(requireInvestorPilotAuthority().code,'PILOT_TENANT_LINK_PENDING');
-  assert.equal(requireInvestorPilotAuthority({tenantLink:{source:'rosie_core',verification_status:'pending'}}).code,'PILOT_TENANT_LINK_PENDING');
-});
-test('tenant alone cannot authorize unapproved KB or unverified ledger',()=>{
-  const tenantLink={source:'rosie_core',verification_status:'verified'};
-  assert.equal(requireInvestorPilotAuthority({tenantLink}).code,'PILOT_APPROVED_KB_PENDING');
-  const kbApproval={source:'server_verified',status:'approved',version:'v1'};
-  assert.equal(requireInvestorPilotAuthority({tenantLink,kbApproval}).code,'PILOT_METERING_PENDING');
-  assert.equal(requireInvestorPilotAuthority({tenantLink,kbApproval,meteringAuthority:{status:'pending'}}).ok,false);
-});
-test('future independent server-only authority must satisfy all three explicit gates',()=>{
-  const value=requireInvestorPilotAuthority({
-    tenantLink:{source:'rosie_core',verification_status:'verified'},
-    kbApproval:{source:'server_verified',status:'approved',version:'v1'},
-    meteringAuthority:{source:'rosie_core',status:'verified',ledger_id:'verified-ledger'},
-  });
-  assert.equal(value.ok,true,'policy allows future verified evidence, not current gateway');
-});
-test('staging gateway never calls a paid model or falls back to the legacy endpoint',()=>{
-  const source=readFileSync(new URL('../functions/investorBobPilotAI/entry.ts',import.meta.url),'utf8');
-  assert.match(source,/requireInvestorPilotAuthority\(\)/);
-  assert.match(source,/PILOT_PROVIDER_NOT_ENABLED/);
+test('Investor verifies its session and lead before delegating authorized execution to Core',()=>{
+  const source=readFileSync(new URL('../functions/investorBobPilotAI/entry.ts', import.meta.url),'utf8');
   const executable=source.replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
+  const coreCall=executable.indexOf('await requestCoreLiveAssistance(');
+  assert.ok(coreCall>0);
+  for(const guard of ['if (!session.ok)', 'if (!leadAccess.ok)', 'PILOT_TENANT_LINK_PENDING']){
+    assert.ok(executable.indexOf(guard)>0 && executable.indexOf(guard)<coreCall);
+  }
   assert.doesNotMatch(executable,/InvokeLLM|anthropic\.com|liveAssistantAI|functions\.invoke\(/i);
 });
 test('pilot UI never sends client KB or usage metadata to new authenticated gateway',()=>{
   const source=readFileSync(new URL('../../src/components/debt/DebtLiveCall.jsx',import.meta.url),'utf8');
   assert.match(source,/base44\.functions\.invoke\('investorBobPilotAI'/);
   const calls=source.match(/base44\.functions\.invoke\('investorBobPilotAI',[\s\S]*?\}\)/g)||[];
-  assert.equal(calls.length,2,'both pilot QA and Coach use the dedicated gateway');
+  assert.equal(calls.length,1,'QA and Coach share one authenticated call adapter');
+  assert.match(source,/requestSharedLive\('qa', mode, question\)/);
+  assert.match(source,/requestSharedLive\('coach', 'objection'\)/);
   for(const request of calls){
     assert.match(request,/sessionUserId, sessionToken/);
     assert.match(request,/leadId: leadRef\.current\?\.id/);

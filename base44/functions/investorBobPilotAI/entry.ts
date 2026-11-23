@@ -37,7 +37,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const result = await requestCoreLiveAssistance({
       appKey: 'investor', coreOrigin: Deno.env.get('ROSIE_LIVE_ASSISTANCE_STAGING_ORIGIN') || '',
-         secret: Deno.env.get('CORE_HMAC_INVESTOR_LIVE_STAGING') || '',
+      secret: Deno.env.get('CORE_HMAC_INVESTOR_LIVE_STAGING') || '',
       organizationId, userId: String(user.id), sessionId: body.sessionId, requestId: body.requestId,
       service: body.mode === 'qa' ? 'live_qa' : 'call_coach', mode: body.action,
       question: body.mode === 'qa' ? body.question.trim() : '', transcript,
