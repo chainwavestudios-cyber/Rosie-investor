@@ -27,6 +27,12 @@ const FLAG_GROUPS = [
     ],
   },
   {
+    group: 'Controlled Pilot — BOB Shared Conversation',
+    flags: [
+      { key: 'sharedConversationV1', label: 'Opt in to BOB/Investor speech policy (staging build flag also required)' },
+    ],
+  },
+  {
     group: 'BOB Training AI',
     flags: [
       { key: 'bobAIEnabled', label: 'AI Assistant (Master)' },
@@ -68,8 +74,8 @@ const FLAG_GROUPS = [
 
 const ALL_FLAG_KEYS = FLAG_GROUPS.flatMap(g => g.flags.map(f => f.key));
 
-// Default: everything on
-const DEFAULT_FLAGS = ALL_FLAG_KEYS.reduce((acc, k) => { acc[k] = true; return acc; }, {});
+// Pilot never starts enabled for a user. All other legacy flags retain their defaults.
+const DEFAULT_FLAGS = ALL_FLAG_KEYS.reduce((acc, k) => { acc[k] = k !== 'sharedConversationV1'; return acc; }, {});
 
 export default function AdminFlagsTab() {
   const { user, sessionUserId, sessionToken, isSuperAdmin } = useDebtCoachAuth();
@@ -109,7 +115,8 @@ export default function AdminFlagsTab() {
 
   const toggle = (key) => {setSuccess('');setFlags(prev => ({ ...prev, [key]: !prev[key] }));};
 
-  const setAll = (val) => {setSuccess('');setFlags(prev => ({...prev,...ALL_FLAG_KEYS.reduce((acc,k)=>{acc[k]=val;return acc;},{})}));};
+  // Bulk toggles must NEVER opt a real user into an experimental pilot.
+  const setAll = (val) => {setSuccess('');setFlags(prev => ({...prev,...ALL_FLAG_KEYS.reduce((acc,k)=>{acc[k]=k==='sharedConversationV1'?false:val;return acc;},{})}));};
 
   const save = async () => {
     if (!selectedUser) return;
@@ -146,7 +153,7 @@ export default function AdminFlagsTab() {
       <div><strong style={{color:'#e5c780',fontSize:12}}>Feature access</strong><p style={{fontSize:11,color:'#9cafb6',margin:'4px 0'}}>Select an account, review its settings, then verify any changes.</p></div>
       <label style={{display:'flex',alignItems:'center',gap:7,border:'1px solid #375862',borderRadius:7,padding:'6px 9px',color:'#9ebaba',background:'#10202d'}}><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} aria-label="Find users by name" placeholder="Find an account…" style={{background:'transparent',border:0,color:'#e1eae2',outline:0,fontSize:11,padding:4}}/></label>
     </div>
-    <div role="note" style={{display:'flex',gap:8,padding:'9px 11px',color:'#a4d5be',background:'rgba(37,105,79,.12)',border:'1px solid rgba(95,166,127,.29)',borderRadius:7,fontSize:11,lineHeight:1.5,marginBottom:11}}><CheckCircle2 size={15} style={{flexShrink:0,marginTop:1}}/>Feature settings are saved through the authenticated Admin API and verified against the stored record. Changes take effect after the agent refreshes or signs in again.</div>
+    <div role="note" style={{display:'flex',gap:8,padding:'9px 11px',color:'#a4d5be',background:'rgba(37,105,79,.12)',border:'1px solid rgba(95,166,127,.29)',borderRadius:7,fontSize:11,lineHeight:1.5,marginBottom:11}}><CheckCircle2 size={15} style={{flexShrink:0,marginTop:1}}/>Feature settings are saved through the authenticated Admin API and verified against the stored record. The BOB shared-conversation pilot is OFF by default and excluded from All ON. Its staging build flag must also be enabled. Changes take effect after the agent refreshes or signs in again.</div>
     {error&&<div role="alert" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(134,39,42,.14)',border:'1px solid #91514d',color:'#ffd0bc',fontSize:11,borderRadius:8,marginBottom:9}}><AlertTriangle size={14}/>{error}</div>}
     {success&&<div role="status" style={{display:'flex',alignItems:'center',gap:7,padding:10,background:'rgba(34,137,94,.13)',border:'1px solid #487d61',color:'#a9ebca',fontSize:11,borderRadius:8,marginBottom:9}}><CheckCircle2 size={14}/>{success}</div>}
     <div className="dcc-admin-flags-grid" style={{ display: 'grid',gridTemplateColumns: 'minmax(220px,260px) minmax(0,1fr)',gap:12,alignItems:'start' }}>

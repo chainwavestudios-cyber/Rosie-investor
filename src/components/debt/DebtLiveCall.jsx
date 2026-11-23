@@ -24,7 +24,7 @@ import { startLiveFeed } from '@/lib/debtLiveFeed';
 import { notifyCreditExhaustion, checkAIResponseForCreditError, checkErrorForCreditError } from '@/lib/creditAlert';
 import { useHotCallTracker } from '@/hooks/useHotCallTracker';
 import { useDebtCoachAuth } from '@/lib/DebtCoachAuthContext';
-import { useDebtCoachValue, getDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
+import { useDebtCoachValue, getAllDebtCoachValues, setAllDebtCoachValues } from '@/lib/debtCoachStorage';
 import { liveWindowGeometry, LIVE_LAYOUT_KEY, LIVE_PROFILE_STORE, LIVE_MODE_KEY, LIVE_PANEL_KEYS,
   getWorkspaceViewport, resolveDisplayProfile, displayProfileName,
   createDisplayLayout, clampDisplayLayout, captureDisplayLayout } from '@/lib/liveWorkspaceLayout';
@@ -36,6 +36,8 @@ import ObjectionPopup from '@/components/debt/ObjectionPopup';
 import LiveObjectionRail from '@/components/debt/LiveObjectionRail';
 import { logAIUsage, CREDIT_ESTIMATES } from '@/lib/aiCreditLog';
 import { isSameSentence, mergeFragments, trailingTurn } from '@/lib/transcriptTurn';
+import { investorPilotEnabled, investorPilotResponseCurrent, latestInvestorProspectTurn, investorShouldAskSettled,
+  investorPlanLiveServices, investorSettleDelay, investorShouldCoachSettled } from '@/lib/investorConversationAdapter';
 import { useAIContactFiller } from '@/hooks/useAIContactFiller';
 import { useInlineDialer } from '@/hooks/useInlineDialer';
 
@@ -92,6 +94,9 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   const { user: coachUser, can, sessionToken, sessionUserId } = useDebtCoachAuth();
   const recorder = useCallRecorder();
   const aiSettings = (() => { try { return JSON.parse(coachUser?.aiSettingsJson || '{}'); } catch { return {}; } })();
+  // Double gate: staging build flag + authenticated per-agent admin opt-in.
+  // Rollout remains off for every agent by default, even in a flag-on build.
+  const sharedPolicyEnabled = investorPilotEnabled(aiSettings);
   const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
   const canLiveQA = can('liveQA') && aiSettings.liveQA !== false;
   const canLiveCoach = can('liveCoach') && aiSettings.liveCoach !== false;
@@ -573,6 +578,9 @@ Agent line: "${firstAgentLines}"`,
   const runContactFillerRef = useRef(runContactFiller);
   useEffect(() => { runContactFillerRef.current = runContactFiller; }, [runContactFiller]);
   const lastCoachTime = useRef(0);
+  const lastSharedCoachKey = useRef('');
+  const sharedCoachPendingRef = useRef(null);
+  const sharedCoachTimeoutRef = useRef(null);
   const lastIntentTime = useRef(0);
   const lastProfileTime = useRef(0);
   const lastLedgerTime = useRef(0);
@@ -613,6 +621,11 @@ Agent line: "${firstAgentLines}"`,
   const lastAskedAtRef = useRef(0);
   const recentQaRequestRef = useRef({ question: '', ts: 0, id: null });
   const supersededQaIdsRef = useRef(new Set());
+  // Prevent previous-call AI responses from entering a new call's pilot UI.
+  // The epoch advances at the start of a call and at the beginning of teardown.
+  const sharedSessionIdRef = useRef('');
+  const sharedCallEpochRef = useRef(0);
+  const sharedCallActiveRef = useRef(false);
   const interimPaintTimeRef = useRef({});
   const monitorPcRef = useRef(null);
   const stopCallRef = useRef(null);
@@ -858,7 +871,32 @@ Agent line: "${firstAgentLines}"`,
     });
   }, [coachUser]);
 
-  const handleQa = useCallback((question) => {
+  const requestSharedLive = useCallback(async (mode, action, question = '') => {
+    const active = mode === 'qa' ? qaActiveRef : coachActiveRef;
+    const epoch = sharedCallEpochRef.current;
+    if (!sharedCallActiveRef.current || !active.current) throw Error('This live tool is switched off.');
+    const response = await base44.functions.invoke('investorBobPilotAI', {
+      mode, action, question, requestId: crypto.randomUUID(), sessionId: sharedSessionIdRef.current,
+      transcript: transcriptRef.current.filter(line => !line.interim && line.final !== false &&
+        (mode === 'coach' ? [0, 1].includes(line.speaker) : line.speaker === 1)).slice(-12).map(line => ({
+          text: line.text.slice(0, 1500), speaker: line.speaker,
+        })),
+      leadId: leadRef.current?.id, sessionUserId, sessionToken,
+    });
+    if (epoch !== sharedCallEpochRef.current || !sharedCallActiveRef.current || !active.current) {
+      throw Error('This call or live tool is no longer active.');
+    }
+    if (response?.data?.success !== true) throw Error('Rosie Core Live Intelligence is unavailable.');
+    return response;
+  }, [sessionUserId, sessionToken]);
+
+  const handleQa = useCallback((question, mode = 'auto') => {
+    const requestEpoch = sharedCallEpochRef.current;
+    const acceptPilotReply = () => investorPilotResponseCurrent({
+      pilotEnabled: sharedPolicyEnabled, requestEpoch,
+      currentEpoch: sharedCallEpochRef.current, active: sharedCallActiveRef.current,
+    });
+    if (!acceptPilotReply()) return;
     const id = Date.now() + Math.random();
     const startTime = Date.now();
     const prior = recentQaRequestRef.current;
@@ -872,10 +910,20 @@ Agent line: "${firstAgentLines}"`,
     }
     recentQaRequestRef.current = { question: normalized, ts: startTime, id };
     setQaItems(prev => [...prev, { id, question, answer: '', loading: true }]);
-    logAI('qa');
-    invokeAI('liveAssistantAI', { question, transcript: transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12), kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current })
-      .then(res => {
-        if (supersededQaIdsRef.current.has(id)) return;
+    // Pilot never uses the legacy unverified KB/provider/billing route.
+    if (!sharedPolicyEnabled) logAI('qa');
+    const pilotTranscript = transcriptRef.current.filter(l => !l.interim && l.speaker === 1).slice(-12);
+    const qaRequest = sharedPolicyEnabled
+      ? requestSharedLive('qa', mode, question)
+      : invokeAI('liveAssistantAI', { question, transcript: pilotTranscript, kbEntries, kbName: 'Debt Settlement', scriptPosition: scriptPositionRef.current });
+    qaRequest.then(res => {
+        if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
+        if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
+          setQaItems(prev => prev.map(x => x.id === id ? { ...x,
+            answer: 'Rosie Core Live Q&A is unavailable for this call.', loading: false,
+          } : x));
+          return;
+        }
         const responseMs = Date.now() - startTime;
         // AI decided no answer is needed (small talk, greeting, etc.)
         if (res?.needs_answer === false || res?.data?.needs_answer === false) {
@@ -892,15 +940,21 @@ Agent line: "${firstAgentLines}"`,
         // saveCallOutcome flow persists them once at call end, avoiding
         // duplicate DebtQAHistory rows and extra network traffic mid-call.
       })
-      .catch(() => { if (!supersededQaIdsRef.current.has(id)) setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer: 'Unable to answer.', loading: false } : x)); });
-  }, [kbEntries]);
+      .catch(() => {
+        if (!acceptPilotReply() || supersededQaIdsRef.current.has(id)) return;
+        const answer = sharedPolicyEnabled
+          ? 'Rosie Core Live Q&A is unavailable for this call.'
+          : 'Unable to answer.';
+        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, loading: false } : x));
+      });
+  }, [kbEntries, sharedPolicyEnabled, requestSharedLive]);
 
   // Handle pushed questions once, regardless of whether the panel is popped out.
   const handledPendingQuestionRef = useRef(null);
   useEffect(() => {
     if (!pendingQuestion?.question || handledPendingQuestionRef.current === pendingQuestion.ts) return;
     handledPendingQuestionRef.current = pendingQuestion.ts;
-    handleQa(pendingQuestion.question);
+    handleQa(pendingQuestion.question, 'manual');
   }, [pendingQuestion, handleQa]);
 
   // Auto-flush the agent question buffer — combines captured lines and sends
@@ -913,11 +967,13 @@ Agent line: "${firstAgentLines}"`,
     agentQuestionActiveRef.current = false;
     agentQuestionWaitingRef.current = false;
     setAgentQuestionActive(false);
-    if (combined.length > 0) {
-      logAI('qa');
+    if (combined.length > 0 && (!sharedPolicyEnabled || sharedCallActiveRef.current)) {
+      // handleQa already logs actual invocation. Avoid an extra estimated
+      // credit log in the pilot path before the request is submitted.
+      if (!sharedPolicyEnabled) logAI('qa');
       setPendingQuestion({ question: combined, ts: Date.now() });
     }
-  }, [logAI]);
+  }, [logAI, sharedPolicyEnabled]);
 
   // Agent Question mode — press ONCE to start, speak your question, and it
   // auto-answers when you stop speaking (3s silence), when the customer starts
@@ -941,9 +997,26 @@ Agent line: "${firstAgentLines}"`,
   const flushCustomerBuffer = useCallback(() => {
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (customerBufferRef.current.length === 0) return;
+    if (sharedPolicyEnabled && !sharedCallActiveRef.current) {
+      customerBufferRef.current = [];
+      return;
+    }
+    // An operator switching off auto Q&A cancels any already scheduled request.
+    // Manual Ask remains separately authorized and unaffected.
+    if (sharedPolicyEnabled && !qaActiveRef.current) {
+      customerBufferRef.current = [];
+      return;
+    }
     const settled = customerBufferRef.current.join(' ').replace(/\s+/g, ' ').trim();
     customerBufferRef.current = [];
     if (!settled || settled.length < 3) return;
+    // Only the opt-in shared policy filters completed caller statements here.
+    // The original answer backend, permissions, KB and UI stay unchanged.
+    if (sharedPolicyEnabled && !investorShouldAskSettled({
+      turn: { role: 'prospect', text: settled }, enabled: qaActiveRef.current,
+      now: Date.now(), lastAskedText: lastAskedQuestionRef.current,
+      lastAskedAt: lastAskedAtRef.current,
+    })) return;
     // Short questions are first-class: "Why?", "What fees?" and
     // "How much?" should not be dropped because of character/word count.
     const normalized = settled.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -956,14 +1029,51 @@ Agent line: "${firstAgentLines}"`,
     lastAskedAtRef.current = Date.now();
     // Full settled customer turn goes to the one canonical live Q&A engine.
     handleQa(settled);
-  }, [handleQa]);
+  }, [handleQa, sharedPolicyEnabled]);
 
   const handleCoach = useCallback(() => {
-    logAI('coach');
-    invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' })
-      .then(res => { const tip = res?.tip || res?.response || res?.answer || ''; if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8)); })
-      .catch(() => {});
-  }, [kbEntries]);
+    const requestEpoch = sharedCallEpochRef.current;
+    const acceptPilotReply = () => investorPilotResponseCurrent({
+      pilotEnabled: sharedPolicyEnabled, requestEpoch,
+      currentEpoch: sharedCallEpochRef.current, active: sharedCallActiveRef.current,
+    });
+    if (!acceptPilotReply()) return;
+    if (!sharedPolicyEnabled) logAI('coach');
+    const coachRequest = sharedPolicyEnabled
+      ? requestSharedLive('coach', 'objection')
+      : invokeAI('liveAssistantAI', { transcript: transcriptRef.current.slice(-6), kbEntries, mode: 'coach' });
+    coachRequest.then(res => {
+        if (!acceptPilotReply()) return;
+        if (sharedPolicyEnabled && (res?.blocked || res?.data?.blocked || res?.error || res?.data?.error)) {
+          setError('Rosie Core Call Coach is unavailable for this call.');
+          return;
+        }
+        const tip = res?.data?.tip || res?.tip || res?.response || res?.answer || '';
+        if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8));
+      })
+      .catch(() => {
+        if (acceptPilotReply() && sharedPolicyEnabled)
+          setError('Rosie Core Call Coach is unavailable for this call.');
+      });
+  }, [kbEntries, sharedPolicyEnabled, requestSharedLive]);
+
+  // This debounce is independent of Q&A: Coach can run when Q&A is OFF.
+  // Only a complete, settled prospect turn may trigger the shared Coach path.
+  const flushSharedCoach = useCallback(() => {
+    if (sharedCoachTimeoutRef.current) {
+      clearTimeout(sharedCoachTimeoutRef.current);
+      sharedCoachTimeoutRef.current = null;
+    }
+    const turn = sharedCoachPendingRef.current;
+    sharedCoachPendingRef.current = null;
+    if (!sharedPolicyEnabled || !coachActiveRef.current || !turn) return;
+    const now = Date.now();
+    if (!investorShouldCoachSettled({ turn, enabled: true, now,
+      lastCoachAt: lastCoachTime.current, lastCoachKey: lastSharedCoachKey.current })) return;
+    lastSharedCoachKey.current = investorPlanLiveServices({turn}).signal.key;
+    lastCoachTime.current = now;
+    handleCoach();
+  }, [handleCoach, sharedPolicyEnabled]);
 
   const handleIntent = useCallback(() => {
     logAI('intent');
@@ -1500,15 +1610,24 @@ ${recentText}`,
     // Q&A: hold the caller's turn as the transcript has merged it, so the
     // question asked is whole sentences rather than the latest fragment.
     if (qaActiveRef.current && entry.speaker === 1) {
-      customerBufferRef.current = [trailingTurn(nextTranscript, 'customer')];
+      // Core/BOB canonical turn assembly is opt-in until phone/speaker acceptance.
+      const sharedCustomerTurn = sharedPolicyEnabled
+        ? latestInvestorProspectTurn(nextTranscript) : null;
+      customerBufferRef.current = [sharedCustomerTurn?.text || trailingTurn(nextTranscript, 'customer')];
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
       // Keep Deepgram preview immediate but let the *answer* settle.
       // An explicit finished question gets a short beat; a likely incomplete
       // fragment waits longer for continuation. Interim speech resets this timer.
       const latest = customerBufferRef.current[0] || text;
       const incomplete = /\b(?:and|or|but|because|if|that|with|to|for|of|about|is|are|does|do|can|could|would|should|will|what|how|why|when)\s*$/i.test(latest);
-      const settleMs = incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
+      const settleMs = sharedPolicyEnabled ? investorSettleDelay(latest)
+        : incomplete ? 2450 : /[?]\s*$/.test(latest) ? 850 : 1700;
       bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), settleMs);
+    } else if (sharedPolicyEnabled && entry.speaker === 2) {
+      // Transfer speaker is neither the customer nor the closing agent.
+      // Never carry a preceding customer question through the handoff.
+      customerBufferRef.current = [];
+      if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     } else if (entry.speaker === 0) {
       // Agent started speaking — flush any pending customer question, then treat
       // the next one as a fresh turn so it is asked in full.
@@ -1518,8 +1637,24 @@ ${recentText}`,
     const objWords = ['prove', 'doubt', 'skeptical', 'risky', 'guarantee', 'fail', 'burned', 'scam', 'catch', 'cost', 'fee', 'how much', 'too much', "can't afford", 'credit score', 'trust'];
     const now = Date.now();
     const isCustomer = entry.speaker === 1;
-    // Coach: only on customer lines, with a 20s minimum gap even on keyword hits
-    if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
+    // The shared Coach waits for a complete turn (like BOB), not an individual
+    // Deepgram fragment. The legacy behavior remains unchanged when disabled.
+    if (sharedPolicyEnabled) {
+      if (isCustomer) {
+        const turn = latestInvestorProspectTurn(nextTranscript);
+        sharedCoachPendingRef.current = turn;
+        if (sharedCoachTimeoutRef.current) clearTimeout(sharedCoachTimeoutRef.current);
+        sharedCoachTimeoutRef.current = turn && coachActiveRef.current
+          ? setTimeout(flushSharedCoach, investorSettleDelay(turn.text)) : null;
+      } else if (entry.speaker === 0) {
+        flushSharedCoach();
+      } else if (entry.speaker === 2) {
+        // Transfer-agent speech invalidates any pending customer Coach tip.
+        sharedCoachPendingRef.current = null;
+        if (sharedCoachTimeoutRef.current) clearTimeout(sharedCoachTimeoutRef.current);
+        sharedCoachTimeoutRef.current = null;
+      }
+    } else if (coachActiveRef.current && isCustomer && now - lastCoachTime.current > 20000 &&
         ((objWords.some(w => text.toLowerCase().includes(w))) || now - lastCoachTime.current > 45000)) {
       lastCoachTime.current = now; handleCoach();
     }
@@ -1544,7 +1679,7 @@ ${recentText}`,
       if (handoffAttemptsRef.current < 1 && lineCount >= 3) { handoffAttemptsRef.current = 1; handleHandoffExtract(); }
       else if (handoffAttemptsRef.current < 2 && lineCount >= 7) { handoffAttemptsRef.current = 2; handleHandoffExtract(); }
     }
-  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract]);
+  }, [handleQa, flushCustomerBuffer, flushAgentQuestion, flushSharedCoach, handleCoach, handleIntent, runTimedExtractors, handleHandoffExtract, sharedPolicyEnabled]);
 
   // Show live partial transcript text as it arrives (interim results from Deepgram).
   // The interim line is replaced on each update and removed when the final text
@@ -1553,9 +1688,18 @@ ${recentText}`,
     // Prospect still talking after an earlier speech_final fragment: don't
     // answer the old fragment. Restart only the Q&A settling clock; do not
     // delay the real-time transcript display.
+    // In shared mode, incomplete interim words need the longer BOB settle
+    // window. A fixed 1300ms could answer before Deepgram finalized the rest.
+    const interimSettleMs = sharedPolicyEnabled
+      ? Math.max(1300, investorSettleDelay(text)) : 1300;
     if (speaker === 1 && qaActiveRef.current && customerBufferRef.current.length > 0 && bufferTimeoutRef.current) {
       clearTimeout(bufferTimeoutRef.current);
-      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), 1300);
+      bufferTimeoutRef.current = setTimeout(() => flushCustomerBuffer(), interimSettleMs);
+    }
+    if (sharedPolicyEnabled && speaker === 1 && coachActiveRef.current &&
+        sharedCoachPendingRef.current && sharedCoachTimeoutRef.current) {
+      clearTimeout(sharedCoachTimeoutRef.current);
+      sharedCoachTimeoutRef.current = setTimeout(flushSharedCoach, interimSettleMs);
     }
     // Render no more than ~12 preview updates/sec per speaker. Recognition
     // stays streaming at full rate; this only reduces React layout work.
@@ -1577,7 +1721,7 @@ ${recentText}`,
       }
       return [...prev, { speaker, text, time: new Date().toISOString(), interim: true, sentiment: null }];
     });
-  }, [flushCustomerBuffer]);
+  }, [flushCustomerBuffer, flushSharedCoach, sharedPolicyEnabled]);
 
   const startCall = useCallback(async (forceNew = false, testModeArg = false, twilioStreams = null) => {
     if (phaseRef.current === 'live') return;
@@ -1668,9 +1812,15 @@ ${recentText}`,
     interimPaintTimeRef.current = {};
     setMicMuted(false);
     setTestMode(testModeArg);
+    sharedCallEpochRef.current += 1;
+    sharedCallActiveRef.current = true;
+    sharedSessionIdRef.current = crypto.randomUUID();
     setPhase('live'); setDgStatus('connecting');
     callStartRef.current = new Date();
     lastCoachTime.current = Date.now();
+    lastSharedCoachKey.current = '';
+    sharedCoachPendingRef.current = null;
+    if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
     lastIntentTime.current = Date.now();
     lastProfileTime.current = Date.now();
 
@@ -1713,6 +1863,8 @@ ${recentText}`,
       streamRef.current = null;
       customerStreamRef.current = null;
       setError(twilioStreams ? 'Twilio audio stream unavailable.' : `Audio input unavailable: ${e?.message || 'Check microphone permission and re-select the device.'}`);
+      sharedCallActiveRef.current = false;
+      sharedCallEpochRef.current += 1;
       setPhase('idle'); setDgStatus('error'); return;
     }
 
@@ -1721,7 +1873,14 @@ ${recentText}`,
     const fetchDgKey = async (fn) => { try { const r = await base44.functions.invoke(fn, {}); return r?.key || r?.data?.key || ''; } catch { return ''; } };
     let dgKey = (await fetchDgKey('deepgramToken2')) || (await fetchDgKey('deepgramToken'));
     if (!dgKey) dgKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '';
-    if (!dgKey) { setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error'); if (!twilioStreams) {agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop());} return; }
+    if (!dgKey) {
+      // A failed call start cannot leave the pilot AI gate open.
+      sharedCallActiveRef.current = false;
+      sharedCallEpochRef.current += 1;
+      setError('Could not get Deepgram API key.'); setPhase('idle'); setDgStatus('error');
+      if (!twilioStreams) {agentStream.getTracks().forEach(t => t.stop()); if (customerStream) customerStream.getTracks().forEach(t => t.stop());}
+      return;
+    }
 
     // The 16kHz AudioContext lives in the feed module, next to the socket.
 
@@ -1769,6 +1928,16 @@ ${recentText}`,
   }, [micDeviceId, customerMicId, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
+    // Close the pilot inference gate synchronously BEFORE the first await;
+    // pending timers and old provider callbacks cannot start/paint new Q&A.
+    sharedCallActiveRef.current = false;
+    sharedCallEpochRef.current += 1;
+    if (sharedPolicyEnabled) {
+      customerBufferRef.current = [];
+      sharedCoachPendingRef.current = null;
+      if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
+      if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
+    }
     // Clear the 45-second auto-save timer
     // Update DialerSession back to logged_in
     if (coachUser?.username) {
@@ -1796,7 +1965,9 @@ ${recentText}`,
     if (recorder.isRecording) {
       try { recordingUri = await recorder.stop(); } catch {}
     }
-    // Nothing should submit a new Q&A question after the call has ended.
+    // No stale Q&A or Coach request may fire after the call ends.
+    sharedCoachPendingRef.current = null;
+    if (sharedCoachTimeoutRef.current) { clearTimeout(sharedCoachTimeoutRef.current); sharedCoachTimeoutRef.current = null; }
     customerBufferRef.current = [];
     if (bufferTimeoutRef.current) { clearTimeout(bufferTimeoutRef.current); bufferTimeoutRef.current = null; }
     if (agentQuestionTimeoutRef.current) { clearTimeout(agentQuestionTimeoutRef.current); agentQuestionTimeoutRef.current = null; }
@@ -1967,7 +2138,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice]);
+  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice,sharedPolicyEnabled]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
@@ -2426,7 +2597,8 @@ ${recentText}`,
                 <LiveQAWindow panel={aiPanel} qaItems={qaItems} coachTips={coachTips} transcript={transcript}
                   kbEntries={kbEntries} lead={lead} qaActive={qaActive} coachActive={coachActive} intentActive={intentActive}
                   onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
-                  pendingQuestion={pendingQuestion} username={coachUser?.username} />
+                  pendingQuestion={sharedPolicyEnabled ? null : pendingQuestion} username={coachUser?.username}
+                  requestSharedLive={sharedPolicyEnabled ? requestSharedLive : undefined} />
               ) : (
                 <div style={{ position: 'relative' }}>
                   <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2443,6 +2615,7 @@ ${recentText}`,
                     onToggleQA={toggleQaActive} onToggleCoach={toggleCoachActive} onToggleIntent={toggleIntentActive}
                     autoOpenPopup={false}
                     onOpenWorkspaceAI={aiPanel.openAtSavedPosition}
+                    requestSharedLive={sharedPolicyEnabled ? requestSharedLive : undefined}
                   />
                 </div>
               )}
