@@ -104,6 +104,8 @@ async function setupLogin(){
   '<form id="signin">'+field('email','Email','email','autocomplete="email"')+
   field('password','Password','password','minlength="12" autocomplete="current-password"')+
   button('Sign in to Rosie')+'</form>'+socialButtons('signin')+
+  '<p class="subtle"><a href="/forgot-password">Forgot your staging identity password?</a></p>'+ 
+  '<p class="subtle">Your Rosie Core password is not automatically a staging identity password.</p>'+ 
   '<p class="subtle">New to Rosie? <a href="'+oauthPage('signup')+'">Create an account</a></p>');
  bindSocialButtons();
  $('signin').onsubmit=guard(async()=>{
@@ -115,6 +117,30 @@ async function setupLogin(){
    // Do not replace the provider's signed continuation target.
    msg('Credentials verified. Continue through your Rosie authorization flow.');
   }else goAccount();
+ });
+}
+async function setupForgotPassword(){
+ if(!config.passwordRecoveryEnabled){
+  setHTML('<h1>Password recovery unavailable.</h1><p class="lead">Email delivery has not been configured for this isolated staging identity. Your existing Core password cannot be reset here.</p><a href="/login">Return to sign in</a>');
+  return;
+ }
+ setHTML('<h1>Reset your staging identity password.</h1><p>This does not change your Rosie Core password.</p><form id="recover">'+field('email','Account email','email','autocomplete="email"')+button('Send reset link')+'</form><p class="subtle"><a href="/login">Back to sign in</a></p>');
+ $('recover').onsubmit=guard(async()=>{
+  await client.requestPasswordReset({email:$('email').value.trim().toLowerCase(),redirectTo:location.origin+'/reset-password'});
+  setHTML('<h1>Check your email.</h1><p>If an eligible staging credential account exists, a password reset link has been sent.</p><p><a href="/login">Return to sign in</a></p>');
+ });
+}
+async function setupResetPassword(){
+ const params=new URLSearchParams(suffix);
+ const token=params.get('token')||'';
+ if(!/^[A-Za-z0-9_-]{12,512}$/.test(token)){
+  setHTML('<h1>Invalid reset link.</h1><p>Request a new password reset link.</p><a href="/forgot-password">Request a reset</a>');return;
+ }
+ setHTML('<h1>Choose a new staging password.</h1><form id="reset">'+field('password','New password (at least 12 characters)','password','minlength="12" autocomplete="new-password"')+button('Reset password')+'</form>');
+ $('reset').onsubmit=guard(async()=>{
+  const r=await client.resetPassword({token,newPassword:$('password').value});
+  if(r?.error)throw Error(fmtError(r,'Reset failed or link expired'));
+  setHTML('<h1>Password changed.</h1><p>Your other staging identity sessions have been revoked. Start the Core product connection again to obtain a fresh approval link.</p><a href="/login">Sign in</a>');
  });
 }
 async function setupSignup(){
@@ -343,7 +369,7 @@ async function setupDirectDGoogle(){
 (async()=>{
  try{
   if(path==='/connect/directd/google')await setupDirectDGoogle();
-  else if(path==='/signup')await setupSignup();
+  else if(path==='/forgot-password')await setupForgotPassword();\n  else if(path==='/reset-password')await setupResetPassword();\n  else if(path==='/signup')await setupSignup();
   else if(path==='/login'||path==='/')await setupLogin();
   else if(path==='/two-factor')await setupTwoFactor();
   else if(path==='/setup-mfa'||path==='/verify-email')await setupMfa();
