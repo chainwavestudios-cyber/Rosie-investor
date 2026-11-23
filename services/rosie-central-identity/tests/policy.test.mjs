@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 const source=readFileSync(new URL('../auth.mjs',import.meta.url),'utf8');
 const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 const ui=readFileSync(new URL('../src/client.js',import.meta.url),'utf8');
@@ -24,10 +25,38 @@ test('client and redirect permissions fail closed',()=>{
  assert.match(source,/allowUnauthenticatedClientRegistration:false/);
  assert.match(source,/clientPrivileges:async\(\)=>false/);
  assert.match(source,/resourcePrivileges:async\(\)=>false/);
- assert.match(server,/verifyOAuthQueryParams\(signedQuery,secret\)/);
- assert.doesNotMatch(server,/filter\(\(\[key\]\)=>signed\.has\(key\)\)/);
- assert.match(server,/getOAuthClientPublic/);
- assert.match(server,/readyForOidc\(session\.user\)/);
+});
+test('retired host redirects browser entry points to Core and rejects identity API requests',()=>{
+ let handle;
+ runInNewContext(server.replace("import http from 'node:http';",''),{
+  http:{createServer(callback){handle=callback;return {listen(){}};}},
+  URL,process:{env:{}},console,
+ });
+
+ function request(url,method='GET'){
+  const headers={};
+  let status,body;
+  handle({url,method},{
+   setHeader(name,value){headers[name]=value;},
+   writeHead(code,extra){status=code;Object.assign(headers,extra);},
+   end(value){body=value;},
+  });
+  return {status,headers,body};
+ }
+
+ for(const path of ['/','/login','/signup','/forgot-password','/reset-password?token=example','/link/approve?code=example','/consent']){
+  const response=request(path);
+  assert.equal(response.status,302);
+  assert.equal(response.headers.Location,'https://core.rosieai.tech/dashboard');
+  assert.equal(response.headers['Referrer-Policy'],'no-referrer');
+ }
+ for(const path of ['/api/auth','/api/links','/api/connectors','/api/identity/config','/api/identity/consent-context','/.well-known/openid-configuration','/ui.js']){
+  const response=request(path);
+  assert.equal(response.status,410);
+  assert.equal(JSON.parse(response.body).error,'retired_identity_service');
+ }
+ assert.equal(request('/login','POST').status,410);
+ assert.equal(JSON.parse(request('/health').body).mode,'redirect-only');
 });
 test('TOTP secret shown locally as QR, and never sent to remote QR services',()=>{
  assert.match(ui,/QRCode\.toCanvas/);
