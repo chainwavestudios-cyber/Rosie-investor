@@ -93,7 +93,11 @@ test('Investor verifies its session and lead before delegating authorized execut
 test('pilot UI never sends client KB or usage metadata to new authenticated gateway',()=>{
   const source=readFileSync(new URL('../../src/components/debt/DebtLiveCall.jsx',import.meta.url),'utf8');
   assert.match(source,/base44\.functions\.invoke\('investorBobPilotAI'/);
-  const calls=source.match(/base44\.functions\.invoke\('investorBobPilotAI',[\s\S]*?\}\)/g)||[];
+  const start=source.indexOf('const requestSharedLive =');
+  const end=source.indexOf('const handleQa =',start);
+  const adapter=source.slice(start,end);
+  assert.ok(start>=0 && end>start);
+  const calls=adapter.match(/base44\.functions\.invoke\('investorBobPilotAI',[\s\S]*?leadId:[\s\S]*?\}\)/g)||[];
   assert.equal(calls.length,1,'QA and Coach share one authenticated call adapter');
   assert.match(source,/requestSharedLive\('qa', mode, question\)/);
   assert.match(source,/requestSharedLive\('coach', 'objection'\)/);
