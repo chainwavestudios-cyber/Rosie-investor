@@ -133,7 +133,9 @@ export const auth=betterAuth({
  advanced:{defaultCookieAttributes:{secure:true,httpOnly:true,sameSite:'lax'}},
  session:{expiresIn:3600,updateAge:900},
  emailAndPassword:{enabled:true,disableSignUp:!PUBLIC_SIGNUP_ENABLED,
-  requireEmailVerification:true,minPasswordLength:12,\n  resetPasswordTokenExpiresIn:3600,revokeSessionsOnPasswordReset:true,\n  sendResetPassword:sendPasswordResetEmail},
+  requireEmailVerification:true,minPasswordLength:12,
+  resetPasswordTokenExpiresIn:3600,revokeSessionsOnPasswordReset:true,
+  sendResetPassword:sendPasswordResetEmail},
  emailVerification:{sendVerificationEmail,sendOnSignUp:true,sendOnSignIn:false},
  // Credential accounts still require passwords for authenticator enrollment;
  // social-only identities can enroll an authenticator without inventing a password.
