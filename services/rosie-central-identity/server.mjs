@@ -33,6 +33,14 @@ app.get('/api/identity/config',(_req,res)=>res.json({
  socialCallbacks:SOCIAL_PROVIDER_CALLBACKS,
  requireTotp:true,issuer:ORIGIN+'/api/auth',resource:BOB_RESOURCE
 }));
+// DECOMMISSION PHASE 1: Rosie Core is the sole user-facing login authority.
+// Keep signed backend APIs temporarily so linked-seat and connector data are
+// not destroyed before their Core-owned replacements are accepted.
+const CORE_LOGIN='https://core.rosieai.tech/dashboard';
+app.get(['/login','/signup','/account','/setup-mfa','/two-factor','/verify-email'],
+ (_req,res)=>res.redirect(302,CORE_LOGIN));
+app.get('/link/approve',(_req,res)=>res.status(410).type('html').send(
+ '<!doctype html><html lang="en"><meta charset="utf-8"><title>Legacy Rosie identity retired</title><h1>This separate Rosie login has been retired.</h1><p>Use Rosie Core for account access. Return to the product and restart its connection after the Core integration is updated.</p><p><a href="https://core.rosieai.tech/dashboard">Go to Rosie Core</a></p></html>'));
 const bAuth=toNodeHandler(auth);
 app.all('/api/auth/*',(req,res)=>bAuth(req,res));
 // Isolated server-verified seat linking: HMAC authenticated product requests,
