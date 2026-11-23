@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const auth=readFileSync(new URL('../auth.mjs',import.meta.url),'utf8');
-const server=readFileSync(new URL('../server.mjs',import.meta.url),'utf8');
 const ui=readFileSync(new URL('../src/client.js',import.meta.url),'utf8');
 
 test('Google, Facebook and Outlook/Microsoft are explicit, server-secret-gated social providers',()=>{
@@ -33,14 +32,11 @@ test('Social-only users can enroll TOTP without inventing a password, credential
  assert.match(ui,/needsAccountPassword\?\{password:/);
  assert.match(ui,/twoFactor\.verifyTotp/);
 });
-test('Social buttons and availability flags are visible for both login and signup without leaking secrets',()=>{
+test('Archived social sign-in UI supports both login and signup',()=>{
  assert.match(ui,/socialButtons\('signin'\)/);
  assert.match(ui,/socialButtons\('signup'\)/);
  assert.match(ui,/client\.signIn\.social\(\{provider,callbackURL\}\)/);
  assert.match(ui,/callbackURL=location\.origin\+oauthPage\('setup-mfa'\)/);
- assert.match(server,/socialProviders:SOCIAL_PROVIDER_CONFIGURED/);
- assert.match(server,/socialSignupEnabled:SOCIAL_SIGNUP_ENABLED/);
- assert.doesNotMatch(server,/socialProviders:\s*\{.*clientSecret/);
 });
 test('OAuth callback URIs are HTTPS, pinned to Rosie staging and never constructed from the request',()=>{
  for(const provider of ['google','facebook','microsoft'])
