@@ -378,7 +378,7 @@ function AnswerDisplay({ answer, answers }) {
 }
 
 // ── Q&A Answer Actions ─────────────────────────────────────────────────────────
-function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, setAddInfoId, talkingPointsId, setTalkingPointsId, researchId, setResearchId }) {
+function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, setAddInfoId, talkingPointsId, setTalkingPointsId, researchId, setResearchId, requestSharedLive }) {
   const [starred, setStarred] = useState(false);
   const [starring, setStarring] = useState(false);
 
@@ -397,7 +397,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'moreInfo', question: q.text, loading: true, content: '' });
     setAddInfoId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: `Give me more detailed information about: ${q.text}`, transcript: transcriptRef.current.slice(-12), kbEntries, previousAnswer: q.answer, mode: 'qa_expand' });
+      const res = requestSharedLive ? await requestSharedLive('qa', 'more', q.text) : await base44.functions.invoke('liveAssistantAI', { question: `Give me more detailed information about: ${q.text}`, transcript: transcriptRef.current.slice(-12), kbEntries, previousAnswer: q.answer, mode: 'qa_expand' });
       onSidePanel({ type: 'moreInfo', question: q.text, loading: false, content: res?.data?.answer || 'No additional information found.' });
     } catch (e) {
       onSidePanel({ type: 'moreInfo', question: q.text, loading: false, content: `Error: ${e.message}` });
@@ -409,7 +409,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'talkingPoints', question: q.text, loading: true, content: '' });
     setTalkingPointsId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const res = requestSharedLive ? await requestSharedLive('qa', 'talking', q.text) : await base44.functions.invoke('liveAssistantAI', {
         question: `Generate 4-6 punchy talking points a sales rep should say out loud RIGHT NOW to address: "${q.text}". Each point should be 1-2 sentences, persuasive, and ready to speak. Format as a numbered list.`,
         transcript: transcriptRef.current.slice(-12), kbEntries, mode: 'talking_points',
       });
@@ -424,7 +424,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
     onSidePanel({ type: 'research', question: q.text, loading: true, content: '' });
     setResearchId(q.id);
     try {
-      const res = await base44.functions.invoke('liveAssistantResearch', { name: q.text, email: '', phone: '', location: '', notes: `Research context for investor Q&A: ${q.text}. Answer: ${q.answer}` });
+      const res = requestSharedLive ? await requestSharedLive('qa', 'research', q.text) : await base44.functions.invoke('liveAssistantResearch', { name: q.text, email: '', phone: '', location: '', notes: `Research context for investor Q&A: ${q.text}. Answer: ${q.answer}` });
       const data = res?.data;
       const summary = data?.summary || data?.report || data?.answer || JSON.stringify(data || 'No research found.');
       onSidePanel({ type: 'research', question: q.text, loading: false, content: typeof summary === 'string' ? summary : JSON.stringify(summary, null, 2) });
@@ -445,7 +445,7 @@ function QAAnswerActions({ q, transcriptRef, kbEntries, onSidePanel, addInfoId, 
 }
 
 // ── Q&A Section ───────────────────────────────────────────────────────────────
-export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion, liveQAItems }) {
+export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeywords, manualQ, setManualQ, collapsed, qaOnly, onSidePanel, lead, pendingQuestion, liveQAItems, requestSharedLive }) {
   const [questions, setQuestions] = useState([]);
   const [asking,    setAsking]    = useState(false);
   const [addInfoId, setAddInfoId] = useState(null);
@@ -523,7 +523,8 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     const q = pendingQuestion.question;
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
-    base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' })
+    (requestSharedLive ? requestSharedLive('qa', 'manual', q)
+      : base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' }))
       .then(res => {
         const data = res?.data || res || {};
         const answers = Array.isArray(data.answers) ? data.answers : [];
@@ -633,7 +634,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     if (!q || q.answering) return;
     setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: true } : x));
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
+      const res = requestSharedLive ? await requestSharedLive('qa', 'manual', q.text) : await base44.functions.invoke('liveAssistantAI', { question: q.text, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
@@ -650,7 +651,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
     const id = Date.now() + Math.random();
     setQuestions(prev => [...prev, { id, text: q, time: new Date(), answer: '', answers: [], answering: true, answered: false, auto: false, manual: true }]);
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
+      const res = requestSharedLive ? await requestSharedLive('qa', 'manual', q) : await base44.functions.invoke('liveAssistantAI', { question: q, transcript: transcriptRef.current, kbEntries, mode: 'qa' });
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
@@ -749,7 +750,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                 )}
                 {q.reallyAsking && <div style={{ fontSize: '10px', color: '#8a9ab8', marginBottom: '6px', fontStyle: 'italic' }}>Really asking: {q.reallyAsking}</div>}
                 <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} /></div>
-                <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
+                <QAAnswerActions requestSharedLive={requestSharedLive} q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                   addInfoId={addInfoId} setAddInfoId={setAddInfoId}
                   talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
                   researchId={researchId} setResearchId={setResearchId} />
@@ -824,7 +825,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                 {/* Action buttons — compact row at bottom */}
                 {q.answered && !q.answering && (
                   <div style={{ padding: '2px 10px 4px', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                    <QAAnswerActions q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
+                    <QAAnswerActions requestSharedLive={requestSharedLive} q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                       addInfoId={addInfoId} setAddInfoId={setAddInfoId}
                       talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
                       researchId={researchId} setResearchId={setResearchId} />
@@ -880,7 +881,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
 }
 
 // ── Coach Section v2.0 ────────────────────────────────────────────────────────
-function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary, memories, liveCoachTips }) {
+function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, lead, callAttemptNumber, previousCallSummary, memories, liveCoachTips, requestSharedLive }) {
   const [autoTips,    setAutoTips]    = useState([]);
   const [tileOutputs, setTileOutputs] = useState([]); // [{id,tile,text,loading,time}]
   const [activeTile,  setActiveTile]  = useState(null);
@@ -1026,7 +1027,13 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       : (TILE_PROMPTS[tile.id]?.(leadName, callNum) || TILE_PROMPTS.open_strong(leadName, callNum));
 
     try {
-      const res = await base44.functions.invoke('liveAssistantAI', {
+      const action = {
+        create_urgency: 'urgency', handle_objection: 'objection', drop_stat: 'stat',
+        re_engage: 'reengage', call_context: 'context', what_worked: 'worked',
+        they_just_asked: 'they_asked',
+      }[tile.id] || tile.id;
+      const res = requestSharedLive ? await requestSharedLive('coach', action)
+        : await base44.functions.invoke('liveAssistantAI', {
         mode: 'coach_stream',
         industry: debtMode ? 'debt' : 'investor',
         transcript: transcriptRef.current.slice(-10),
@@ -1212,6 +1219,7 @@ export default function AIAssistantPopup({
   pendingQuestion,
   liveQAItems = null,
   liveCoachTips = null,
+  requestSharedLive,
   username = null,
   embedded = false,
 }) {
@@ -1456,7 +1464,7 @@ export default function AIAssistantPopup({
           {qaOnly && (
             <>
               <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={false} onCollapse={()=>{}} />
-              <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
+              <QASection requestSharedLive={requestSharedLive} transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={false} qaOnly={true} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
             </>
           )}
 
@@ -1465,7 +1473,7 @@ export default function AIAssistantPopup({
               {!qaPoppedOut && (
                 <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:qaCollapsed?'0 0 auto':qaH,minHeight:qaCollapsed?0:80}}>
                   <SectionHeader label="❓ Q&A" color="#f59e0b" active={qaActive} onToggle={onToggleQA} collapsed={qaCollapsed} onCollapse={()=>setQaCollapsed(p=>!p)} />
-                  <QASection transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
+                  <QASection requestSharedLive={requestSharedLive} transcript={transcript} transcriptRef={transcriptRef} kbEntries={kbEntries} active={qaActive} qaKeywords={portalCfg?.intentTriggerKeywords} manualQ={manualQ} setManualQ={setManualQ} collapsed={qaCollapsed} qaOnly={false} onSidePanel={setAiPanelItem} lead={lead} pendingQuestion={localPendingQ || pendingQuestion} liveQAItems={liveQAItems} />
                 </div>
               )}
 
@@ -1473,7 +1481,7 @@ export default function AIAssistantPopup({
 
               <div style={{display:'flex',flexDirection:'column',overflow:'hidden',flex:coachCollapsed?'0 0 auto':coachH,minHeight:coachCollapsed?0:60}}>
                 <SectionHeader label="🎯 Coach" color="#a78bfa" active={coachActive} onToggle={onToggleCoach} collapsed={coachCollapsed} onCollapse={()=>setCoachCollapsed(p=>!p)} />
-                <CoachSection transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} memories={memories || []} liveCoachTips={liveCoachTips} />
+                <CoachSection requestSharedLive={requestSharedLive} transcript={transcript} kbEntries={kbEntries} coachRules={{focusAreas:portalCfg?.coachFocusAreas,style:portalCfg?.coachStyle,additionalContext:portalCfg?.coachAdditionalContext}} active={coachActive} collapsed={coachCollapsed} lead={lead} callAttemptNumber={callAttemptNumber || lead?.callAttempts} previousCallSummary={previousCallSummary} memories={memories || []} liveCoachTips={liveCoachTips} />
               </div>
 
               {!coachCollapsed&&!intentCollapsed&&<DragHandle onDragStart={e=>{resizingDiv.current='coach-intent';divStartY.current=e.clientY;divStartH.current=coachH;e.preventDefault();}} />}

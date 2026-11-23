@@ -13,7 +13,7 @@ export default function LiveQAWindow({
   panel, qaItems=[], coachTips=[], transcript=[], kbEntries=[], lead,
   qaActive, coachActive, intentActive,
   onToggleQA, onToggleCoach, onToggleIntent,
-  pendingQuestion, username
+  pendingQuestion, username, requestSharedLive
 }) {
   const normalized = useMemo(() => transcript.map(line => ({
     ...line,
@@ -61,6 +61,7 @@ export default function LiveQAWindow({
         liveQAItems={qaItems}
         liveCoachTips={coachTips}
         username={username}
+        requestSharedLive={requestSharedLive}
       />
     </LiveWindowChrome>
   );
