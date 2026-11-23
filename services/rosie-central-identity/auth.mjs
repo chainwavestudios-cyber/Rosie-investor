@@ -67,6 +67,15 @@ const transport=smtpConfigured?nodemailer.createTransport({
  secure:process.env.ROSIE_SMTP_PORT==='465',requireTLS:process.env.ROSIE_SMTP_PORT!=='465',
  auth:{user:process.env.ROSIE_SMTP_USER,pass:process.env.ROSIE_SMTP_PASSWORD}
 }):null;
+const sendPasswordResetEmail=async({user,token})=>{
+ if(!transport)throw Error('Password recovery email delivery is unavailable');
+ // Prefer the local UI URL; never permit an untrusted redirect target.
+ const resetURL=new URL('/reset-password',ORIGIN);
+ resetURL.searchParams.set('token',token);
+ await transport.sendMail({from:process.env.ROSIE_SMTP_FROM,to:user.email,
+  subject:'Reset your Rosie identity password',
+  text:'A password reset was requested for your Rosie staging identity. This does not reset your Rosie Core password.\\n\\n'+resetURL.href+'\\n\\nThis link expires in one hour. If you did not request it, ignore this email.'});
+};
 const sendVerificationEmail=async({user,url})=>{
  if(!transport||!PUBLIC_SIGNUP_ENABLED)throw Error('Verification delivery not enabled in staging');
  if(!url.startsWith(ORIGIN+'/api/auth/'))throw Error('Unexpected verification destination');
@@ -124,7 +133,7 @@ export const auth=betterAuth({
  advanced:{defaultCookieAttributes:{secure:true,httpOnly:true,sameSite:'lax'}},
  session:{expiresIn:3600,updateAge:900},
  emailAndPassword:{enabled:true,disableSignUp:!PUBLIC_SIGNUP_ENABLED,
-  requireEmailVerification:true,minPasswordLength:12},
+  requireEmailVerification:true,minPasswordLength:12,\n  resetPasswordTokenExpiresIn:3600,revokeSessionsOnPasswordReset:true,\n  sendResetPassword:sendPasswordResetEmail},
  emailVerification:{sendVerificationEmail,sendOnSignUp:true,sendOnSignIn:false},
  // Credential accounts still require passwords for authenticator enrollment;
  // social-only identities can enroll an authenticator without inventing a password.
