@@ -30,7 +30,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const organizationId = Deno.env.get('INVESTOR_CORE_LIVE_STAGING_TENANT_ID') || '';
   if (!/^[a-zA-Z0-9_.:-]{8,120}$/.test(organizationId)) return deny(503, 'PILOT_TENANT_LINK_PENDING');
   const transcript = (body.transcript || []).filter((line: any) =>
-      !line.interim && (body.mode === 'coach' || line.speaker === 1))
+      !line.interim && line.final !== false &&
+      (body.mode === 'coach' ? [0, 1].includes(line.speaker) : line.speaker === 1))
     .slice(-12).map((line: any) =>
       (line.speaker === 1 ? 'Customer: ' : 'Agent: ') + line.text.trim()).join('\n').slice(-8400);
   try {

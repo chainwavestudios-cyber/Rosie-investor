@@ -877,8 +877,8 @@ Agent line: "${firstAgentLines}"`,
     if (!sharedCallActiveRef.current || !active.current) throw Error('This live tool is switched off.');
     const response = await base44.functions.invoke('investorBobPilotAI', {
       mode, action, question, requestId: crypto.randomUUID(), sessionId: sharedSessionIdRef.current,
-      transcript: transcriptRef.current.filter(line => !line.interim &&
-        (mode === 'coach' || line.speaker === 1)).slice(-12).map(line => ({
+      transcript: transcriptRef.current.filter(line => !line.interim && line.final !== false &&
+        (mode === 'coach' ? [0, 1].includes(line.speaker) : line.speaker === 1)).slice(-12).map(line => ({
           text: line.text.slice(0, 1500), speaker: line.speaker,
         })),
       leadId: leadRef.current?.id, sessionUserId, sessionToken,

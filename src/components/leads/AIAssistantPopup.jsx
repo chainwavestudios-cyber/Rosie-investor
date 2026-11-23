@@ -1027,7 +1027,11 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
       : (TILE_PROMPTS[tile.id]?.(leadName, callNum) || TILE_PROMPTS.open_strong(leadName, callNum));
 
     try {
-      const action = { call_context: 'context', what_worked: 'worked', what_asked: 'they_asked' }[tile.id] || tile.id;
+      const action = {
+        create_urgency: 'urgency', handle_objection: 'objection', drop_stat: 'stat',
+        re_engage: 'reengage', call_context: 'context', what_worked: 'worked',
+        they_just_asked: 'they_asked',
+      }[tile.id] || tile.id;
       const res = requestSharedLive ? await requestSharedLive('coach', action)
         : await base44.functions.invoke('liveAssistantAI', {
         mode: 'coach_stream',
