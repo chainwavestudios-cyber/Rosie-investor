@@ -26,7 +26,7 @@ app.get('/health',async(_req,res)=>{
  catch{res.status(503).json({ok:false,stage:'isolated'});}
 });
 app.get('/api/identity/config',(_req,res)=>res.json({
- stage:'staging',signupEnabled:PUBLIC_SIGNUP_ENABLED,
+ stage:'staging',signupEnabled:PUBLIC_SIGNUP_ENABLED,passwordRecoveryEnabled:Boolean(process.env.ROSIE_SMTP_HOST&&process.env.ROSIE_SMTP_USER&&process.env.ROSIE_SMTP_PASSWORD&&process.env.ROSIE_SMTP_FROM),
  socialSignupEnabled:SOCIAL_SIGNUP_ENABLED,
  socialProviders:SOCIAL_PROVIDER_CONFIGURED,
  // Callback URIs can be registered without exposing the client IDs/secrets.
@@ -74,7 +74,7 @@ app.get('/api/identity/consent-context',async(req,res)=>{
 });
 app.use(express.static(join(dir,'dist'),{index:false,immutable:false,maxAge:0}));
 app.get('/styles.css',(_req,res)=>res.sendFile(join(dir,'public','styles.css')));
-const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve','/connect/directd/google']);
+const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve','/connect/directd/google','/forgot-password','/reset-password']);
 app.get('*',async(req,res)=>{
  if(!pages.has(req.path))return res.status(404).type('text').send('Not found');
  try{res.type('html').send(await readFile(join(dir,'public','index.html'),'utf8'));}
