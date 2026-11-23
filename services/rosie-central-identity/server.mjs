@@ -1,96 +1,42 @@
-import express from 'express';
-import {readFile} from 'node:fs/promises';
-import {fileURLToPath} from 'node:url';
-import {dirname,join} from 'node:path';
-import {toNodeHandler} from 'better-auth/node';
-import {verifyOAuthQueryParams} from '@better-auth/oauth-provider';
-import {auth,ORIGIN,PUBLIC_SIGNUP_ENABLED,SOCIAL_SIGNUP_ENABLED,SOCIAL_PROVIDER_CONFIGURED,SOCIAL_PROVIDER_CALLBACKS,pool,BOB_RESOURCE,readyForOidc} from './auth.mjs';
-import {createRosieLinkRouter} from './link-api.mjs';
-import {createConnectorRouter} from './connector-api.mjs';
-const dir=dirname(fileURLToPath(import.meta.url));
-const app=express();
-app.disable('x-powered-by');
-app.set('trust proxy',1);
-app.use((req,res,next)=>{
- res.setHeader('X-Content-Type-Options','nosniff');
- res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
- res.setHeader('X-Frame-Options','DENY');
- res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
- res.setHeader('Cache-Control','no-store');
- res.setHeader('Content-Security-Policy',
-  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
- next();
+import http from 'node:http';
+
+const coreOrigin = 'https://core.rosieai.tech';
+const coreDashboard = new URL('/dashboard', coreOrigin).href;
+const browserPaths = new Set([
+  '/', '/login', '/signup', '/account', '/setup-mfa', '/two-factor',
+  '/verify-email', '/forgot-password', '/reset-password', '/consent',
+  '/link/approve', '/connect/directd/google',
+]);
+
+const server = http.createServer((request, response) => {
+  const path = (request.url || '/').split('?')[0].replace(/\/+$/, '') || '/';
+  const readOnly = request.method === 'GET' || request.method === 'HEAD';
+
+  response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('Referrer-Policy', 'no-referrer');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+
+  if (readOnly && browserPaths.has(path)) {
+    response.writeHead(302, { Location: coreDashboard });
+    response.end();
+    return;
+  }
+
+  response.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (readOnly && path === '/health') {
+    response.writeHead(200);
+    response.end(JSON.stringify({ ok: true, mode: 'redirect-only' }));
+    return;
+  }
+
+  response.writeHead(410);
+  response.end(JSON.stringify({
+    error: 'retired_identity_service',
+    identityAuthority: coreOrigin,
+  }));
 });
-app.get('/health',async(_req,res)=>{
- try{await pool.query('select 1');res.json({ok:true,stage:'isolated',provider:'better-auth-totp',signupEnabled:PUBLIC_SIGNUP_ENABLED});}
- catch{res.status(503).json({ok:false,stage:'isolated'});}
+
+const port = Number(process.env.PORT || 10000);
+server.listen(port, '0.0.0.0', () => {
+  console.log('[identity] retired host is serving Rosie Core redirects');
 });
-app.get('/api/identity/config',(_req,res)=>res.json({
- stage:'staging',signupEnabled:PUBLIC_SIGNUP_ENABLED,passwordRecoveryEnabled:Boolean(process.env.ROSIE_SMTP_HOST&&process.env.ROSIE_SMTP_USER&&process.env.ROSIE_SMTP_PASSWORD&&process.env.ROSIE_SMTP_FROM),
- socialSignupEnabled:SOCIAL_SIGNUP_ENABLED,
- socialProviders:SOCIAL_PROVIDER_CONFIGURED,
- // Callback URIs can be registered without exposing the client IDs/secrets.
- socialCallbacks:SOCIAL_PROVIDER_CALLBACKS,
- requireTotp:true,issuer:ORIGIN+'/api/auth',resource:BOB_RESOURCE
-}));
-// DECOMMISSION PHASE 1: Rosie Core is the sole user-facing login authority.
-// Keep signed backend APIs temporarily so linked-seat and connector data are
-// not destroyed before their Core-owned replacements are accepted.
-const CORE_LOGIN='https://core.rosieai.tech/dashboard';
-app.get(['/','/login','/signup','/account','/setup-mfa','/two-factor','/verify-email','/consent','/connect/directd/google'],
- (_req,res)=>res.redirect(302,CORE_LOGIN));
-app.get('/link/approve',(_req,res)=>res.status(410).type('html').send(
- '<!doctype html><html lang="en"><meta charset="utf-8"><title>Legacy Rosie identity retired</title><h1>This separate Rosie login has been retired.</h1><p>Use Rosie Core for account access. Return to the product and restart its connection after the Core integration is updated.</p><p><a href="https://core.rosieai.tech/dashboard">Go to Rosie Core</a></p></html>'));
-// DECOMMISSION PHASE 2: No independent identity authority, no active
-// provider token exchange and no product account linking from this service.
-// Legacy stored records are preserved for controlled Core migration and audit.
-const retired=(_req,res)=>res.status(410).set('Cache-Control','no-store').json({
- error:'retired_identity_service',identityAuthority:'https://core.rosieai.tech',
- note:'This service no longer handles Rosie authentication, OAuth or account linking.'
-});
-app.use('/api/auth',retired);
-app.use('/api/links',retired);
-app.use('/api/connectors',retired);
-function requestHeaders(req){
- const h=new Headers();
- for(const [k,v] of Object.entries(req.headers))if(typeof v==='string')h.set(k,v);
- return h;
-}
-async function verifiedSignedQuery(req){
- const signedQuery=new URL(req.originalUrl,ORIGIN).search.slice(1);
- // The provider signs *all* parameters, including exp and client_id.
- // Filtering the query invalidates consent and must never be done.
- const params=new URLSearchParams(signedQuery);
- if(params.getAll('sig').length!==1||!params.has('exp')||!params.has('client_id'))return null;
- const {secret}=await auth.$context;
- if(!await verifyOAuthQueryParams(signedQuery,secret))return null;
- return params;
-}
-// Return metadata only after BOTH a signed, unmodified request and verified
-// user session. A browser can never select a client by tampering with query.
-app.get('/api/identity/consent-context',async(req,res)=>{
- try{
-  const signed=await verifiedSignedQuery(req);
-  if(!signed)return res.status(400).json({error:'Invalid or expired signed authorization request'});
-  const headers=requestHeaders(req);
-  const session=await auth.api.getSession({headers});
-  if(!session?.user)return res.status(401).json({error:'Sign in required'});
-  if(!readyForOidc(session.user))return res.status(403).json({error:'Verified email and authenticator MFA required'});
-  const client=await auth.api.getOAuthClientPublic({query:{client_id:signed.get('client_id')},headers});
-  const redirect=signed.get('redirect_uri')||'';
-  if(!redirect.startsWith('https://'))return res.status(400).json({error:'Untrusted client redirect'});
-  res.json({clientName:String(client?.client_name||'Rosie product').slice(0,120),
-   redirectHost:new URL(redirect).host,
-   scopes:String(signed.get('scope')||'').split(/\s+/).filter(Boolean).slice(0,10)});
- }catch{res.status(400).json({error:'Authorization request could not be verified'});}
-});
-app.use(express.static(join(dir,'dist'),{index:false,immutable:false,maxAge:0}));
-app.get('/styles.css',(_req,res)=>res.sendFile(join(dir,'public','styles.css')));
-const pages=new Set(['/','/login','/signup','/consent','/account','/setup-mfa','/two-factor','/verify-email','/link/approve','/connect/directd/google','/forgot-password','/reset-password']);
-app.get('*',async(req,res)=>{
- if(!pages.has(req.path))return res.status(404).type('text').send('Not found');
- try{res.type('html').send(await readFile(join(dir,'public','index.html'),'utf8'));}
- catch{res.status(503).type('text').send('Identity UI unavailable');}
-});
-const port=Number(process.env.PORT||10000);
-app.listen(port,'0.0.0.0',()=>console.log('[identity] staging listener ready on port',port,'signup enabled:',PUBLIC_SIGNUP_ENABLED));
