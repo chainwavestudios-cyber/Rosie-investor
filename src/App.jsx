@@ -38,6 +38,7 @@ import OptInScreenshot from './pages/OptInScreenshot';
 import EmailOptInPage from './pages/EmailOptInPage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
+import SubscriptionDocuments from './pages/SubscriptionDocuments';
 import RequestAccess from './pages/RequestAccess';
 import LogPage from './pages/LogPage';
 import WorkReportPage from './pages/WorkReportPage';
@@ -57,7 +58,7 @@ import BobInternalPage from './pages/bob/BobInternalPage';
 import BobSecurity from './pages/bob/BobSecurity';
 import BobLiveProducts from './pages/bob/BobLiveProducts';
 
-const PUBLIC_PATHS = ['/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/email-engagement', '/oauth/consent'];
+const PUBLIC_PATHS = ['/subdocs', '/bob','/optin', '/optin/screenshot', '/email-optin', '/welcome', '/privacy', '/terms', '/portal-login', '/admin-login', '/request-access', '/debt-call-coach-login', '/aboutdebt', '/qualify', '/debt-call-coach', '/manager-portal', '/compliance-portal', '/fronter', '/interviews', '/training', '/log', '/work-report', '/reschedule', '/growth-plan', '/assistant-portal', '/superadmin-portal', '/adminfrontpage', '/email-engagement', '/oauth/consent'];
 
 // Legacy investor-site commercial product links now live on the Rosie AI main site.
 // The original internal Settlement IQ BOB training route stays on this app.
@@ -118,6 +119,7 @@ function App() {
               <Route path="/welcome" element={<DebtWelcomeExperience />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<Terms />} />
+              <Route path="/subdocs" element={<SubscriptionDocuments />} />
               <Route path="/portal-login" element={<PortalLogin />} />
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/request-access" element={<RequestAccess />} />
