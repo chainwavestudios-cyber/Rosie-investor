@@ -25,8 +25,8 @@ export default function SubscriptionDocuments(){
     <style>{'@media print { .pitch-nav,.pitch-intro{display:none!important} .pitch-wrap{max-width:none!important;padding:0!important} .pitch-slide{break-after:page;page-break-after:always;border-radius:0!important;min-height:0!important;width:100vw;height:56.25vw;padding:5vw!important} @page{size:landscape;margin:0} } @media(max-width:600px){.pitch-slide{aspect-ratio:auto!important;min-height:540px!important}.pitch-slide h2{font-size:32px!important}}'}</style>
     <nav style={styles.nav} className="pitch-nav"><a href="/" style={{color:GOLD,textDecoration:'none',letterSpacing:2,fontWeight:700}}>ROSIE AI · INVESTOR RELATIONS</a>
       <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-        <a href="/Rosie_AI_Investor_Pitch_Deck.pdf" target="_blank" rel="noopener noreferrer" style={styles.action}>View PDF</a>
-        <a href="/Rosie_AI_Investor_Pitch_Deck.pdf" download style={{...styles.action,background:'transparent',color:GOLD,border:'1px solid '+GOLD}}>Download Deck</a>
+        <a href="https://media.base44.com/files/public/69cd2741578c9b5ce655395b/c72259de8_Rosie_AI_Investor_Pitch_Deck_2026.pdf" target="_blank" rel="noopener noreferrer" style={styles.action}>View PDF</a>
+        <a href="https://media.base44.com/files/public/69cd2741578c9b5ce655395b/c72259de8_Rosie_AI_Investor_Pitch_Deck_2026.pdf" download style={{...styles.action,background:'transparent',color:GOLD,border:'1px solid '+GOLD}}>Download Deck</a>
       </div>
     </nav>
     <header className="pitch-intro" style={{maxWidth:1140,margin:'20px auto 26px',padding:'0 20px'}}>
