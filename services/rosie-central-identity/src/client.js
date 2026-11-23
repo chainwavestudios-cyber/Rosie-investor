@@ -369,7 +369,9 @@ async function setupDirectDGoogle(){
 (async()=>{
  try{
   if(path==='/connect/directd/google')await setupDirectDGoogle();
-  else if(path==='/forgot-password')await setupForgotPassword();\n  else if(path==='/reset-password')await setupResetPassword();\n  else if(path==='/signup')await setupSignup();
+  else if(path==='/forgot-password')await setupForgotPassword();
+  else if(path==='/reset-password')await setupResetPassword();
+  else if(path==='/signup')await setupSignup();
   else if(path==='/login'||path==='/')await setupLogin();
   else if(path==='/two-factor')await setupTwoFactor();
   else if(path==='/setup-mfa'||path==='/verify-email')await setupMfa();
