@@ -41,12 +41,16 @@ app.get(['/','/login','/signup','/account','/setup-mfa','/two-factor','/verify-e
  (_req,res)=>res.redirect(302,CORE_LOGIN));
 app.get('/link/approve',(_req,res)=>res.status(410).type('html').send(
  '<!doctype html><html lang="en"><meta charset="utf-8"><title>Legacy Rosie identity retired</title><h1>This separate Rosie login has been retired.</h1><p>Use Rosie Core for account access. Return to the product and restart its connection after the Core integration is updated.</p><p><a href="https://core.rosieai.tech/dashboard">Go to Rosie Core</a></p></html>'));
-const bAuth=toNodeHandler(auth);
-app.all('/api/auth/*',(req,res)=>bAuth(req,res));
-// Isolated server-verified seat linking: HMAC authenticated product requests,
-// central signed-in session and fresh TOTP proof; no user-supplied email joins.
-app.use('/api/links',createRosieLinkRouter({auth,pool}));
-app.use('/api/connectors',createConnectorRouter({auth,pool}));
+// DECOMMISSION PHASE 2: No independent identity authority, no active
+// provider token exchange and no product account linking from this service.
+// Legacy stored records are preserved for controlled Core migration and audit.
+const retired=(_req,res)=>res.status(410).set('Cache-Control','no-store').json({
+ error:'retired_identity_service',identityAuthority:'https://core.rosieai.tech',
+ note:'This service no longer handles Rosie authentication, OAuth or account linking.'
+});
+app.use('/api/auth',retired);
+app.use('/api/links',retired);
+app.use('/api/connectors',retired);
 function requestHeaders(req){
  const h=new Headers();
  for(const [k,v] of Object.entries(req.headers))if(typeof v==='string')h.set(k,v);
