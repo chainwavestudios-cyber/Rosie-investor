@@ -1,0 +1,145 @@
+[
+  {
+    "type": "cover",
+    "kicker": "ROSIE AI  |  INVESTOR OVERVIEW",
+    "title": "One intelligence layer.\nA portfolio of real-world AI products.",
+    "subtitle": "Voice, sales, training, workflow automation and enterprise control—built to work together.",
+    "footer": "Rosie AI  •  November 2026"
+  },
+  {
+    "type": "statement",
+    "kicker": "01  /  THE PROBLEM",
+    "title": "Business software is fragmented.\nAI often makes it worse.",
+    "subtitle": "Teams move between CRM, dialers, documents, training tools and analytics. Every handoff loses context, slows execution and raises operating cost.",
+    "items": [
+      "Siloed customer data",
+      "Disconnected voice and workflow tools",
+      "Limited visibility into quality and compliance"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "02  /  THE SOLUTION",
+    "title": "From disconnected tools\nto coordinated intelligence.",
+    "subtitle": "Rosie Core is the shared foundation for identity, product access, billing, security, integrations and operational intelligence.",
+    "items": [
+      "One customer identity across products",
+      "Purpose-built AI applications",
+      "Shared governance, reporting and integrations"
+    ]
+  },
+  {
+    "type": "portfolio",
+    "kicker": "03  /  PRODUCT PORTFOLIO",
+    "title": "Built around work customers actually do.",
+    "items": [
+      "Settlement IQ  —  debt sales intelligence",
+      "InsureIQ  —  insurance agent workflows",
+      "BOB  —  AI training and simulation",
+      "Direct D  —  capital-raise operations",
+      "Voice IQ  —  conversational AI",
+      "Email IQ  —  engagement intelligence",
+      "Meeting IQ  —  meeting and interview support",
+      "TesterIQ  —  quality and acceptance"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "04  /  THE PLATFORM",
+    "title": "Rosie Core is the connective tissue.",
+    "subtitle": "A unified control plane designed to reduce duplicate configuration and make cross-product capabilities available to authorized organizations.",
+    "items": [
+      "Single sign-on and seat entitlements",
+      "Central billing and metering",
+      "Tenant-aware security and audit controls"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "05  /  LIVE CONVERSATION INTELLIGENCE",
+    "title": "Listen. Understand.\nCoach. Act.",
+    "subtitle": "Voice and conversation tooling combines real-time transcription, approved knowledge, coaching prompts, intent signals and structured follow-up.",
+    "items": [
+      "AI-assisted incoming and outgoing calls",
+      "Sales coaching and training scenarios",
+      "Human oversight and compliance-aware escalation"
+    ]
+  },
+  {
+    "type": "market",
+    "kicker": "06  /  THE OPPORTUNITY",
+    "title": "AI adoption is moving from demos\nto daily operations.",
+    "subtitle": "Rosie targets recurring, high-frequency workflows where better response times, higher rep productivity and operational visibility can be measured.",
+    "items": [
+      "Sales & customer engagement",
+      "Insurance and financial services",
+      "Support, training & service operations"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "07  /  REVENUE DESIGN",
+    "title": "A platform with recurring economics.",
+    "subtitle": "Designed for software subscriptions, seats, usage-metered services and optional add-ons—not for holding customers' investment or donation funds.",
+    "items": [
+      "Subscription and per-seat access",
+      "Metered voice, data and AI usage",
+      "Specialized product and integration add-ons"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "08  /  CUSTOMER VALUE",
+    "title": "Fewer handoffs.\nMore productive teams.",
+    "subtitle": "The value proposition is operational: one place for agents, managers and owners to work with better context and clearer next steps.",
+    "items": [
+      "Faster onboarding and training",
+      "Better consistency and knowledge reuse",
+      "Improved visibility across the customer journey"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "09  /  DIFFERENTIATION",
+    "title": "Integration is the strategy,\nnot another feature list.",
+    "subtitle": "The portfolio is designed around shared Core identity, provider orchestration, product-specific interfaces and auditable operating flows.",
+    "items": [
+      "Vertical workflows, not generic chat",
+      "Shared platform services",
+      "Human-in-the-loop controls and escalation"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "10  /  GO-TO-MARKET",
+    "title": "Start with a painful workflow.\nExpand by proven utility.",
+    "subtitle": "Individual applications provide a clear entry point; integrated workflows create natural opportunities to add seats, products and usage.",
+    "items": [
+      "Focused product-led demonstrations",
+      "Team and organization deployments",
+      "Cross-product adoption through Rosie Core"
+    ]
+  },
+  {
+    "type": "statement",
+    "kicker": "11  /  EXECUTION PRIORITIES",
+    "title": "The next phase is integration\nand dependable delivery.",
+    "subtitle": "Current priorities center on verifying production connections, improving customer experiences and earning enterprise trust.",
+    "items": [
+      "Complete Core enrollment and provisioning",
+      "Verify voice reliability and integrations",
+      "Expand QA, monitoring and security evidence"
+    ]
+  },
+  {
+    "type": "closing",
+    "kicker": "12  /  CONNECT",
+    "title": "Build the operating layer\nfor the AI-enabled business.",
+    "subtitle": "Rosie AI  •  rosieai.tech",
+    "items": [
+      "Investor relations: investors@rosieai.tech",
+      "Investor documents: investors.rosieai.tech/subdocs",
+      "Detailed terms available in authorized offering materials"
+    ]
+  }
+]
