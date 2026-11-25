@@ -111,7 +111,40 @@ async function reviewState(sql, source, registry) {
   };
 }
 
+async function readReviewerInbox(sql, request) {
+  const {agent_id, assignment_ids} = request;
+  if (Object.keys(request).length !== 3 || !roles.includes(agent_id) ||
+      !Array.isArray(assignment_ids) || assignment_ids.length < 1 || assignment_ids.length > 16 ||
+      assignment_ids.some(id => typeof id !== 'string' || !uuid.test(id)) ||
+      new Set(assignment_ids).size !== assignment_ids.length) {
+    return [400, {error: 'invalid_reviewer_inbox_request'}];
+  }
+  const rows = await sql`SELECT e.event_id::text AS assignment_id,e.received_at,
+      ack.received_at AS acknowledged_at,e.payload->>'pull_number' AS pull_number,
+      e.payload->>'product_key' AS product_key,report.event_id::text AS automated_report_id,
+      report.payload->'report'->>'state' AS automated_state
+    FROM core_agents.events e
+    JOIN core_agents.identities i ON i.org_id=e.org_id AND i.agent_id=e.recipient_agent_id
+    LEFT JOIN core_agents.agent_message_receipts ack ON ack.event_id=e.event_id
+      AND ack.org_id=e.org_id AND ack.recipient_agent_id=e.recipient_agent_id
+    LEFT JOIN core_agents.events report ON report.org_id=e.org_id
+      AND report.recipient_agent_id=e.recipient_agent_id AND report.payload->>'contract'=${automatedContract}
+      AND report.payload->>'assignment_id'=e.event_id::text
+    WHERE e.org_id=${org} AND e.recipient_agent_id=${agent_id} AND i.desired_state<>'revoked'
+      AND e.payload->>'contract'=${assignmentContract} AND e.event_id IN ${sql(assignment_ids)}
+    ORDER BY e.received_at,e.event_id LIMIT ${assignment_ids.length}`;
+  const assignments = rows.map(row => ({assignment_id: row.assignment_id, received_at: row.received_at,
+    acknowledged_at: row.acknowledged_at ?? null,
+    ...(/^[1-9][0-9]{0,8}$/.test(row.pull_number ?? '') ? {pull_number: Number(row.pull_number)} : {}),
+    ...(/^[a-z][a-z0-9_-]{1,49}$/.test(row.product_key ?? '') ? {product_key: row.product_key} : {}),
+    ...(uuid.test(row.automated_report_id ?? '') && ['source_verified','superseded'].includes(row.automated_state)
+      ? {automated_report_id: row.automated_report_id, automated_state: row.automated_state} : {}),
+  }));
+  return [200, {ok: true, assignments, release_authorized: false}];
+}
+
 export async function handleReviewControl({sql, request, source, registry, enqueue}) {
+  if (request?.action === 'reviewer_inbox') return readReviewerInbox(sql, request);
   const {action, pull_number} = request;
   if (!['request', 'status'].includes(action) || Object.keys(request).length !== 2 ||
       !Number.isSafeInteger(pull_number) || pull_number < 1) return [400, {error: 'invalid_review_request'}];

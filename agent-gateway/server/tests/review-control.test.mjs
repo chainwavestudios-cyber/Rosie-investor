@@ -48,6 +48,40 @@ test('one Core request queues both reviewer roles and returns the exact candidat
   assert.equal(readReviewRegistry('malformed'), null);
 });
 
+test('the human reviewer inbox reads only the permitted role and exact assignment IDs', async () => {
+  const assignment = '11111111-2222-8333-a444-555555555555';
+  const otherRole = '99999999-2222-8333-a444-555555555555';
+  const report = '55555555-2222-8333-a444-555555555555';
+  function sql(statement, ...values) {
+    if (Array.isArray(statement) && !Object.hasOwn(statement, 'raw')) return statement;
+    assert.match(statement.join('?'), /e\.recipient_agent_id=\?.*e\.event_id IN \?/s);
+    assert.deepEqual(values, ['rosie.core.independent-review.automated-result.v1', 'rosie-core-internal',
+      'A05', 'rosie.core.independent-review.v1', [assignment, otherRole], 2]);
+    assert.doesNotMatch(statement.join('?'), /INSERT|UPDATE|registered\.v1/);
+    return [{assignment_id: assignment, received_at:'2026-11-25T10:00:00.000Z', acknowledged_at:null,
+      pull_number:'42', automated_report_id:report, automated_state:'source_verified', proof:'private'}];
+  }
+  const [status, body] = await handleReviewControl({sql,
+    request: {action:'reviewer_inbox',agent_id:'A05',assignment_ids:[assignment,otherRole]},
+    source: () => assert.fail('Source access is unnecessary'),
+    enqueue: () => assert.fail('Read path must not enqueue')});
+  assert.equal(status,200);
+  assert.deepEqual(body,{ok:true,release_authorized:false,assignments:[{assignment_id:assignment,
+    received_at:'2026-11-25T10:00:00.000Z',acknowledged_at:null,pull_number:42,
+    automated_report_id:report,automated_state:'source_verified'}]});
+});
+
+test('the human reviewer inbox rejects roles, duplicates, oversized and malformed scopes', async () => {
+  const id = '11111111-2222-8333-a444-555555555555';
+  for (const request of [{agent_id:'A08',assignment_ids:[id]}, {agent_id:'A05',assignment_ids:[id,id]},
+    {agent_id:'A05',assignment_ids:Array(17).fill(id)}, {agent_id:'A14',assignment_ids:['untrusted']},
+    {agent_id:'A14',assignment_ids:[id],user_id:'untrusted'}, {agent_id:'A14',assignment_ids:[]}]) {
+    const result = await handleReviewControl({sql:() => assert.fail('Unexpected ledger access'),
+      request:{action:'reviewer_inbox',...request}});
+    assert.deepEqual(result,[400,{error:'invalid_reviewer_inbox_request'}]);
+  }
+});
+
 test('records documentation delivery only after Core acknowledges a real job identifier', async () => {
   const config = docsReviewDelivery({...env, GITHUB_REVIEW_DOCSYNC_HMAC: 's'.repeat(48),
     GITHUB_REVIEW_DOCSYNC_URL: 'https://docs.example/coreDocSyncIntake'});
