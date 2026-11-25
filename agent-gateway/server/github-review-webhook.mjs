@@ -33,12 +33,17 @@ async function readBytes(request) {
   return Buffer.concat(chunks);
 }
 
-function eventId(agent, candidate) {
+export function reviewEventId(agent, candidate) {
   const digest = createHash('sha256').update(JSON.stringify([
     'rosie.core.independent-review.v1', agent, candidate.repository_id,
     candidate.pull_number, candidate.head_sha, candidate.base_sha,
   ])).digest('hex');
   return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+}
+
+export function reviewAssignment(agent, candidate) {
+  const scoped = {...candidate, contract: 'rosie.core.independent-review.v1', reviewer: reviewers[agent]};
+  return {agent, id: reviewEventId(agent, scoped), candidate: scoped};
 }
 
 export async function receiveReviewWebhook(request, agent, config, enqueue) {
@@ -86,19 +91,17 @@ export async function receiveReviewWebhook(request, agent, config, enqueue) {
       typeof repository !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(repository)) {
     return [400, {error: 'invalid_review_candidate'}];
   }
-  const candidate = {
-    contract: 'rosie.core.independent-review.v1',
+  const assignment = reviewAssignment(agent, {
     repository_id: config.repositoryId,
     repository,
     pull_number: body.number,
     head_sha: pr.head.sha,
     base_sha: pr.base.sha,
-    reviewer: reviewers[agent],
-  };
-  const id = eventId(agent, candidate);
-  const receipt = await enqueue({agent, id, candidate});
+  });
+  const receipt = await enqueue(assignment);
+  if (receipt?.superseded) return [202, {ignored: true, reason: 'superseded'}];
   if (!receipt?.delivery_ack) return [503, {error: 'review_assignment_unavailable'}];
   return [receipt.idempotent ? 200 : 202, {
-    accepted: true, durable_commit: true, event_id: id, ...receipt,
+    accepted: true, durable_commit: true, event_id: assignment.id, ...receipt,
   }];
 }

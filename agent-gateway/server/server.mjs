@@ -11,8 +11,9 @@ import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
 import {auditScope,receiptAudit} from './receipt-audit.mjs';
 import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
-import {receiveReviewWebhook,reviewWebhookConfig} from './github-review-webhook.mjs';
+import {receiveReviewWebhook,reviewAssignment,reviewWebhookConfig} from './github-review-webhook.mjs';
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
+import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision,reviewScope} from './review-control.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -98,9 +99,7 @@ function checkLease(x){
  return checkWorker(x)&&UUID.test(x.job_id||'')&&
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
-async function enqueueIndependentReview(sql,{agent,id,candidate}){
- return sql.begin(async t=>{
-  await t`SET LOCAL statement_timeout='5000ms'`;
+async function enqueueIndependentReview(t,{agent,id,candidate}){
   const target=await t`SELECT agent_id FROM core_agents.identities
    WHERE org_id=${ORG} AND agent_id=${agent} AND desired_state<>'revoked'`;
   if(target.length!==1)return null;
@@ -120,34 +119,66 @@ async function enqueueIndependentReview(sql,{agent,id,candidate}){
   const ack=await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
    VALUES(${id},${ORG},'persisted','gateway') RETURNING ack_id`;
   return {idempotent:false,delivery_ack:ack[0].ack_id};
- });
 }
 
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
   reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
+  reviewSource=githubReviewSource(process.env),reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
+  reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
+  const enqueueReviews=assignments=>sql.begin(async tx=>{
+   await tx`SET LOCAL statement_timeout='5000ms'`;
+   const results=[];
+   for(const assignment of assignments){
+    const result=await enqueueIndependentReview(tx,assignment);
+    if(!result?.delivery_ack)throw Error('review_assignment_unavailable');
+    results.push(result);
+   }
+   return results;
+  });
   const reviewHook=/^\/v1\/github-review\/(A05|A14)$/.exec(path);
   if(reviewHook){
    try{
     const agent=reviewHook[1];
-    const [status,body]=await receiveReviewWebhook(req,agent,reviewHooks[agent],
-     assignment=>enqueueIndependentReview(sql,assignment));
+    const [status,body]=await receiveReviewWebhook(req,agent,reviewHooks[agent],async assignment=>{
+     if(!reviewSource)return null;
+     const current=await reviewSource(assignment.candidate.pull_number);
+     if(!current?.base_confirmed||assignment.candidate.head_sha!==current.head_sha||
+        assignment.candidate.base_sha!==current.base_sha)return {superseded:true};
+     const [result]=await enqueueReviews([reviewAssignment(agent,reviewScope(current))]);
+     return result;
+    });
     return reply(res,status,body);
    }catch{
     return reply(res,503,{error:'review_assignment_unavailable'});
    }
   }
-  if(path==='/v1/independent-review/inbox'||path==='/v1/independent-review/ack'){
+  if(path==='/v1/independent-review/control'){
+   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
+   try{
+    const {text,object}=await readBody(req);
+    if(!authentic(req,path,text,reviewControlKey))return reply(res,401,{error:'core_review_control_required'});
+    const [status,body]=await handleReviewControl({sql,request:object,source:reviewSource,
+     registry:reviewRegistry,enqueue:enqueueReviews});
+    return reply(res,status,body);
+   }catch(error){
+    if(error.http)return reply(res,error.http,{error:error.message});
+    return reply(res,503,{error:'review_control_unavailable'});
+   }
+  }
+  if(['/v1/independent-review/inbox','/v1/independent-review/ack','/v1/independent-review/receipt'].includes(path)){
    if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
    try{
     const {text,object}=await readBody(req);
     const key=typeof object.agent_id==='string'&&Object.hasOwn(reviewKeys,object.agent_id)
      ?reviewKeys[object.agent_id]:undefined;
     if(!authentic(req,path,text,key))return reply(res,401,{error:'reviewer_authorization_required'});
-    const [status,body]=await reviewAssignmentRequest(sql,path,object);
+    const [status,body]=path.endsWith('/receipt')
+     ?await registerReviewDecision({sql,body:object,source:reviewSource,registry:reviewRegistry})
+     :await reviewAssignmentRequest(sql,path,object);
     return reply(res,status,body);
    }catch(error){
     if(error.http)return reply(res,error.http,{error:error.message});
