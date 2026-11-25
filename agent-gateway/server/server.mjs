@@ -14,6 +14,7 @@ import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-rela
 import {receiveReviewWebhook,reviewAssignment,reviewWebhookConfig} from './github-review-webhook.mjs';
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
 import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision,reviewScope} from './review-control.mjs';
+import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -561,8 +562,27 @@ async function main(){
  const supervisor=setInterval(()=>recoverExpired(sql)
    .catch(()=>console.error('supervisor_recovery_attempt_failed')),15000);
  supervisor.unref();
+ const docDelivery=docsReviewDelivery(process.env);
+ let reviewingArchives=false;
+ const reviewArchiveTimer=setInterval(async()=>{
+  if(reviewingArchives)return;
+  reviewingArchives=true;
+  try{
+   await enqueueGuardianReviewArchive(sql);
+  }catch{
+   console.warn('independent_review_guardian_delivery_pending');
+  }
+  try{
+   if(docDelivery)await syncRegisteredReviewDoc(sql,docDelivery);
+  }catch{
+   console.warn('independent_review_docs_delivery_pending');
+  }finally{
+   reviewingArchives=false;
+  }
+ },60000);
+ reviewArchiveTimer.unref();
  const shutdown=async()=>{
-  clearTimeout(relayTimer);clearInterval(supervisor);server.close();await sleep(50);
+  clearTimeout(relayTimer);clearInterval(supervisor);clearInterval(reviewArchiveTimer);server.close();await sleep(50);
   await sql.end({timeout:3});process.exit(0);
  };
  process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);

@@ -87,10 +87,14 @@ async function reviewState(sql, source, registry) {
         : row ? (Date.now() - Date.parse(row.received_at) >= 900000 ? 'escalation_required' : 'queued') : 'missing',
       receipt_id: verified && acknowledged ? receiptId(assignment.id) : null,
       evidence_sha256: verified && acknowledged ? receipt.evidence_sha256 : null,
+      proof: verified && acknowledged ? {
+        receipt, assignment_issued_at: Date.parse(row.received_at),
+      } : null,
     };
   }));
   return {
     candidate: scope, reviewers: rows, base_confirmed: source.base_confirmed,
+    implementer_id: source.implementer_id,
     accepted: source.base_confirmed && rows.every(row => row.status === 'accept'),
   };
 }
