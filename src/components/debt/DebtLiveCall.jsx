@@ -50,6 +50,8 @@ const inp = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px 
 const DEBT_KB_CATEGORIES = ['debt_agent', 'debt_customer', 'debt_qa_statements', 'debt_doc', 'debt_web', 'debt_call', 'debt_kb', 'debt_faq', 'debt_hotpoints', 'debt_common_qa', 'debt_objections', 'debt_disqualify', 'debt_open_scenario', 'debt_close_scenario'];
 
 import LiveQAWindow from '@/components/debt/LiveQAWindow';
+import CallIntelligencePilotResult from '@/components/CallIntelligencePilotResult';
+import { hashHostFinalizedTranscript, normalizeHostFinalTranscript } from '@/lib/callIntelligenceHostTranscript';
 // Context for the next liveAssistantAI call — stamped by logAI so the backend
 // records exact token usage and cost against the same AI call (matched by callId).
 let nextAICallContext = null;
@@ -97,6 +99,7 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // Double gate: staging build flag + authenticated per-agent admin opt-in.
   // Rollout remains off for every agent by default, even in a flag-on build.
   const sharedPolicyEnabled = investorPilotEnabled(aiSettings);
+  const sharedPostCallEnabled = sharedPolicyEnabled && aiSettings.sharedPostCallIntentV1 === true;
   const canLiveAI = can('liveAIAssistant') && aiSettings.liveAIEnabled !== false;
   const canLiveQA = can('liveQA') && aiSettings.liveQA !== false;
   const canLiveCoach = can('liveCoach') && aiSettings.liveCoach !== false;
@@ -222,6 +225,24 @@ export default function DebtLiveCall({ onCallStart, onCallEnd, onScriptContextCh
   // Post-call
   const [report, setReport] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [postCallConsent, setPostCallConsent] = useState(false);
+  const [postCallIntent, setPostCallIntent] = useState(null);
+  const postCallViewEpoch = useRef(0);
+  const runSharedPostCall = useCallback(async context => {
+    const epoch = postCallViewEpoch.current;
+    setPostCallIntent({ ...context, pending: true });
+    try {
+      const response = await base44.functions.invoke('investorPostCallIntent', {
+        leadId: context.leadId, transcriptRecordId: context.transcriptRecordId, transcriptDigest: context.transcriptDigest,
+        sessionUserId, sessionToken, consent: true,
+      });
+      const job = response?.data || response;
+      if (job?.error && !job?.job_id) throw new Error(job.error);
+      if (postCallViewEpoch.current === epoch) setPostCallIntent({ ...context, job });
+    } catch {
+      if (postCallViewEpoch.current === epoch) setPostCallIntent({ ...context, failed: true });
+    }
+  }, [sessionUserId, sessionToken]);
   const [callMode, setCallMode] = useState('close'); // 'open' | 'close' — derived from callType
   const [callType, setCallType] = useDebtCoachValue(coachUser?.username, 'defaultCallType', 'front_to_back'); // 'front_to_back' | 'open_only' | 'cold_call' | 'closer_call'
   // Auto-scheduler permanently disabled — appointments are created on demand
@@ -935,7 +956,7 @@ Agent line: "${firstAgentLines}"`,
         const opener = res?.opener || res?.data?.opener || '';
         const detail = res?.detail || res?.data?.detail || '';
         console.log(`[QA] ${responseMs}ms${reallyAsking ? ` — ${reallyAsking}` : ''}`);
-        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, source: res?.source || res?.data?.source || '', loading: false, responseMs } : x));
+        setQaItems(prev => prev.map(x => x.id === id ? { ...x, answer, reallyAsking, opener, detail, source: res?.source || res?.data?.source || '', sources: res?.sources || res?.data?.sources, loading: false, responseMs } : x));
         // Q&A results remain available during the call. The existing
         // saveCallOutcome flow persists them once at call end, avoiding
         // duplicate DebtQAHistory rows and extra network traffic mid-call.
@@ -1049,7 +1070,7 @@ Agent line: "${firstAgentLines}"`,
           return;
         }
         const tip = res?.data?.tip || res?.tip || res?.response || res?.answer || '';
-        if (tip) setCoachTips(prev => [{ tip, time: new Date() }, ...prev].slice(0, 8));
+        if (tip) setCoachTips(prev => [{ tip, sources: res?.data?.sources || res?.sources, time: new Date() }, ...prev].slice(0, 8));
       })
       .catch(() => {
         if (acceptPilotReply() && sharedPolicyEnabled)
@@ -1763,6 +1784,8 @@ ${recentText}`,
       } catch (e) { alert('Failed to start call: ' + (e?.message || String(e))); return; }
     }
 
+    postCallViewEpoch.current += 1;
+    setPostCallIntent(null);
     setError(''); setTranscript([]); transcriptRef.current = []; setQaItems([]); setCoachTips([]); setIntentScore(null); setProfileData(null); setReport('');
     intentHistoryRef.current = [];
     handoffAttemptsRef.current = 0;
@@ -1928,6 +1951,8 @@ ${recentText}`,
   }, [micDeviceId, customerMicId, audioSetups, activeSetupIndex, agentGain, customerGain, processNewEntry, updateInterimLine, lead, loadLeads, coachUser, autoQA, autoCoach, autoIntent]);
 
   const stopCall = useCallback(async () => {
+    const consentedToPostCall = postCallConsent;
+    setPostCallConsent(false);
     // Close the pilot inference gate synchronously BEFORE the first await;
     // pending timers and old provider callbacks cannot start/paint new Q&A.
     sharedCallActiveRef.current = false;
@@ -2016,9 +2041,11 @@ ${recentText}`,
 
       let intent = null;
       try {
-        logAI('intent_final');
-        const intentRes = await invokeAI('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
-        intent = intentRes?.intent || intentRes?.data?.intent;
+        if (!sharedPostCallEnabled) {
+          logAI('intent_final');
+          const intentRes = await invokeAI('liveAssistantAI', { transcript: transcriptRef.current, kbEntries, mode: 'intent_final', intentRules: DEBT_INTENT_RULES });
+          intent = intentRes?.intent || intentRes?.data?.intent;
+        }
         if (intent) {
           setIntentScore(intent.intentScore);
           setProfileData(prev => ({ ...prev, ...intent }));
@@ -2091,10 +2118,13 @@ ${recentText}`,
         let intentReportText = '';
         try { intentReportText = intent ? buildIntentReport(intent) : ''; } catch { intentReportText = ''; }
         try {
+          const completionLeadId = leadRef.current.id;
+          const completionTranscriptId = transcriptRecordIdRef.current || '';
+          const completionTranscript = transcriptRef.current.slice();
           const saved = await base44.functions.invoke('saveCallOutcome', {
-            leadId: leadRef.current.id,
-            transcriptRecordId: transcriptRecordIdRef.current || '',
-            transcript: transcriptRef.current,
+            leadId: completionLeadId,
+            transcriptRecordId: completionTranscriptId,
+            transcript: completionTranscript,
             intent,
             intentReport: intentReportText,
             followUpReport: fullReport,
@@ -2109,6 +2139,15 @@ ${recentText}`,
             intentHistory: intentHistoryRef.current,
           });
           const steps = saved?.data?.steps || {};
+          if (sharedPostCallEnabled && consentedToPostCall && completionTranscriptId && steps.transcript === completionTranscriptId) {
+            try {
+              const normalized = normalizeHostFinalTranscript('investor', completionTranscript);
+              const transcriptDigest = await hashHostFinalizedTranscript(normalized);
+              void runSharedPostCall({ leadId: completionLeadId, transcriptRecordId: completionTranscriptId, transcriptDigest });
+            } catch {
+              setPostCallIntent({ job: { status: 'failed' } });
+            }
+          }
           const failed = Object.entries(steps).filter(([, v]) => String(v).startsWith('error'));
           console.log('Call record saved:', steps);
           if (failed.length > 0) console.error('Call record — steps that failed:', failed);
@@ -2138,7 +2177,7 @@ ${recentText}`,
     }
 
     loadLeads();
-  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice,sharedPolicyEnabled]);
+  }, [kbEntries, loadLeads, coachUser, callType, handleDebtExtract, handleHardshipExtract, handleBillsExtract, handleCosignerExtract, recorder,sessionUserId,sessionToken,setOffice,sharedPolicyEnabled,sharedPostCallEnabled,postCallConsent,runSharedPostCall]);
 
   // Show the keep/delete dialog when the agent ends a call (not for monitor takeovers)
   const handleEndCallClick = useCallback(() => {
@@ -2631,10 +2670,17 @@ ${recentText}`,
         </div>
       )}
 
+      {sharedPostCallEnabled && phase !== 'ended' && <label>
+        <input type="checkbox" checked={postCallConsent} onChange={event => setPostCallConsent(event.target.checked)} />
+        Analyze the synthetic call after it ends
+      </label>}
+
       {/* Post-call report */}
       {phase === 'ended' && (
         <div style={{ marginTop: '16px', background: '#0d1b2a', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '6px', padding: '20px' }}>
           <div style={{ color: GOLD, fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '10px' }}>📄 Post-Call Report</div>
+          {sharedPostCallEnabled && postCallIntent && <CallIntelligencePilotResult {...postCallIntent}
+            onRetry={() => runSharedPostCall(postCallIntent)} />}
           {generatingReport ? <div style={{ color: '#6b7280', fontSize: '12px' }}>⏳ Generating report…</div> : report ? <div style={{ color: '#c4cdd8', fontSize: '13px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{report}</div> : <div style={{ color: '#4a5568', fontSize: '12px' }}>No report generated.</div>}
         </div>
       )}

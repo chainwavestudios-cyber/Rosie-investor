@@ -1,3 +1,4 @@
+import { ApprovedKnowledgeSources } from '@/components/CallIntelligencePilotResult';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useDebtCoachValue } from '@/lib/debtCoachStorage';
@@ -468,7 +469,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         id: q.id, text: q.question, time: new Date(),
         answer: q.answer || '', answers: [], answering: !!q.loading,
         answered: !q.loading && !!q.answer, auto: true, manual: false,
-        source: q.source, responseMs: q.responseMs,
+        source: q.source, sources: q.sources, responseMs: q.responseMs,
         reallyAsking: q.reallyAsking || '', opener: q.opener || '', detail: q.detail || '',
         fromLiveCall: true,
       })),
@@ -529,7 +530,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
         const data = res?.data || res || {};
         const answers = Array.isArray(data.answers) ? data.answers : [];
         const answer = data.answer || 'No matching information found.';
-        setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
+        setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source, sources: data.sources } : x));
         saveQAHistory(q, answer, 'transcript');
       })
       .catch(e => setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
@@ -606,7 +607,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
               const data = res?.data || res || {};
               const answers = Array.isArray(data.answers) ? data.answers : [];
               const answer = data.answer || 'No matching information found.';
-              setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
+              setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answered: true, answer, answers, source: data.source, sources: data.sources } : x));
               saveQAHistory(autoQ, answer, 'auto');
             })
             .catch(e => setQuestions(prev => prev.map(x => x.id === autoId ? { ...x, answering: false, answer: `Error: ${e.message}` } : x)));
@@ -638,7 +639,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source, sources: data.sources } : x));
       saveQAHistory(q.text, answer, q.auto ? 'auto' : 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -655,7 +656,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
       const data = res?.data || res || {};
       const answers = Array.isArray(data.answers) ? data.answers : [];
       const answer = data.answer || 'No matching information found.';
-      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source } : x));
+      setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answered: true, answer, answers, source: data.source, sources: data.sources } : x));
       saveQAHistory(q, answer, 'manual');
     } catch (e) {
       setQuestions(prev => prev.map(x => x.id === id ? { ...x, answering: false, answer: `Error: ${e.message}` } : x));
@@ -749,7 +750,8 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                   </div>
                 )}
                 {q.reallyAsking && <div style={{ fontSize: '10px', color: '#8a9ab8', marginBottom: '6px', fontStyle: 'italic' }}>Really asking: {q.reallyAsking}</div>}
-                <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} /></div>
+                <div style={{ marginBottom: '6px' }}><AnswerDisplay answer={q.answer} answers={q.answers} />
+                <ApprovedKnowledgeSources sources={q.sources}/></div>
                 <QAAnswerActions requestSharedLive={requestSharedLive} q={q} transcriptRef={transcriptRef} kbEntries={kbEntries} onSidePanel={onSidePanel}
                   addInfoId={addInfoId} setAddInfoId={setAddInfoId}
                   talkingPointsId={talkingPointsId} setTalkingPointsId={setTalkingPointsId}
@@ -819,6 +821,7 @@ export function QASection({ transcript, transcriptRef, kbEntries, active, qaKeyw
                         )}
                         {q.reallyAsking && <div style={{ fontSize: '10px', color: '#8a9ab8', marginBottom: '4px', fontStyle: 'italic' }}>Really asking: {q.reallyAsking}</div>}
                         <AnswerDisplay answer={q.answer} answers={q.answers} />
+                <ApprovedKnowledgeSources sources={q.sources}/>
                       </div>
                   }
                 </div>
@@ -894,7 +897,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
   useEffect(() => {
     if (!Array.isArray(liveCoachTips)) return;
     setAutoTips(liveCoachTips.map((tip, i) => ({
-      id: `live-coach-${i}-${tip.time || ''}`, text: tip.tip || '',
+      id: `live-coach-${i}-${tip.time || ''}`, text: tip.tip || '', sources: tip.sources,
       streaming: false, time: tip.time || new Date(),
     })));
   }, [liveCoachTips]);
@@ -1047,7 +1050,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
         memories: memories || [],
       });
       const text = res?.data?.tip || res?.data?.response || res?.data?.answer || res?.data?.content || 'No suggestion — try again.';
-      setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text, loading: false } : x));
+      setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text, sources: res?.data?.sources, loading: false } : x));
     } catch (e) {
       setTileOutputs(prev => prev.map(x => x.id === id ? { ...x, text: `Error: ${e.message}`, loading: false } : x));
     }
@@ -1112,6 +1115,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
             ? <div style={{ color: '#4a5568', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div>
             : <div style={{ color: i === 0 ? '#e8e0d0' : '#8a9ab8', fontSize: '12px', lineHeight: 1.7 }}>{item.text}</div>
           }
+          <ApprovedKnowledgeSources sources={item.sources}/>
         </div>
       ))}
 
@@ -1129,6 +1133,7 @@ function CoachSection({ transcript, kbEntries, coachRules, active, collapsed, le
                 ? <div style={{ color: '#6b7280', fontSize: '11px', display: 'flex', gap: 6, alignItems: 'center' }}><div style={{ width: 5, height: 5, borderRadius: '50%', background: '#a78bfa', animation: 'aipulse 0.8s infinite' }} />Thinking…</div>
                 : <div style={{ color: '#c4cdd8', fontSize: '12px', lineHeight: 1.7 }}>{tip.text}</div>
               }
+              <ApprovedKnowledgeSources sources={tip.sources}/>
             </div>
           ))}
         </div>

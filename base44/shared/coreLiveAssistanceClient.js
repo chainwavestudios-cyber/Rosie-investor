@@ -30,7 +30,7 @@ export async function requestCoreLiveAssistance({ appKey, secret, coreOrigin, or
   const signature = 'sha256=' + Array.from(new Uint8Array(signed),
     byte => byte.toString(16).padStart(2, '0')).join('');
   const response = await fetchImpl(coreOrigin + CORE_PATH, {
-    method: 'POST', redirect: 'error', body: raw, signal: AbortSignal.timeout(32000),
+    method: 'POST', redirect: 'manual', body: raw, signal: AbortSignal.timeout(32000),
     headers: { 'content-type': 'application/json', 'x-rosie-app': appKey,
       'x-rosie-source-app-id': PRODUCT_APP_ID[appKey], 'x-rosie-environment': 'staging',
       'x-rosie-timestamp': time, 'x-rosie-signature': signature },
