@@ -13,7 +13,8 @@ import {auditScope,receiptAudit} from './receipt-audit.mjs';
 import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
 import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments} from './github-review-webhook.mjs';
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
-import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
+import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
+import {readReviewSource} from './review-source-broker.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
 import {registerAutomatedResult} from './review-automated-result.mjs';
 
@@ -150,7 +151,8 @@ async function persistWebhookPing(sql,delivery,channel){
 
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
   reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
-  reviewSource=githubReviewSource(process.env),reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
+  reviewSource=githubReviewSource(process.env),reviewRepository=githubReviewRepository(process.env),
+  reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
   reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
@@ -191,7 +193,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    }
   }
   if(['/v1/independent-review/inbox','/v1/independent-review/ack',
-   '/v1/independent-review/receipt','/v1/independent-review/automated-result'].includes(path)){
+   '/v1/independent-review/receipt','/v1/independent-review/automated-result',
+   '/v1/independent-review/source'].includes(path)){
    if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
    try{
     const {text,object}=await readBody(req);
@@ -201,6 +204,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
     let result;
     if(path.endsWith('/receipt'))result=await registerReviewDecision({sql,body:object,source:reviewSource,registry:reviewRegistry});
     else if(path.endsWith('/automated-result'))result=await registerAutomatedResult(sql,object);
+    else if(path.endsWith('/source'))result=await readReviewSource({sql,body:object,repository:reviewRepository});
     else result=await reviewAssignmentRequest(sql,path,object);
     const [status,body]=result;
     return reply(res,status,body);

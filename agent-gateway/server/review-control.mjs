@@ -19,7 +19,7 @@ export function readReviewRegistry(raw) {
   }
 }
 
-export function githubReviewSource(env, transport = fetch) {
+export function githubReviewRepository(env, transport = fetch) {
   const token = env.GITHUB_REVIEW_SOURCE_READ_TOKEN;
   const repository = env.GITHUB_REVIEW_REPOSITORY;
   const repositoryId = Number(env.GITHUB_REVIEW_REPOSITORY_ID);
@@ -39,6 +39,13 @@ export function githubReviewSource(env, transport = fetch) {
     if (!response.ok) throw Error('github_source_unavailable');
     return response.json();
   }
+  return {repository, repositoryId, read};
+}
+
+export function githubReviewSource(env, transport = fetch) {
+  const configured = githubReviewRepository(env, transport);
+  if (!configured) return null;
+  const {repository, repositoryId, read} = configured;
   return async number => {
     const pull = await read('/pulls/' + number);
     if (pull?.number !== number || pull.base?.repo?.id !== repositoryId ||
