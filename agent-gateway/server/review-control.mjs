@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {reviewAssignment} from './github-review-webhook.mjs';
 import {verifyIndependentReviewReceipt} from './independent-review-receipt.mjs';
 import {automatedContract,automatedResultId} from './review-automated-result.mjs';
+import {checkpointScope} from './review-checkpoint-source.mjs';
 
 const org = 'rosie-core-internal';
 const roles = ['A05', 'A14'];
@@ -67,6 +68,7 @@ function receiptId(assignmentId) {
 }
 
 export function reviewScope(candidate) {
+  if (candidate.source_kind === 'base44_checkpoint') return checkpointScope(candidate);
   const {repository_id, repository, pull_number, head_sha, base_sha} = candidate;
   return {repository_id, repository, pull_number, head_sha, base_sha};
 }
@@ -87,7 +89,7 @@ async function reviewState(sql, source, registry) {
       WHERE e.org_id=${org} AND e.event_id=${assignment.id} AND e.recipient_agent_id=${agent}
         AND e.payload->>'contract'=${assignmentContract}`;
     const receipt = row?.receipt?.decision;
-    const verified = await verifyIndependentReviewReceipt(receipt, {
+    const verified = scope.source_kind === 'base44_checkpoint' ? false : await verifyIndependentReviewReceipt(receipt, {
       ...scope, id: assignment.id, agent_id: agent, issued_at: Date.parse(row?.received_at),
       implementer_id: source.implementer_id,
     }, registry);
@@ -101,17 +103,33 @@ async function reviewState(sql, source, registry) {
       proof: verified && acknowledged ? {
         receipt, assignment_issued_at: Date.parse(row.received_at),
       } : null,
+      acknowledged_at: row?.acknowledged_at ?? null,
+      automated_report_id: row?.automated?.report ? automatedResultId(assignment.id) : null,
       automated: row?.automated?.report ?? null,
     };
   }));
   return {
     candidate: scope, reviewers: rows, base_confirmed: source.base_confirmed,
     implementer_id: source.implementer_id,
-    accepted: source.base_confirmed && rows.every(row => row.status === 'accept'),
+    accepted: scope.source_kind !== 'base44_checkpoint' &&
+      source.base_confirmed && rows.every(row => row.status === 'accept'),
   };
 }
 
-export async function handleReviewControl({sql, request, source, registry, enqueue}) {
+export async function handleReviewControl({sql, request, source, registry, enqueue, checkpointSource}) {
+  if (request?.source_kind === 'base44_checkpoint') {
+    if (!['request', 'status'].includes(request.action) || Object.keys(request).length !== 4 ||
+        !checkpointScope(request)) return [400, {error: 'invalid_checkpoint_review_request'}];
+    if (!checkpointSource) return [503, {error: 'checkpoint_review_source_not_configured'}];
+    const verified = await checkpointSource.resolve(request);
+    if (!verified) return [409, {error: 'checkpoint_review_candidate_unverified'}];
+    if (request.action === 'request') {
+      const recorded = await enqueue(roles.map(agent => reviewAssignment(agent, verified)));
+      if (!recorded) return [503, {error: 'review_assignment_unavailable'}];
+    }
+    return [200, {ok: true, ...await reviewState(sql, {...verified, base_confirmed: true}, registry),
+      release_authorized: false}];
+  }
   const {action, pull_number} = request;
   if (!['request', 'status'].includes(action) || Object.keys(request).length !== 2 ||
       !Number.isSafeInteger(pull_number) || pull_number < 1) return [400, {error: 'invalid_review_request'}];

@@ -42,10 +42,10 @@ async function readBytes(request) {
 }
 
 export function reviewEventId(agent, candidate) {
-  const identity = [
-    'rosie.core.independent-review.v1', agent, candidate.repository_id,
-    candidate.pull_number, candidate.head_sha, candidate.base_sha,
-  ];
+  const identity = candidate.source_kind === 'base44_checkpoint'
+    ? ['rosie.core.independent-review.v1', agent, candidate.source_kind, candidate.product_key, candidate.checkpoints]
+    : ['rosie.core.independent-review.v1', agent, candidate.repository_id,
+      candidate.pull_number, candidate.head_sha, candidate.base_sha];
   if (candidate.mode === 'retrospective') identity.push(candidate.mode, candidate.merge_sha);
   const digest = createHash('sha256').update(JSON.stringify(identity)).digest('hex');
   return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
