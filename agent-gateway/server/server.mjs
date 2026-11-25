@@ -11,6 +11,8 @@ import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
 import {auditScope,receiptAudit} from './receipt-audit.mjs';
 import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
+import {receiveReviewWebhook,reviewWebhookConfig} from './github-review-webhook.mjs';
+import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -96,11 +98,63 @@ function checkLease(x){
  return checkWorker(x)&&UUID.test(x.job_id||'')&&
     Number.isSafeInteger(x.fencing_token)&&x.fencing_token>0;
 }
+async function enqueueIndependentReview(sql,{agent,id,candidate}){
+ return sql.begin(async t=>{
+  await t`SET LOCAL statement_timeout='5000ms'`;
+  const target=await t`SELECT agent_id FROM core_agents.identities
+   WHERE org_id=${ORG} AND agent_id=${agent} AND desired_state<>'revoked'`;
+  if(target.length!==1)return null;
+  const rows=await t`INSERT INTO core_agents.events
+   (event_id,org_id,recipient_agent_id,sender,event_type,ticket_key,payload,nonce)
+   VALUES(${id},${ORG},${agent},'rosie_core','rcis.message',NULL,${t.json(candidate)},${id})
+   ON CONFLICT(event_id) DO NOTHING RETURNING event_id`;
+  if(!rows.length){
+   const existing=await t`SELECT a.ack_id FROM core_agents.events e
+    JOIN core_agents.acks a ON a.event_id=e.event_id AND a.org_id=e.org_id
+    WHERE e.event_id=${id} AND e.org_id=${ORG} AND e.recipient_agent_id=${agent}
+      AND e.event_type='rcis.message' AND e.payload=${t.json(candidate)}::jsonb
+      AND a.stage='persisted' AND a.actor='gateway'`;
+   if(existing.length!==1)return null;
+   return {idempotent:true,delivery_ack:existing[0].ack_id};
+  }
+  const ack=await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
+   VALUES(${id},${ORG},'persisted','gateway') RETURNING ack_id`;
+  return {idempotent:false,delivery_ack:ack[0].ack_id};
+ });
+}
+
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
+  reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
+  const reviewHook=/^\/v1\/github-review\/(A05|A14)$/.exec(path);
+  if(reviewHook){
+   try{
+    const agent=reviewHook[1];
+    const [status,body]=await receiveReviewWebhook(req,agent,reviewHooks[agent],
+     assignment=>enqueueIndependentReview(sql,assignment));
+    return reply(res,status,body);
+   }catch{
+    return reply(res,503,{error:'review_assignment_unavailable'});
+   }
+  }
+  if(path==='/v1/independent-review/inbox'||path==='/v1/independent-review/ack'){
+   if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
+   try{
+    const {text,object}=await readBody(req);
+    const key=typeof object.agent_id==='string'&&Object.hasOwn(reviewKeys,object.agent_id)
+     ?reviewKeys[object.agent_id]:undefined;
+    if(!authentic(req,path,text,key))return reply(res,401,{error:'reviewer_authorization_required'});
+    const [status,body]=await reviewAssignmentRequest(sql,path,object);
+    return reply(res,status,body);
+   }catch(error){
+    if(error.http)return reply(res,error.http,{error:error.message});
+    if(error.code==='23505')return reply(res,409,{error:'review_request_replayed'});
+    return reply(res,503,{error:'review_assignment_unavailable'});
+   }
+  }
   if(req.method==='GET'&&path==='/health')
     return reply(res,200,{ok:true,service:'rosie-core-internal-agent-gateway',stage:'staging'});
   if(req.method==='GET'&&path==='/ready'){
