@@ -1,3 +1,5 @@
+import {checkpointScope} from './review-checkpoint-source.mjs';
+
 const org = 'rosie-core-internal';
 const assignmentContract = 'rosie.core.independent-review.v1';
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -29,7 +31,7 @@ export function reviewSourceResource(candidate, resource) {
   }
 }
 
-export async function readReviewSource({sql, body, repository}) {
+export async function readReviewSource({sql, body, repository, checkpointSource}) {
   const {org_id, agent_id, nonce, assignment_id, resource} = body;
   if (org_id !== org || !['A05', 'A14'].includes(agent_id) || Object.keys(body).length !== 5 ||
       typeof nonce !== 'string' || !uuid.test(nonce) ||
@@ -37,7 +39,8 @@ export async function readReviewSource({sql, body, repository}) {
       typeof resource !== 'string' || resource.length > 110) {
     return [400, {error: 'invalid_review_source_request'}];
   }
-  if (!repository) return [503, {error: 'github_source_not_configured'}];
+  const useCheckpoint = resource === 'checkpoint-source-report';
+  if (useCheckpoint ? !checkpointSource : !repository) return [503, {error: 'review_source_not_configured'}];
   const allowed = await sql.begin(async tx => {
     await tx`SET LOCAL statement_timeout='5000ms'`;
     const [row] = await tx`SELECT e.payload FROM core_agents.events e
@@ -46,14 +49,16 @@ export async function readReviewSource({sql, body, repository}) {
       JOIN core_agents.identities i ON i.org_id=e.org_id AND i.agent_id=e.recipient_agent_id
       WHERE e.org_id=${org} AND e.event_id=${assignment_id} AND e.recipient_agent_id=${agent_id}
         AND e.payload->>'contract'=${assignmentContract} AND i.desired_state<>'revoked'`;
-    if (row?.payload?.repository !== repository.repository ||
-        row?.payload?.repository_id !== repository.repositoryId) return null;
-    const selected = reviewSourceResource(row.payload, resource);
+    const candidate = row?.payload;
+    const selected = useCheckpoint ? checkpointScope(candidate)
+      : candidate?.repository === repository.repository && candidate?.repository_id === repository.repositoryId
+        ? reviewSourceResource(candidate, resource) : null;
     if (!selected) return null;
     await tx`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES(${nonce},${org})`;
     return selected;
   });
   if (!allowed) return [403, {error: 'review_source_out_of_scope'}];
+  if (useCheckpoint) return [200, await checkpointSource.inspect(allowed)];
   const object = await repository.read(allowed.path);
   if (!object) return [404, {error: 'review_source_not_found'}];
   return [200, allowed.project(object)];

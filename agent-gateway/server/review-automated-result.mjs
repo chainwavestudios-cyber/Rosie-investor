@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {checkpointScope} from './review-checkpoint-source.mjs';
 
 const org = 'rosie-core-internal';
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
@@ -13,10 +14,25 @@ export function automatedResultId(assignment) {
   return `${d.slice(0,8)}-${d.slice(8,12)}-8${d.slice(13,16)}-a${d.slice(17,20)}-${d.slice(20,32)}`;
 }
 
+function checkpointReportScope(report) {
+  if (Object.keys(report).length !== 6 || !Array.isArray(report.checkpoints)) return null;
+  const pins = [];
+  for (const row of report.checkpoints) {
+    if (!row || Object.keys(row).length !== 7 || !/^[a-f0-9]{64}$/.test(row.manifest_sha256 ?? '') ||
+        !Number.isSafeInteger(row.file_count) || row.file_count < 1 || row.file_count > 20000 ||
+        typeof row.authority_files_present !== 'boolean') return null;
+    pins.push({app_id: row.app_id, branch_id: row.branch_id, checkpoint_id: row.checkpoint_id, commit_sha: row.commit_sha});
+  }
+  return checkpointScope({...report, checkpoints: pins});
+}
+
 function validReport(report) {
   if (!report || Array.isArray(report) || report.release_authorized !== false ||
       report.test_execution !== 'not_run') return false;
   if (report.state === 'superseded') return Object.keys(report).length === 3;
+  if (report.state === 'source_verified' && report.source_kind === 'base44_checkpoint') {
+    return Boolean(checkpointReportScope(report));
+  }
   return report.state === 'source_verified' &&
     required.every(field => Object.hasOwn(report, field)) &&
     Object.keys(report).every(field => required.includes(field) || field === 'merge_tree') &&
@@ -43,9 +59,16 @@ export async function registerAutomatedResult(sql, body) {
         AND e.payload->>'contract'=${assignmentContract} AND i.desired_state<>'revoked'
       FOR UPDATE OF e`;
     if (!assignment) return [409,{error:'automated_result_assignment_not_acknowledged'}];
-    if (report.state==='source_verified' &&
-        (assignment.payload.mode==='retrospective')!==Object.hasOwn(report,'merge_tree')) {
-      return [400,{error:'automated_result_source_scope_invalid'}];
+    if (report.state === 'source_verified') {
+      const expected = checkpointScope(assignment.payload);
+      const actual = report.source_kind === 'base44_checkpoint' ? checkpointReportScope(report) : null;
+      if (expected || actual) {
+        if (!expected || !actual || JSON.stringify(expected) !== JSON.stringify(actual)) {
+          return [400,{error:'automated_result_source_scope_invalid'}];
+        }
+      } else if ((assignment.payload.mode === 'retrospective') !== Object.hasOwn(report,'merge_tree')) {
+        return [400,{error:'automated_result_source_scope_invalid'}];
+      }
     }
     const id = automatedResultId(assignment_id);
     const payload = {contract:automatedContract, assignment_id, candidate:assignment.payload, report};

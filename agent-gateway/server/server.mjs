@@ -15,6 +15,7 @@ import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments}
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
 import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
 import {readReviewSource} from './review-source-broker.mjs';
+import {base44ReviewSource} from './review-checkpoint-source.mjs';
 import {reconcilePendingReviews} from './review-reconciliation.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
 import {registerAutomatedResult} from './review-automated-result.mjs';
@@ -153,6 +154,7 @@ async function persistWebhookPing(sql,delivery,channel){
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
   reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
   reviewSource=githubReviewSource(process.env),reviewRepository=githubReviewRepository(process.env),
+  checkpointSource=base44ReviewSource(process.env),
   reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
   reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
@@ -186,7 +188,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
     const {text,object}=await readBody(req);
     if(!authentic(req,path,text,reviewControlKey))return reply(res,401,{error:'core_review_control_required'});
     const [status,body]=await handleReviewControl({sql,request:object,source:reviewSource,
-     registry:reviewRegistry,enqueue:enqueueReviews});
+     registry:reviewRegistry,enqueue:enqueueReviews,checkpointSource});
     return reply(res,status,body);
    }catch(error){
     if(error.http)return reply(res,error.http,{error:error.message});
@@ -205,7 +207,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
     let result;
     if(path.endsWith('/receipt'))result=await registerReviewDecision({sql,body:object,source:reviewSource,registry:reviewRegistry});
     else if(path.endsWith('/automated-result'))result=await registerAutomatedResult(sql,object);
-    else if(path.endsWith('/source'))result=await readReviewSource({sql,body:object,repository:reviewRepository});
+    else if(path.endsWith('/source'))result=await readReviewSource({sql,body:object,repository:reviewRepository,checkpointSource});
     else result=await reviewAssignmentRequest(sql,path,object);
     const [status,body]=result;
     return reply(res,status,body);
