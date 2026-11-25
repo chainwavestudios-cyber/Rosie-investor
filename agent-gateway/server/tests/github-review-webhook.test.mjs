@@ -88,6 +88,22 @@ test('ignores irrelevant events and validates the candidate before commit', asyn
   assert.equal((await receiveReviewWebhook(request(payload), 'A05', hooks.A05, async () => null))[0], 503);
 });
 
+test('retargeting to main queues the new commit pair without treating text edits as submissions', async () => {
+  const retargeted = {...payload, action: 'edited', changes: {base: {
+    ref: {from: 'codex/call-intelligence'}, sha: {from: 'e'.repeat(40)},
+  }}};
+  const queue = assignment => {
+    assert.equal(assignment.candidate.head_sha, payload.pull_request.head.sha);
+    assert.equal(assignment.candidate.base_sha, payload.pull_request.base.sha);
+    return {delivery_ack: assignment.id};
+  };
+  const accepted = await receiveReviewWebhook(request(retargeted), 'A05', hooks.A05, queue);
+  assert.equal(accepted[1].durable_commit, true);
+  const metadata = await receiveReviewWebhook(request({...retargeted, changes: {title: {from: 'before'}}}),
+    'A05', hooks.A05, neverQueue);
+  assert.deepEqual(metadata, [202, {ignored: true}]);
+});
+
 test('fails closed on missing or shared credentials', () => {
   assert.deepEqual(reviewWebhookConfig({}), {});
   assert.deepEqual(reviewWebhookConfig({...config, GITHUB_REVIEW_A14_WEBHOOK_SECRET: hooks.A05.secret}), {});

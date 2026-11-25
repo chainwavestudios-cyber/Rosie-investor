@@ -116,7 +116,12 @@ export async function receiveReviewWebhook(request, agent, config, enqueue, ackn
   }
   const pr = body.pull_request;
   const retrospective = body.action === 'closed' && pr?.merged === true;
-  if (!retrospective && !candidateActions.has(body.action)) return [202, {ignored: true}];
+  const previousBase = body.changes?.base;
+  const retargeted = body.action === 'edited' && pr?.base?.ref === 'main' &&
+    typeof previousBase?.ref?.from === 'string' && previousBase.ref.from &&
+    previousBase.ref.from !== pr.base.ref && typeof previousBase.sha?.from === 'string' &&
+    sha.test(previousBase.sha.from);
+  if (!retrospective && !retargeted && !candidateActions.has(body.action)) return [202, {ignored: true}];
   const repository = body.repository.full_name;
   if (!Number.isSafeInteger(body.number) || body.number < 1 || pr?.number !== body.number ||
       pr.base?.repo?.id !== config.repositoryId || pr.base?.ref !== 'main' ||
