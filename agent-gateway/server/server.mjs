@@ -16,7 +16,7 @@ import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.
 import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
 import {readReviewSource} from './review-source-broker.mjs';
 import {reconcilePendingReviews} from './review-reconciliation.mjs';
-import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
+import {docsReviewDelivery,enqueueGuardianReviewArchive,enqueueReviewFeedback,reviewFeedbackRoutes,syncRegisteredReviewDoc} from './review-archive.mjs';
 import {registerAutomatedResult} from './review-automated-result.mjs';
 
 const PORT=Number(process.env.PORT||10000);
@@ -634,12 +634,13 @@ async function main(){
    .catch(()=>console.error('supervisor_recovery_attempt_failed')),15000);
  supervisor.unref();
  const docDelivery=docsReviewDelivery(process.env);
+ const feedbackRoutes=reviewFeedbackRoutes(process.env.GITHUB_REVIEW_ORIGIN_AGENTS_JSON);
  let reviewingArchives=false;
  const reviewArchiveTimer=setInterval(async()=>{
   if(reviewingArchives)return;
   reviewingArchives=true;
   try{
-   await enqueueGuardianReviewArchive(sql);
+   await enqueueGuardianReviewArchive(sql,process.env.GITHUB_REVIEW_GUARDIAN_AGENT_ID);
   }catch{
    console.warn('independent_review_guardian_delivery_pending');
   }
@@ -647,6 +648,11 @@ async function main(){
    if(docDelivery)await syncRegisteredReviewDoc(sql,docDelivery);
   }catch{
    console.warn('independent_review_docs_delivery_pending');
+  }
+  try{
+   for(const route of feedbackRoutes)await enqueueReviewFeedback(sql,route);
+  }catch{
+   console.warn('independent_review_feedback_delivery_pending');
   }finally{
    reviewingArchives=false;
   }
