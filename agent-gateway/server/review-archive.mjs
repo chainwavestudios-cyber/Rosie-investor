@@ -1,4 +1,5 @@
 import {createHash, createHmac} from 'node:crypto';
+import {automatedContract} from './review-automated-result.mjs';
 
 const org = 'rosie-core-internal';
 const receiptContract = 'rosie.core.independent-review.registered.v1';
@@ -18,11 +19,11 @@ export async function enqueueGuardianReviewArchive(sql) {
     if (!guardian) return false;
     const [row] = await tx`SELECT e.event_id,e.payload FROM core_agents.events e
       LEFT JOIN core_agents.acks a ON a.event_id=e.event_id AND a.stage='persisted'
-      WHERE e.org_id=${org} AND e.payload->>'contract'=${receiptContract}
+      WHERE e.org_id=${org} AND e.payload->>'contract' IN (${receiptContract},${automatedContract})
         AND a.event_id IS NULL ORDER BY e.received_at LIMIT 1 FOR UPDATE OF e SKIP LOCKED`;
     if (!row) return false;
     const event = deliveryEventId(guardianContract, row.event_id);
-    const payload = {contract: guardianContract, receipt_id: row.event_id, decision: row.payload.decision};
+    const payload = {contract: guardianContract, receipt_id: row.event_id, evidence: row.payload};
     await tx`INSERT INTO core_agents.events
       (event_id,org_id,recipient_agent_id,sender,event_type,ticket_key,payload,nonce)
       VALUES(${event},${org},'A03','rosie_core','rcis.message',NULL,${tx.json(payload)},${event})
@@ -55,11 +56,11 @@ export async function syncRegisteredReviewDoc(sql, config, transport = fetch) {
     const [row] = await tx`SELECT e.event_id,e.payload,e.recipient_agent_id FROM core_agents.events e
       LEFT JOIN core_agents.events a ON a.org_id=e.org_id AND a.payload->>'contract'=${docsContract}
         AND a.payload->>'receipt_id'=e.event_id::text
-      WHERE e.org_id=${org} AND e.payload->>'contract'=${receiptContract}
+      WHERE e.org_id=${org} AND e.payload->>'contract' IN (${receiptContract},${automatedContract})
         AND a.event_id IS NULL ORDER BY e.received_at LIMIT 1 FOR UPDATE OF e SKIP LOCKED`;
     if (!row) return false;
     const decision = row.payload.decision;
-    const payload = JSON.stringify({
+    const payload = JSON.stringify(decision ? {
       app_key: 'core', source_type: 'acceptance_test', source_event_id: 'review:' + row.event_id,
       source_ref: 'https://github.com/' + config.repository + '/pull/' + decision.pull_number,
       event_type: 'independent_review_receipt', title: 'Independent review receipt for PR #' + decision.pull_number,
@@ -68,6 +69,14 @@ export async function syncRegisteredReviewDoc(sql, config, transport = fetch) {
         'Candidate ' + decision.head_sha + ' against ' + decision.base_sha + '.',
       ].join(' '),
       evidence: ['Core receipt ' + row.event_id, 'Evidence SHA-256 ' + decision.evidence_sha256],
+    } : {
+      app_key:'core',source_type:'manual_change',source_event_id:'review:' + row.event_id,
+      source_ref:'https://github.com/' + config.repository + '/pull/' + row.payload.candidate.pull_number,
+      event_type:'independent_review_automated_result',
+      title:'Automated source inspection for PR #' + row.payload.candidate.pull_number,
+      change_summary:'Reviewer ' + row.recipient_agent_id + ' reported ' + row.payload.report.state +
+        ' for candidate ' + row.payload.candidate.head_sha + '. Isolated tests and signed approval were not issued by this report.',
+      evidence:['Core automated report ' + row.event_id],
     });
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = createHmac('sha256', config.secret).update(timestamp + '.' + payload).digest('hex');

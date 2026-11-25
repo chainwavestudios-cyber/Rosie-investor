@@ -20,7 +20,7 @@ const payload = {
   pull_request: {
     number: 38, state: 'open', body: 'レビュー',
     head: {sha: 'c'.repeat(40)},
-    base: {sha: 'd'.repeat(40), repo: {id: 123}},
+    base: {sha: 'd'.repeat(40), ref: 'main', repo: {id: 123}},
   },
 };
 

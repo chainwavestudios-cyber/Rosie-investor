@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {reviewAssignment} from './github-review-webhook.mjs';
 import {verifyIndependentReviewReceipt} from './independent-review-receipt.mjs';
+import {automatedContract,automatedResultId} from './review-automated-result.mjs';
 
 const org = 'rosie-core-internal';
 const roles = ['A05', 'A14'];
@@ -67,12 +68,15 @@ async function reviewState(sql, source, registry) {
   const scope = reviewScope(source);
   const rows = await Promise.all(roles.map(async agent => {
     const assignment = reviewAssignment(agent, scope);
-    const [row] = await sql`SELECT e.received_at,mr.received_at AS acknowledged_at,r.payload AS receipt
+    const [row] = await sql`SELECT e.received_at,mr.received_at AS acknowledged_at,r.payload AS receipt,
+      m.payload AS automated
       FROM core_agents.events e
       LEFT JOIN core_agents.agent_message_receipts mr ON mr.event_id=e.event_id
         AND mr.recipient_agent_id=e.recipient_agent_id
       LEFT JOIN core_agents.events r ON r.event_id=${receiptId(assignment.id)} AND r.org_id=e.org_id
         AND r.recipient_agent_id=e.recipient_agent_id AND r.payload->>'contract'=${receiptContract}
+      LEFT JOIN core_agents.events m ON m.event_id=${automatedResultId(assignment.id)} AND m.org_id=e.org_id
+        AND m.recipient_agent_id=e.recipient_agent_id AND m.payload->>'contract'=${automatedContract}
       WHERE e.org_id=${org} AND e.event_id=${assignment.id} AND e.recipient_agent_id=${agent}
         AND e.payload->>'contract'=${assignmentContract}`;
     const receipt = row?.receipt?.decision;
@@ -90,6 +94,7 @@ async function reviewState(sql, source, registry) {
       proof: verified && acknowledged ? {
         receipt, assignment_issued_at: Date.parse(row.received_at),
       } : null,
+      automated: row?.automated?.report ?? null,
     };
   }));
   return {

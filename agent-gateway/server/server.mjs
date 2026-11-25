@@ -15,6 +15,7 @@ import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments}
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
 import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
+import {registerAutomatedResult} from './review-automated-result.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -189,16 +190,19 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
     return reply(res,503,{error:'review_control_unavailable'});
    }
   }
-  if(['/v1/independent-review/inbox','/v1/independent-review/ack','/v1/independent-review/receipt'].includes(path)){
+  if(['/v1/independent-review/inbox','/v1/independent-review/ack',
+   '/v1/independent-review/receipt','/v1/independent-review/automated-result'].includes(path)){
    if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
    try{
     const {text,object}=await readBody(req);
     const key=typeof object.agent_id==='string'&&Object.hasOwn(reviewKeys,object.agent_id)
      ?reviewKeys[object.agent_id]:undefined;
     if(!authentic(req,path,text,key))return reply(res,401,{error:'reviewer_authorization_required'});
-    const [status,body]=path.endsWith('/receipt')
-     ?await registerReviewDecision({sql,body:object,source:reviewSource,registry:reviewRegistry})
-     :await reviewAssignmentRequest(sql,path,object);
+    let result;
+    if(path.endsWith('/receipt'))result=await registerReviewDecision({sql,body:object,source:reviewSource,registry:reviewRegistry});
+    else if(path.endsWith('/automated-result'))result=await registerAutomatedResult(sql,object);
+    else result=await reviewAssignmentRequest(sql,path,object);
+    const [status,body]=result;
     return reply(res,status,body);
    }catch(error){
     if(error.http)return reply(res,error.http,{error:error.message});

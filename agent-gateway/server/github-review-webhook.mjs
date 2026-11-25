@@ -119,7 +119,7 @@ export async function receiveReviewWebhook(request, agent, config, enqueue, ackn
   if (!retrospective && !candidateActions.has(body.action)) return [202, {ignored: true}];
   const repository = body.repository.full_name;
   if (!Number.isSafeInteger(body.number) || body.number < 1 || pr?.number !== body.number ||
-      pr.base?.repo?.id !== config.repositoryId ||
+      pr.base?.repo?.id !== config.repositoryId || pr.base?.ref !== 'main' ||
       (retrospective ? pr.state !== 'closed' || !sha.test(pr.merge_commit_sha || '') : pr.state !== 'open') ||
       typeof pr.head?.sha !== 'string' || !sha.test(pr.head.sha) ||
       typeof pr.base?.sha !== 'string' || !sha.test(pr.base.sha) ||
