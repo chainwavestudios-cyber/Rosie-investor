@@ -11,9 +11,9 @@ import postgres from 'postgres';
 import {generateAgent,inspectFactory} from './agent-factory.mjs';
 import {auditScope,receiptAudit} from './receipt-audit.mjs';
 import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
-import {receiveReviewWebhook,reviewAssignment,reviewWebhookConfig} from './github-review-webhook.mjs';
+import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments} from './github-review-webhook.mjs';
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
-import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision,reviewScope} from './review-control.mjs';
+import {githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
 
 const PORT=Number(process.env.PORT||10000);
@@ -122,36 +122,55 @@ async function enqueueIndependentReview(t,{agent,id,candidate}){
   return {idempotent:false,delivery_ack:ack[0].ack_id};
 }
 
+const enqueueReviewBatch=(sql,assignments)=>sql.begin(async tx=>{
+ await tx`SET LOCAL statement_timeout='5000ms'`;
+ const results=[];
+ for(const assignment of assignments){
+  const result=await enqueueIndependentReview(tx,assignment);
+  if(!result?.delivery_ack)throw Error('review_assignment_unavailable');
+  results.push(result);
+ }
+ return results;
+});
+
+async function persistWebhookPing(sql,delivery,channel){
+ const agent=channel==='repository'?'A05':channel;
+ const d=crypto.createHash('sha256').update('rosie.github.webhook.ping.v1\n'+channel+'\n'+delivery).digest('hex');
+ const id=`${d.slice(0,8)}-${d.slice(8,12)}-8${d.slice(13,16)}-a${d.slice(17,20)}-${d.slice(20,32)}`;
+ const payload={contract:'rosie.github.webhook.ping.v1',delivery_id:delivery,channel};
+ const rows=await sql`INSERT INTO core_agents.events
+  (event_id,org_id,recipient_agent_id,sender,event_type,ticket_key,payload,nonce)
+  VALUES(${id},${ORG},${agent},'rosie_core','rcis.message',NULL,${sql.json(payload)},${id})
+  ON CONFLICT(event_id) DO UPDATE SET event_id=core_agents.events.event_id
+   WHERE core_agents.events.org_id=${ORG} AND core_agents.events.recipient_agent_id=${agent}
+    AND core_agents.events.payload=${sql.json(payload)}::jsonb RETURNING event_id`;
+ return rows[0]?.event_id;
+}
+
 function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WORKER_AGENT_KEYS,
   reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
   reviewSource=githubReviewSource(process.env),reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
   reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
+ const enqueueReviews=assignments=>enqueueReviewBatch(sql,assignments);
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
-  const enqueueReviews=assignments=>sql.begin(async tx=>{
-   await tx`SET LOCAL statement_timeout='5000ms'`;
-   const results=[];
-   for(const assignment of assignments){
-    const result=await enqueueIndependentReview(tx,assignment);
-    if(!result?.delivery_ack)throw Error('review_assignment_unavailable');
-    results.push(result);
-   }
-   return results;
-  });
-  const reviewHook=/^\/v1\/github-review\/(A05|A14)$/.exec(path);
+  const reviewHook=/^\/v1\/github-review\/(A05|A14|repository)$/.exec(path);
   if(reviewHook){
    try{
     const agent=reviewHook[1];
-    const [status,body]=await receiveReviewWebhook(req,agent,reviewHooks[agent],async assignment=>{
-     if(!reviewSource)return null;
-     const current=await reviewSource(assignment.candidate.pull_number);
-     if(!current?.base_confirmed||assignment.candidate.head_sha!==current.head_sha||
-        assignment.candidate.base_sha!==current.base_sha)return {superseded:true};
-     const [result]=await enqueueReviews([reviewAssignment(agent,reviewScope(current))]);
-     return result;
-    });
+    const [status,body]=await receiveReviewWebhook(req,agent,reviewHooks[agent],async input=>{
+     const batch=Array.isArray(input)?input:[input];
+     const candidate=batch[0].candidate;
+     if(reviewSource&&candidate.mode!=='retrospective'){
+      const current=await reviewSource(candidate.pull_number);
+      if(!current?.base_confirmed||candidate.head_sha!==current.head_sha||
+         candidate.base_sha!==current.base_sha)return {superseded:true};
+     }
+     const results=await enqueueReviews(batch);
+     return Array.isArray(input)?results:results[0];
+    },(delivery,channel)=>persistWebhookPing(sql,delivery,channel));
     return reply(res,status,body);
    }catch{
     return reply(res,503,{error:'review_assignment_unavailable'});
@@ -538,6 +557,26 @@ async function main(){
  if(name!=='rosie_agent_gateway')throw Error('Wrong database identity');
  const server=makeServer({sql});
  server.listen(PORT,'0.0.0.0',()=>console.log('core_agent_gateway_listening',PORT));
+ let retrospectiveTimer;
+ try{
+  const retrospective=stagedRetrospectiveAssignments(process.env);
+  if(retrospective.length){
+   const seed=async()=>{
+    try{
+     await enqueueReviewBatch(sql,retrospective);
+     console.log('review_retrospective_assignments_persisted',retrospective[0].candidate.pull_number);
+    }catch{
+     console.warn('review_retrospective_assignment_pending');
+     retrospectiveTimer=setTimeout(seed,30000);
+     retrospectiveTimer.unref();
+    }
+   };
+   retrospectiveTimer=setTimeout(seed,500);
+   retrospectiveTimer.unref();
+  }
+ }catch{
+  console.warn('review_retrospective_scope_invalid');
+ }
  const scope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||'';
  let relayTimer;
  if(scope && auditKey.length>=40){
@@ -582,7 +621,7 @@ async function main(){
  },60000);
  reviewArchiveTimer.unref();
  const shutdown=async()=>{
-  clearTimeout(relayTimer);clearInterval(supervisor);clearInterval(reviewArchiveTimer);server.close();await sleep(50);
+  clearTimeout(relayTimer);clearTimeout(retrospectiveTimer);clearInterval(supervisor);clearInterval(reviewArchiveTimer);server.close();await sleep(50);
   await sql.end({timeout:3});process.exit(0);
  };
  process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);

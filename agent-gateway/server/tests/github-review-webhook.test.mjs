@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {Readable} from 'node:stream';
 import test from 'node:test';
-import {receiveReviewWebhook, reviewWebhookConfig} from '../github-review-webhook.mjs';
+import {receiveReviewWebhook, reviewAssignment, reviewWebhookConfig, stagedRetrospectiveAssignments} from '../github-review-webhook.mjs';
 
 const config = {
   GITHUB_REVIEW_REPOSITORY_ID: '123',
@@ -92,4 +92,47 @@ test('fails closed on missing or shared credentials', () => {
   assert.deepEqual(reviewWebhookConfig({}), {});
   assert.deepEqual(reviewWebhookConfig({...config, GITHUB_REVIEW_A14_WEBHOOK_SECRET: hooks.A05.secret}), {});
   assert.deepEqual(reviewWebhookConfig({...config, GITHUB_REVIEW_A14_INSTALLATION_ID: '45'}), {});
+});
+
+test('a repository webhook commits a signed ping and fans a candidate out to both existing reviewers', async () => {
+  const repoSecret = 'c'.repeat(64);
+  const config = reviewWebhookConfig({...hooks, ...{
+    GITHUB_REVIEW_REPOSITORY_ID: '123',
+    GITHUB_REVIEW_REPOSITORY: 'test/rosie-core-platform',
+    GITHUB_REVIEW_REPO_WEBHOOK_SECRET: repoSecret,
+  }}).repository;
+  const [status, acknowledgment] = await receiveReviewWebhook(
+    request(payload, {event: 'ping', key: repoSecret}), 'repository', config, neverQueue,
+    async (delivery, channel) => {
+      assert.equal(channel, 'repository');
+      assert.equal(delivery, '927a4599-56e7-4fb7-864e-901719d2d6b3');
+      return delivery;
+    });
+  assert.equal(status, 200);
+  assert.equal(acknowledgment.durable_commit, true);
+  const received = await receiveReviewWebhook(request(payload, {key: repoSecret}), 'repository', config,
+    async assignments => {
+      assert.deepEqual(assignments.map(assignment => assignment.agent), ['A05', 'A14']);
+      return assignments.map(({id}) => ({delivery_ack: id}));
+    });
+  assert.equal(received[0], 202);
+  assert.equal(received[1].assignments.length, 2);
+  const crossed = {...payload, repository: {...payload.repository, full_name: 'outside/repository'}};
+  assert.equal((await receiveReviewWebhook(request(crossed, {key: repoSecret}), 'repository',
+    config, neverQueue))[0], 403);
+});
+
+test('a merged event and a staged backfill match only retrospective assignment IDs', async () => {
+  const scope = {repository_id:123, repository:'test/rosie-core-platform', pull_number:38,
+    head_sha:'c'.repeat(40), base_sha:'d'.repeat(40), merge_sha:'e'.repeat(40)};
+  const expected = stagedRetrospectiveAssignments({GITHUB_REVIEW_REPOSITORY_ID:'123',
+    GITHUB_REVIEW_REPOSITORY:scope.repository, GITHUB_REVIEW_STAGING_RETROSPECTIVE_JSON:JSON.stringify(scope)});
+  assert.notEqual(expected[0].id, reviewAssignment('A05', scope).id);
+  const merged = {...payload, action:'closed', pull_request:{...payload.pull_request,
+    state:'closed', merged:true, merge_commit_sha:scope.merge_sha}};
+  const [code] = await receiveReviewWebhook(request(merged), 'A05', hooks.A05, async assignment => {
+    assert.deepEqual(assignment, expected[0]);
+    return {delivery_ack:'fixture'};
+  });
+  assert.equal(code, 202);
 });
