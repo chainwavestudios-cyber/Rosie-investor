@@ -10,6 +10,12 @@ const receiptContract = 'rosie.core.independent-review.registered.v1';
 const sha = /^[a-f0-9]{40}$/;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
+export function reviewControlCredential(action, controlKey, inboxKey) {
+  if (action !== 'reviewer_inbox') return controlKey;
+  return typeof inboxKey === 'string' && inboxKey.length >= 40 && inboxKey !== controlKey
+    ? inboxKey : undefined;
+}
+
 export function readReviewRegistry(raw) {
   try {
     const registry = JSON.parse(raw || 'null');

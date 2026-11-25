@@ -13,7 +13,7 @@ import {auditScope,receiptAudit} from './receipt-audit.mjs';
 import {auditIngress,relayAuditAssignment,publishAuditResult} from './audit-relay.mjs';
 import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments} from './github-review-webhook.mjs';
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
-import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
+import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision,reviewControlCredential} from './review-control.mjs';
 import {readReviewSource} from './review-source-broker.mjs';
 import {reconcilePendingReviews} from './review-reconciliation.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,enqueueReviewFeedback,reviewFeedbackRoutes,syncRegisteredReviewDoc} from './review-archive.mjs';
@@ -154,6 +154,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   reviewHooks=reviewWebhookConfig(process.env), reviewKeys=reviewAssignmentKeys(process.env),
   reviewSource=githubReviewSource(process.env),reviewRepository=githubReviewRepository(process.env),
   reviewControlKey=process.env.GITHUB_REVIEW_CONTROL_KEY||'',
+  reviewerInboxKey=process.env.GITHUB_REVIEW_READER_KEY||'',
   reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
  if(!sql)throw Error('Database required');
@@ -184,7 +185,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    if(req.method!=='POST')return reply(res,405,{error:'method_not_allowed'});
    try{
     const {text,object}=await readBody(req);
-    if(!authentic(req,path,text,reviewControlKey))return reply(res,401,{error:'core_review_control_required'});
+    const key=reviewControlCredential(object?.action,reviewControlKey,reviewerInboxKey);
+    if(!authentic(req,path,text,key))return reply(res,401,{error:'core_review_control_required'});
     const [status,body]=await handleReviewControl({sql,request:object,source:reviewSource,
      registry:reviewRegistry,enqueue:enqueueReviews});
     return reply(res,status,body);

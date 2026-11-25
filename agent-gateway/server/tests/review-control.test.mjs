@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import test from 'node:test';
-import {githubReviewSource, handleReviewControl, readReviewRegistry} from '../review-control.mjs';
+import {githubReviewSource, handleReviewControl, readReviewRegistry, reviewControlCredential} from '../review-control.mjs';
 import {docsReviewDelivery, syncRegisteredReviewDoc} from '../review-archive.mjs';
 
 const head = 'a'.repeat(40), base = 'b'.repeat(40);
@@ -10,6 +10,15 @@ const env = {GITHUB_REVIEW_SOURCE_READ_TOKEN: 'fixture', GITHUB_REVIEW_REPOSITOR
   GITHUB_REVIEW_REPOSITORY_ID: '12'};
 const candidate = {repository_id: 12, repository: 'test/rosie', head_sha: head,
   base_sha: base, pull_number: 41, base_confirmed: true};
+
+test('the reviewer inbox key cannot authenticate request or signed-proof status actions', () => {
+  const requestKey = 'q'.repeat(40), reader = 'r'.repeat(40);
+  assert.equal(reviewControlCredential('reviewer_inbox',requestKey,reader),reader);
+  assert.equal(reviewControlCredential('request',requestKey,reader),requestKey);
+  assert.equal(reviewControlCredential('status',requestKey,reader),requestKey);
+  assert.equal(reviewControlCredential('reviewer_inbox',requestKey,requestKey),undefined);
+  assert.equal(reviewControlCredential('reviewer_inbox',requestKey,''),undefined);
+});
 
 test('GitHub snapshot detects a stale base independently of the pull request cache', async () => {
   const github = githubReviewSource(env, async (target, request) => {
