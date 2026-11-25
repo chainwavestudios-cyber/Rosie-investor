@@ -15,6 +15,7 @@ import {receiveReviewWebhook,reviewWebhookConfig,stagedRetrospectiveAssignments}
 import {reviewAssignmentKeys,reviewAssignmentRequest} from './review-assignment.mjs';
 import {githubReviewRepository,githubReviewSource,handleReviewControl,readReviewRegistry,registerReviewDecision} from './review-control.mjs';
 import {readReviewSource} from './review-source-broker.mjs';
+import {reconcilePendingReviews} from './review-reconciliation.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,syncRegisteredReviewDoc} from './review-archive.mjs';
 import {registerAutomatedResult} from './review-automated-result.mjs';
 
@@ -585,6 +586,29 @@ async function main(){
  }catch{
   console.warn('review_retrospective_scope_invalid');
  }
+ const pendingReviewRepository=githubReviewRepository(process.env);
+ let pendingReviewTimer,pendingReviewPage=1,stopping=false;
+ const reconcileReviews=async()=>{
+  try{
+   const result=await reconcilePendingReviews(pendingReviewRepository,
+    assignments=>enqueueReviewBatch(sql,assignments),pendingReviewPage);
+   pendingReviewPage=result.nextPage;
+   if(result.added||result.errors)console.log('pending_reviews_reconciled',result);
+  }catch{
+   console.warn('pending_review_reconciliation_unavailable');
+  }finally{
+   if(!stopping){
+    pendingReviewTimer=setTimeout(reconcileReviews,pendingReviewPage===1?90000:5000);
+    pendingReviewTimer.unref();
+   }
+  }
+ };
+ if(pendingReviewRepository){
+  pendingReviewTimer=setTimeout(reconcileReviews,1500);
+  pendingReviewTimer.unref();
+ }else{
+  console.warn('pending_review_reconciliation_source_not_configured');
+ }
  const scope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||'';
  let relayTimer;
  if(scope && auditKey.length>=40){
@@ -629,7 +653,8 @@ async function main(){
  },60000);
  reviewArchiveTimer.unref();
  const shutdown=async()=>{
-  clearTimeout(relayTimer);clearTimeout(retrospectiveTimer);clearInterval(supervisor);clearInterval(reviewArchiveTimer);server.close();await sleep(50);
+  stopping=true;
+  clearTimeout(pendingReviewTimer);clearTimeout(relayTimer);clearTimeout(retrospectiveTimer);clearInterval(supervisor);clearInterval(reviewArchiveTimer);server.close();await sleep(50);
   await sql.end({timeout:3});process.exit(0);
  };
  process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);
