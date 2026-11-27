@@ -16,7 +16,7 @@ const candidate = {repository_id: 12, repository: 'test/rosie', head_sha: head,
 const stageService = 'srv-dbvkq4utlv9c73e4o5i0';
 const stageCandidate = {
   repository: 'chainwavestudios-cyber/rosie-core-platform', repository_id: 1461312036, pull_number: 47,
-  head_sha: 'd3dd8e28336ac1582971e0784f27648bb1eb7999',
+  head_sha: '76a357cda0dc293e7256e3a7571b6b3f2bdce566',
   base_sha: 'e94765c3b93d71fc1ebbb7dd4bca59eb77f1d762', base_confirmed: true, implementer_id: '55',
 };
 
