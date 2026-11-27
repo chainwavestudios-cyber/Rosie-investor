@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
-import {createHmac} from 'node:crypto';
+import {createHmac, generateKeyPairSync, sign} from 'node:crypto';
 import test from 'node:test';
-import {githubReviewSource, handleReviewControl, readReviewRegistry, reviewControlCredential} from '../review-control.mjs';
+import {githubReviewSource, handleReviewControl, readReviewRegistry, readStagingIamStatus,
+  reviewControlCredential, stagingIamStatusCredential} from '../review-control.mjs';
+import {reviewAssignment} from '../github-review-webhook.mjs';
+import {reviewReceiptBytes, reviewReceiptContract} from '../independent-review-receipt.mjs';
 import {docsReviewDelivery, syncRegisteredReviewDoc} from '../review-archive.mjs';
 
 const head = 'a'.repeat(40), base = 'b'.repeat(40);
@@ -10,6 +13,12 @@ const env = {GITHUB_REVIEW_SOURCE_READ_TOKEN: 'fixture', GITHUB_REVIEW_REPOSITOR
   GITHUB_REVIEW_REPOSITORY_ID: '12'};
 const candidate = {repository_id: 12, repository: 'test/rosie', head_sha: head,
   base_sha: base, pull_number: 41, base_confirmed: true};
+const stageService = 'srv-dbvkq4utlv9c73e4o5i0';
+const stageCandidate = {
+  repository: 'chainwavestudios-cyber/rosie-core-platform', repository_id: 1461312036, pull_number: 47,
+  head_sha: 'd3dd8e28336ac1582971e0784f27648bb1eb7999',
+  base_sha: 'e94765c3b93d71fc1ebbb7dd4bca59eb77f1d762', base_confirmed: true, implementer_id: '55',
+};
 
 test('the reviewer inbox key cannot authenticate request or signed-proof status actions', () => {
   const requestKey = 'q'.repeat(40), reader = 'r'.repeat(40);
@@ -18,6 +27,68 @@ test('the reviewer inbox key cannot authenticate request or signed-proof status 
   assert.equal(reviewControlCredential('status',requestKey,reader),requestKey);
   assert.equal(reviewControlCredential('reviewer_inbox',requestKey,requestKey),undefined);
   assert.equal(reviewControlCredential('reviewer_inbox',requestKey,''),undefined);
+});
+
+test('only the isolated IAM gateway accepts its reader key for the exact PR status request', () => {
+  const reader = 'r'.repeat(40);
+  const status = {action: 'status', pull_number: 47};
+  assert.equal(stagingIamStatusCredential(status, stageService, '', reader), reader);
+  assert.equal(stagingIamStatusCredential(status, 'srv-production000000', '', reader), undefined);
+  assert.equal(stagingIamStatusCredential(status, undefined, '', reader), undefined);
+  assert.equal(stagingIamStatusCredential(status, stageService, 'c'.repeat(40), reader), undefined);
+  assert.equal(stagingIamStatusCredential(status, stageService, '', 'short'), undefined);
+  for (const request of [{action:'request', pull_number:47}, {action:'status', pull_number:48},
+    {action:'status', pull_number:'47'}, {...status, agent_id:'A05'}, null]) {
+    assert.equal(stagingIamStatusCredential(request, stageService, '', reader), undefined);
+  }
+});
+
+test('staging IAM status fences changed candidates before reading the ledger', async () => {
+  for (const override of [{head_sha:head}, {base_sha:base}, {base_confirmed:false}, {repository_id:12},
+    {repository:'test/rosie'}, {pull_number:41}]) {
+    const result = await readStagingIamStatus({
+      sql: () => assert.fail('No ledger access for an unapproved candidate'),
+      source: async number => {
+        assert.equal(number, 47);
+        return {...stageCandidate, ...override};
+      },
+    });
+    assert.deepEqual(result, [409, {error:'staging_iam_candidate_changed'}]);
+  }
+});
+
+test('staging IAM status returns only the two acknowledged, cryptographically verified approvals', async () => {
+  const enrolled = Date.now() - 3000, assigned = enrolled + 1000, issued = assigned + 1000;
+  const registry = {};
+  const decisions = {};
+  for (const [agent, role, workload] of [['A05','rosieeyez','srv-testreviewer05'], ['A14','check_agent','srv-testreviewer14']]) {
+    const {publicKey, privateKey} = generateKeyPairSync('ed25519');
+    registry[agent] = {id:workload, public_key:publicKey.export({format:'der', type:'spki'}).subarray(-32).toString('base64'),
+      enrolled_at:enrolled};
+    const assignment = reviewAssignment(agent, stageCandidate);
+    const decision = {contract:reviewReceiptContract, assignment_id:assignment.id, repository_id:stageCandidate.repository_id,
+      pull_number:47, head_sha:stageCandidate.head_sha, base_sha:stageCandidate.base_sha, reviewer_id:workload,
+      reviewer_role:role, evidence_sha256:'e'.repeat(64), verdict:'accept', issued_at:issued};
+    decisions[agent] = {...decision, signature:sign(null, reviewReceiptBytes(decision), privateKey).toString('base64')};
+  }
+  const sql = async (parts, ...values) => {
+    assert.match(parts.join(''), /^\s*SELECT\b/);
+    const agent = values.find(value => value === 'A05' || value === 'A14');
+    return [{received_at:new Date(assigned).toISOString(), acknowledged_at:new Date(assigned).toISOString(),
+      receipt:{decision:decisions[agent]}, automated:{report:{unrelated:'private automation data'}}}];
+  };
+  const args = {source:async () => stageCandidate, sql, registry};
+  const [status, body] = await readStagingIamStatus(args);
+  assert.equal(status, 200);
+  assert.equal(body.accepted, true);
+  assert.equal(body.environment, 'staging');
+  assert.equal(body.independent, false);
+  assert.equal(body.release_authorized, false);
+  assert.deepEqual(body.reviewers.map(row => row.proof.receipt), [decisions.A05, decisions.A14]);
+  assert.ok(body.reviewers.every(row => !Object.hasOwn(row, 'automated')));
+
+  decisions.A14.evidence_sha256 = 'a'.repeat(64);
+  assert.deepEqual(await readStagingIamStatus(args), [409, {error:'staging_iam_approvals_unavailable'}]);
 });
 
 test('GitHub snapshot detects a stale base independently of the pull request cache', async () => {

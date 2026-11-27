@@ -9,11 +9,29 @@ const assignmentContract = 'rosie.core.independent-review.v1';
 const receiptContract = 'rosie.core.independent-review.registered.v1';
 const sha = /^[a-f0-9]{40}$/;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
+const iamStagingService = 'srv-dbvkq4utlv9c73e4o5i0';
+const iamStagingScope = Object.freeze({
+  repository: 'chainwavestudios-cyber/rosie-core-platform',
+  repository_id: 1461312036,
+  pull_number: 47,
+  head_sha: 'd3dd8e28336ac1582971e0784f27648bb1eb7999',
+  base_sha: 'e94765c3b93d71fc1ebbb7dd4bca59eb77f1d762',
+});
 
 export function reviewControlCredential(action, controlKey, inboxKey) {
   if (action !== 'reviewer_inbox') return controlKey;
+  return reviewReaderCredential(controlKey, inboxKey);
+}
+
+function reviewReaderCredential(controlKey, inboxKey) {
   return typeof inboxKey === 'string' && inboxKey.length >= 40 && inboxKey !== controlKey
     ? inboxKey : undefined;
+}
+
+export function stagingIamStatusCredential(request, serviceId, controlKey, inboxKey) {
+  if (serviceId !== iamStagingService || controlKey || request?.action !== 'status' ||
+      request.pull_number !== iamStagingScope.pull_number || Object.keys(request).length !== 2) return undefined;
+  return reviewReaderCredential(controlKey, inboxKey);
 }
 
 export function readReviewRegistry(raw) {
@@ -163,6 +181,20 @@ export async function handleReviewControl({sql, request, source, registry, enque
     if (!results) return [503, {error: 'review_assignment_unavailable'}];
   }
   return [200, {ok: true, ...await reviewState(sql, candidate, registry)}];
+}
+
+export async function readStagingIamStatus({sql, source, registry}) {
+  if (!source) return [503, {error: 'github_source_not_configured'}];
+  const candidate = await source(iamStagingScope.pull_number);
+  if (candidate?.base_confirmed !== true ||
+      !Object.entries(iamStagingScope).every(([key, value]) => candidate[key] === value)) {
+    return [409, {error: 'staging_iam_candidate_changed'}];
+  }
+  const state = await reviewState(sql, candidate, registry);
+  if (!state.accepted) return [409, {error: 'staging_iam_approvals_unavailable'}];
+  const reviewers = state.reviewers.map(({agent_id, assignment_id, status, receipt_id, evidence_sha256, proof}) =>
+    ({agent_id, assignment_id, status, receipt_id, evidence_sha256, proof}));
+  return [200, {ok: true, ...state, reviewers, environment: 'staging', independent: false, release_authorized: false}];
 }
 
 export async function registerReviewDecision({sql, body, source, registry}) {
