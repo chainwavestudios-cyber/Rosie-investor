@@ -12,6 +12,8 @@ const ENTITY_ID = /^[a-f0-9]{24}$/;
 const AGENT_ID = /^A[0-9]{2,4}$/;
 const SEAT_KEY = /^bws-[a-f0-9]{32}$/;
 const AUTHORITY_REF = /^base44:[A-Za-z0-9_./:#-]{8,180}$/;
+const IDENTITY_REF = /^neon:agent_gateway\/core_agents\.identities\/(A[0-9]{2,4})$/;
+const ALLOCATION_REF = /^neon:agent_gateway\/core_agents\.agent_generation_requests\/(.+)$/;
 const COMMAND_SEAT = /^[A-Za-z0-9_-]{8,100}$/;
 const ROLE_NAMES = ['lieutenant', 'captain', 'private'];
 const JOB = '/v1/events';
@@ -27,6 +29,13 @@ const validHttpsEndpoint = value => {
     return false;
   }
 };
+
+function validRegistryRef(actor, role) {
+  const ref = actor?.registry_ref ?? '';
+  if (AUTHORITY_REF.test(ref)) return true;
+  if (role === 'private') return UUID.test(ALLOCATION_REF.exec(ref)?.[1] ?? '');
+  return IDENTITY_REF.exec(ref)?.[1] === actor?.agent_id;
+}
 
 function verifiedAuthority(env, raw) {
   try {
@@ -58,8 +67,8 @@ export function readMission001Transport(env, renderServiceId, expectedTicketSeat
       !SEAT_KEY.test(scope.seat_key ?? '') || !ENTITY_ID.test(scope.authorization_id ?? '') ||
       !ids.every(name => UUID.test(scope[name] ?? '')) || new Set(ids.map(name => scope[name])).size !== ids.length ||
       !/^[a-f0-9]{64}$/.test(scope.assignment_sha256 ?? '') || !(expiry > start && expiry - start <= 60 * 60_000) ||
-      actors.some(actor => !AGENT_ID.test(actor?.agent_id ?? '') || !validHttpsEndpoint(actor?.runtime_endpoint) ||
-        !COMMAND_SEAT.test(actor?.machine_seat_key ?? '') || !AUTHORITY_REF.test(actor?.registry_ref ?? '') ||
+      actors.some((actor, index) => !AGENT_ID.test(actor?.agent_id ?? '') || !validHttpsEndpoint(actor?.runtime_endpoint) ||
+        !COMMAND_SEAT.test(actor?.machine_seat_key ?? '') || !validRegistryRef(actor, ROLE_NAMES[index]) ||
         actor.machine_seat_key === scope.seat_key) ||
       new Set(actors.map(actor => actor.machine_seat_key)).size !== ROLE_NAMES.length ||
       new Set(actors.map(actor => actor.agent_id)).size !== ROLE_NAMES.length || new Set(Object.values(keys)).size !== ROLE_NAMES.length ||
@@ -116,7 +125,15 @@ export async function mission001ActorsAreCurrent(sql, scope) {
       AND a.captain_id=${scope.actors.captain.agent_id} AND a.assignment_state='assigned') AS assigned_to_captain
     FROM core_agents.identities i WHERE i.org_id=${ORG}
       AND i.agent_id IN (${actors[0].agent_id},${actors[1].agent_id},${actors[2].agent_id})`;
-  return rows.length === actors.length && actors.every(actor => rows.some(row =>
+  const current = rows.length === actors.length && actors.every(actor => rows.some(row =>
     row.agent_id === actor.agent_id && row.runtime_endpoint === actor.runtime_endpoint && row.desired_state === 'ready' &&
     ['available', 'running'].includes(row.runtime_state) && (actor !== scope.actors.private || row.assigned_to_captain === true)));
+  if (!current) return false;
+  const allocation = ALLOCATION_REF.exec(scope.actors.private.registry_ref)?.[1];
+  if (!allocation) return true;
+  const registration = await sql`SELECT request_id FROM core_agents.agent_generation_requests
+    WHERE org_id=${ORG} AND request_id=${allocation} AND agent_id=${scope.actors.private.agent_id}
+      AND mode='register' AND state='registered' AND blueprint->>'captain_id'=${scope.actors.captain.agent_id}
+      AND position(${scope.seat_key} in (blueprint->>'mission'))>0`;
+  return registration.length === 1;
 }

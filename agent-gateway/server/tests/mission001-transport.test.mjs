@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 import test from 'node:test';
 import { makeServer, signature } from '../server.mjs';
-import { authorizeMission001Transport, readMission001Transport } from '../mission001-transport.mjs';
+import { authorizeMission001Transport, mission001ActorsAreCurrent, readMission001Transport } from '../mission001-transport.mjs';
 import { acknowledgeMission001Assignment } from '../transport.mjs';
 
 const service = 'srv-dbvkq4utlv9c73e4o5i0';
@@ -10,7 +10,7 @@ const org = 'rosie-core-internal';
 const legacyKey = 'g'.repeat(64);
 const keys = { lieutenant: 'l'.repeat(64), captain: 'c'.repeat(64), private: 'p'.repeat(64) };
 
-function fixture() {
+function fixture({ neonRefs = false, captainRef } = {}) {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const machine = (role, agent_id) => ({ agent_id, runtime_endpoint: `https://${role}.example/staging`,
     machine_seat_key: `machine_${role}`, registry_ref: `base44:staging/agent/${agent_id}`,
@@ -26,6 +26,12 @@ function fixture() {
       lieutenant: machine('lieutenant','A90'), captain: machine('captain','A91'), private: machine('private','A92'),
     },
   };
+  const allocation = randomUUID();
+  if (neonRefs) {
+    config.actors.lieutenant.registry_ref = 'neon:agent_gateway/core_agents.identities/A90';
+    config.actors.captain.registry_ref = captainRef ?? 'neon:agent_gateway/core_agents.identities/A91';
+    config.actors.private.registry_ref = 'neon:agent_gateway/core_agents.agent_generation_requests/' + allocation;
+  }
   const raw = JSON.stringify(config);
   const env = {
     MISSION_001_RCIS_LIEUTENANT_KEY: keys.lieutenant,
@@ -42,8 +48,26 @@ function fixture() {
   const note = { org_id: org, event_id: scope.assignment_event_id, recipient_agent_id: 'A92',
     agent_id: 'A91', nonce: randomUUID(), kind: 'note', trace_id: scope.trace_id, message: scope.message };
   const ack = { org_id: org, event_id: scope.assignment_event_id, agent_id: 'A92', nonce: randomUUID() };
-  return { config, env, fixtureDigest, scope, assign, note, ack };
+  return { config, env, fixtureDigest, scope, assign, note, ack, allocation };
 }
+
+test('a Neon Private reference must resolve to the approved allocation, actor, seat and Captain', async () => {
+  assert.throws(() => fixture({neonRefs:true,captainRef:'neon:agent_gateway/core_agents.identities/A90'}),
+    /invalid_mission_001_transport_scope/);
+  const {scope,allocation}=fixture({neonRefs:true});
+  let hasExactAllocation=false;
+  const query=async (parts,...parameters)=>{
+    if(parts.join('').includes('assigned_to_captain')) return Object.values(scope.actors).map(actor=>({
+      ...actor,desired_state:'ready',runtime_state:'available',assigned_to_captain:true,
+    }));
+    assert.ok(parts.join('').includes('core_agents.agent_generation_requests'));
+    assert.deepEqual(parameters.slice(1),[allocation,'A92','A91',scope.seat_key]);
+    return hasExactAllocation?[{request_id:allocation}]:[];
+  };
+  assert.equal(await mission001ActorsAreCurrent(query,scope),false);
+  hasExactAllocation=true;
+  assert.equal(await mission001ActorsAreCurrent(query,scope),true);
+});
 
 test('only the isolated staging deployment can use an enrolled scope', () => {
   const { config, env, fixtureDigest } = fixture();
