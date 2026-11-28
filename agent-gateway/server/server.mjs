@@ -19,6 +19,7 @@ import {readReviewSource} from './review-source-broker.mjs';
 import {reconcilePendingReviews} from './review-reconciliation.mjs';
 import {docsReviewDelivery,enqueueGuardianReviewArchive,enqueueReviewFeedback,reviewFeedbackRoutes,syncRegisteredReviewDoc} from './review-archive.mjs';
 import {registerAutomatedResult} from './review-automated-result.mjs';
+import {authorizeMission001Transport,mission001ActorsAreCurrent,readMission001Transport} from './mission001-transport.mjs';
 
 const PORT=Number(process.env.PORT||10000);
 const DSN=process.env.DATABASE_URL||'';
@@ -158,8 +159,12 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
   reviewerInboxKey=process.env.GITHUB_REVIEW_READER_KEY||'',
   reviewRegistry=readReviewRegistry(process.env.GITHUB_REVIEW_PUBLIC_REGISTRY_JSON),
   renderServiceId=process.env.RENDER_SERVICE_ID,
-  receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||''}){
+  receiptScope=auditScope(process.env),auditKey=process.env.CORE_AUDIT_RELAY_HMAC||'',
+  mission001Scope=readMission001Transport(process.env,renderServiceId)}){
  if(!sql)throw Error('Database required');
+ if(mission001Scope&&Object.values(mission001Scope.keys).some(key=>
+   [ingestKey,workerKey,auditKey,reviewControlKey,reviewerInboxKey,...Object.values(agentKeys),...Object.values(reviewKeys)].includes(key)))
+   throw Error('mission_001_signing_key_reuse');
  const enqueueReviews=assignments=>enqueueReviewBatch(sql,assignments);
  const server=http.createServer(async(req,res)=>{
   const path=new URL(req.url||'/', 'http://localhost').pathname;
@@ -243,8 +248,12 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    const {text,object:x}=await readBody(req);
    const key=(path==='/v1/events'||path.startsWith('/v1/factory/'))?ingestKey:
      path==='/v1/admin/status'?workerKey:agentKeys[x.agent_id];
+   const mission=authorizeMission001Transport(mission001Scope,path,x);
    const scopedIngress=path==='/v1/events' && auditIngress(x,receiptScope) && authentic(req,path,text,auditKey);
-   if(!scopedIngress&&!authentic(req,path,text,key))return reply(res,401,{error:'signed_service_authorization_required'});
+   if(mission?.denied || (mission ? !authentic(req,path,text,mission.key) : !scopedIngress&&!authentic(req,path,text,key)))
+     return reply(res,401,{error:'signed_service_authorization_required'});
+   if(mission && !(await mission001ActorsAreCurrent(sql,mission001Scope)))
+     return reply(res,403,{error:'mission_001_identity_binding_not_current'});
    if(path.startsWith('/v1/receipt-audit/')){
     const outcome=await receiptAudit(sql,path,x,receiptScope);
     return reply(res,outcome.status||200,outcome);
@@ -263,7 +272,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
    // inference endpoint, provider credential, or execution flag is involved.
    if(path.startsWith('/v1/agent/')){
     if(!AGENT.test(x.agent_id||'')||x.org_id!==ORG||!UUID.test(x.nonce||'')||
-       !agentKeys[x.agent_id]||Object.keys(x).length>11)
+       (!mission&&!agentKeys[x.agent_id])||Object.keys(x).length>11)
       return reply(res,400,{error:'invalid_agent_transport_identity'});
     await sql`INSERT INTO core_agents.worker_nonces(nonce,org_id) VALUES(${x.nonce},${ORG})`;
     const live=await sql`SELECT agent_id,desired_state FROM core_agents.identities
@@ -287,6 +296,14 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
        reply_to:x.reply_to||null};
      const receipt=await sql.begin(async t=>{
       await t`SET LOCAL statement_timeout='5000ms'`;
+      if(mission){
+       const jobs=await t`SELECT j.job_id FROM core_agents.jobs j
+         JOIN core_agents.events e ON e.event_id=j.event_id AND e.org_id=j.org_id
+         WHERE j.job_id=${mission001Scope.job_id} AND j.org_id=${ORG} AND j.agent_id=${x.recipient_agent_id}
+           AND e.event_id=${mission001Scope.job_event_id} AND e.ticket_key=${mission001Scope.ticket_key}
+           AND e.payload=${t.json(mission001Scope.jobPayload)}::jsonb`;
+       if(jobs.length!==1)return {missingJob:true};
+      }
       const target=await t`SELECT agent_id FROM core_agents.identities
        WHERE org_id=${ORG} AND agent_id=${x.recipient_agent_id}
          AND desired_state<>'revoked'`;
@@ -303,15 +320,22 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
       return {ack_id:ack[0].ack_id};
      });
      if(receipt.unknown)return reply(res,404,{error:'recipient_unregistered'});
+     if(receipt.missingJob)return reply(res,409,{error:'mission_001_job_not_verified'});
      if(receipt.collision)return reply(res,409,{error:'message_id_collision'});
      return reply(res,202,{accepted:true,durable_commit:true,
        event_id:x.event_id,delivery_ack:receipt.ack_id,
        recipient_agent_id:x.recipient_agent_id,model_calls:0});
     }
     if(path==='/v1/agent/inbox'){
-     if(Object.keys(x).some(k=>!['org_id','agent_id','nonce','limit'].includes(k))||
+     const inboxKeys=['org_id','agent_id','nonce','limit',...(mission?.exactReceipt?['event_id']:[])];
+     if(Object.keys(x).some(k=>!inboxKeys.includes(k))||
         (x.limit!==undefined&&(!Number.isInteger(x.limit)||x.limit<1||x.limit>20)))
        return reply(res,400,{error:'invalid_agent_inbox_query'});
+     const assignmentEvent=mission?.exactReceipt?mission001Scope.assignment_event_id:null;
+     const hiddenEvent=mission?null:mission001Scope?.assignment_event_id??null;
+     const expectedCaptain=mission?.exactReceipt?mission001Scope.actors.captain.agent_id:null;
+     const expectedMessage=mission?.exactReceipt?mission001Scope.message:null;
+     const expectedTrace=mission?.exactReceipt?mission001Scope.trace_id:null;
      const events=await sql`SELECT e.event_id,e.sender,e.payload,e.received_at
       FROM core_agents.events e
       LEFT JOIN core_agents.agent_message_receipts mr ON mr.event_id=e.event_id
@@ -319,6 +343,9 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
       WHERE e.org_id=${ORG} AND e.recipient_agent_id=${x.agent_id}
        AND e.event_type='rcis.message'
        AND e.payload->>'contract'='rosie.core.rcis.transport.v1'
+       AND e.event_id IS DISTINCT FROM ${hiddenEvent}::uuid
+       AND (${assignmentEvent}::uuid IS NULL OR (e.event_id=${assignmentEvent} AND e.sender=${expectedCaptain}
+         AND e.payload->>'kind'='note' AND e.payload->>'message'=${expectedMessage} AND e.payload->>'trace_id'=${expectedTrace}))
        AND mr.event_id IS NULL
       ORDER BY e.received_at LIMIT ${x.limit||20}`;
      return reply(res,200,{ok:true,agent_id:x.agent_id,messages:events,
@@ -327,6 +354,9 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
     if(path==='/v1/agent/ack'){
      if(Object.keys(x).some(k=>!['org_id','agent_id','nonce','event_id'].includes(k))||
        !UUID.test(x.event_id||''))return reply(res,400,{error:'invalid_agent_receipt'});
+     const expectedCaptain=mission?.exactReceipt?mission001Scope.actors.captain.agent_id:null;
+     const expectedMessage=mission?.exactReceipt?mission001Scope.message:null;
+     const expectedTrace=mission?.exactReceipt?mission001Scope.trace_id:null;
      const receipts=await sql`INSERT INTO core_agents.agent_message_receipts
        (event_id,org_id,recipient_agent_id)
        SELECT event_id,${ORG},${x.agent_id} FROM core_agents.events
@@ -334,6 +364,8 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
         AND recipient_agent_id=${x.agent_id}
         AND event_type='rcis.message'
         AND payload->>'contract'='rosie.core.rcis.transport.v1'
+        AND (${expectedCaptain}::text IS NULL OR (sender=${expectedCaptain}
+          AND payload->>'kind'='note' AND payload->>'message'=${expectedMessage} AND payload->>'trace_id'=${expectedTrace}))
        ON CONFLICT(event_id,recipient_agent_id) DO UPDATE
         SET received_at=core_agents.agent_message_receipts.received_at
        RETURNING event_id,received_at`;
@@ -378,9 +410,17 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
         return {conflict:true};
       const ack=await t`SELECT ack_id FROM core_agents.acks
         WHERE event_id=${x.event_id} AND stage='persisted'`;
+      if(mission){
+       const job=await t`SELECT job_id FROM core_agents.jobs WHERE event_id=${x.event_id}
+        AND org_id=${ORG} AND agent_id=${x.agent_id} AND job_id=${mission.jobId}`;
+       if(job.length!==1||ack.length!==1)return {conflict:true};
+       return {idempotent:true,ack_id:ack[0].ack_id,job_id:job[0].job_id};
+      }
       return {idempotent:true,ack_id:ack[0]?.ack_id||null};
      }
-     const job=await t`INSERT INTO core_agents.jobs(event_id,org_id,agent_id)
+     const job=mission?await t`INSERT INTO core_agents.jobs(job_id,event_id,org_id,agent_id)
+       VALUES(${mission.jobId},${x.event_id},${ORG},${x.agent_id}) RETURNING job_id`:
+       await t`INSERT INTO core_agents.jobs(event_id,org_id,agent_id)
        VALUES(${x.event_id},${ORG},${x.agent_id}) RETURNING job_id`;
      const ack=await t`INSERT INTO core_agents.acks
        (event_id,org_id,stage,actor) VALUES(${x.event_id},${ORG},'persisted','gateway')
@@ -407,6 +447,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
        WHERE j.org_id=${ORG} AND j.agent_id=${x.agent_id} AND j.state='queued'
          AND e.ticket_key IS DISTINCT FROM ${receiptScope?.ticket||'no-audit-selected'}
          AND (e.payload->>'contract') IS DISTINCT FROM 'rosie.core.delivery-audit.v1'
+         AND (e.payload->>'contract') IS DISTINCT FROM 'rosie.core.m001.staging_job.v1'
          AND j.attempts<3 AND a.desired_state='ready' AND a.runtime_state='available'
        ORDER BY j.enqueued_at FOR UPDATE OF j SKIP LOCKED LIMIT 1
       ) UPDATE core_agents.jobs j

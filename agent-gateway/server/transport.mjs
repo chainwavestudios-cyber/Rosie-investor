@@ -58,6 +58,29 @@ async function receiveOnce(c,transportFetch=fetch){
  }
  return response.messages.length;
 }
+
+export async function acknowledgeMission001Assignment(c, assignment, transportFetch=fetch){
+ const {eventId,captainId,traceId,assignmentSha256}=assignment??{};
+ const agentId=/^A[0-9]{2,4}$/;
+ const uuidPattern=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+ if(c?.endpoint!=='https://rosie-core-agent-gateway-staging.onrender.com'||!agentId.test(c.agent??'')||
+    !agentId.test(captainId??'')||c.agent===captainId||typeof c.key!=='string'||c.key.length<40||
+    !uuidPattern.test(eventId??'')||!uuidPattern.test(traceId??'')||!/^[a-f0-9]{64}$/.test(assignmentSha256??''))
+  throw Error('mission_001_assignment_identity_required');
+ const inbox=await signedPost(c,'/v1/agent/inbox',{...base(c),event_id:eventId,limit:1},transportFetch);
+ if(!Array.isArray(inbox.messages))throw Error('invalid_transport_inbox');
+ if(!inbox.messages.length)return {accepted:false,event_id:eventId};
+ const [item]=inbox.messages;
+ const expectedMessage=JSON.stringify({contract:'rosie.core.browser_worker_assignment.v1',assignment_sha256:assignmentSha256});
+ if(inbox.messages.length!==1||item.event_id!==eventId||item.sender!==captainId||
+    item.payload?.contract!=='rosie.core.rcis.transport.v1'||item.payload.kind!=='note'||item.payload.trace_id!==traceId||
+    item.payload.reply_to!==null||item.payload.message!==expectedMessage)throw Error('mission_001_assignment_binding_mismatch');
+ const ack=await signedPost(c,'/v1/agent/ack',{...base(c),event_id:eventId},transportFetch);
+ if(ack.accepted!==true||ack.durable_commit!==true||ack.event_id!==eventId||ack.recipient_agent_id!==c.agent||
+    !Number.isFinite(Date.parse(ack.received_at)))throw Error('mission_001_recipient_receipt_not_committed');
+ return {accepted:true,event_id:ack.event_id,recipient_agent_id:ack.recipient_agent_id,received_at:ack.received_at};
+}
+
 async function runTransport(env=process.env,transportFetch=fetch){
  const c=cfg(env);
  const receiptScope=auditScope(env);
