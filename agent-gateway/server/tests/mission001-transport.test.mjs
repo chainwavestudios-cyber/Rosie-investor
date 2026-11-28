@@ -138,6 +138,7 @@ test('signed staging commands enforce role, runtime, and exact job before writin
   let verifiedRuntime = true;
   let jobExists = false;
   let persistedNote;
+  let committedDelivery = true;
   let acknowledged = false;
   const sql = async (strings, ...params) => {
     const statement = strings.join('?');
@@ -150,7 +151,10 @@ test('signed staging commands enforce role, runtime, and exact job before writin
     if (statement.includes('SELECT j.job_id')) return jobExists ? [{ job_id: scope.job_id }] : [];
     if (statement.includes('SET LOCAL') || statement.includes('core_agents.worker_nonces')) return [];
     if (statement.includes('INSERT INTO core_agents.events')) {
-      if (params[0] === scope.assignment_event_id) persistedNote = params.find(p => p?.kind === 'note' && p?.message === scope.message);
+      if (params[0] === scope.assignment_event_id) {
+        if (persistedNote) return [];
+        persistedNote = params.find(p => p?.kind === 'note' && p?.message === scope.message);
+      }
       return [{ event_id: params[0] }];
     }
     if (statement.includes('INSERT INTO core_agents.jobs')) {
@@ -159,6 +163,12 @@ test('signed staging commands enforce role, runtime, and exact job before writin
       return [{ job_id: params[0] }];
     }
     if (statement.includes('INSERT INTO core_agents.acks')) return [{ ack_id: 'test-persisted-event' }];
+    if (statement.includes('SELECT a.ack_id FROM core_agents.events')) {
+      assert.ok(params.includes(scope.assignment_event_id));
+      assert.ok(params.includes('A91') && params.includes('A92'));
+      assert.deepEqual(params.find(p=>p?.kind==='note'),persistedNote);
+      return committedDelivery?[{ack_id:'test-persisted-event'}]:[];
+    }
     if (statement.includes('LEFT JOIN core_agents.agent_message_receipts')) {
       assert.ok(params.includes(scope.assignment_event_id));
       assert.ok(params.includes(scope.message));
@@ -198,6 +208,12 @@ test('signed staging commands enforce role, runtime, and exact job before writin
   assert.equal(result.job_id, scope.job_id);
   assert.equal(result.worker_started, false);
   assert.equal((await post('/v1/agent/send', note, keys.captain)).status, 202);
+  const recovered = await post('/v1/agent/send', { ...note, nonce: randomUUID() }, keys.captain);
+  assert.equal(recovered.status,200);
+  assert.equal((await recovered.json()).delivery_ack,'test-persisted-event');
+  committedDelivery=false;
+  assert.equal((await post('/v1/agent/send', { ...note, nonce: randomUUID() }, keys.captain)).status,409);
+  committedDelivery=true;
   assert.equal(acknowledged, false);
   assert.equal((await post('/v1/agent/ack', ack, keys.captain)).status, 401);
   assert.equal((await post('/v1/agent/ack', ack, legacyKey)).status, 401);
@@ -206,4 +222,6 @@ test('signed staging commands enforce role, runtime, and exact job before writin
   assert.equal((await inbox.json()).messages[0].event_id, scope.assignment_event_id);
   assert.equal((await post('/v1/agent/ack', ack, keys.private)).status, 200);
   assert.equal(acknowledged, true);
+  assert.equal((await post('/v1/agent/inbox', { ...ack, nonce: randomUUID() }, keys.private)).status, 200);
+  assert.equal((await post('/v1/agent/ack', { ...ack, nonce: randomUUID() }, keys.private)).status, 200);
 });

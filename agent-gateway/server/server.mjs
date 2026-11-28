@@ -313,7 +313,17 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
        VALUES(${x.event_id},${ORG},${x.recipient_agent_id},${x.agent_id},
          'rcis.message',NULL,${t.json(data)},${x.nonce})
        ON CONFLICT(event_id) DO NOTHING RETURNING event_id`;
-      if(!added.length)return {collision:true};
+      if(!added.length){
+       if(mission){
+        const prior=await t`SELECT a.ack_id FROM core_agents.events e
+          JOIN core_agents.acks a ON a.event_id=e.event_id AND a.org_id=e.org_id
+          WHERE e.event_id=${x.event_id} AND e.org_id=${ORG} AND e.recipient_agent_id=${x.recipient_agent_id}
+            AND e.sender=${x.agent_id} AND e.event_type='rcis.message' AND e.ticket_key IS NULL
+            AND e.payload=${t.json(data)}::jsonb AND a.stage='persisted' AND a.actor='gateway'`;
+        if(prior.length===1)return {ack_id:prior[0].ack_id,idempotent:true};
+       }
+       return {collision:true};
+      }
       const ack=await t`INSERT INTO core_agents.acks(event_id,org_id,stage,actor)
         VALUES(${x.event_id},${ORG},'persisted','gateway')
         RETURNING ack_id`;
@@ -322,9 +332,9 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
      if(receipt.unknown)return reply(res,404,{error:'recipient_unregistered'});
      if(receipt.missingJob)return reply(res,409,{error:'mission_001_job_not_verified'});
      if(receipt.collision)return reply(res,409,{error:'message_id_collision'});
-     return reply(res,202,{accepted:true,durable_commit:true,
+     return reply(res,receipt.idempotent?200:202,{accepted:true,durable_commit:true,
        event_id:x.event_id,delivery_ack:receipt.ack_id,
-       recipient_agent_id:x.recipient_agent_id,model_calls:0});
+       recipient_agent_id:x.recipient_agent_id,model_calls:0,...(receipt.idempotent?{idempotent:true}:{})});
     }
     if(path==='/v1/agent/inbox'){
      const inboxKeys=['org_id','agent_id','nonce','limit',...(mission?.exactReceipt?['event_id']:[])];
@@ -346,7 +356,7 @@ function makeServer({sql,ingestKey=INGEST_KEY,workerKey=WORKER_KEY,agentKeys=WOR
        AND e.event_id IS DISTINCT FROM ${hiddenEvent}::uuid
        AND (${assignmentEvent}::uuid IS NULL OR (e.event_id=${assignmentEvent} AND e.sender=${expectedCaptain}
          AND e.payload->>'kind'='note' AND e.payload->>'message'=${expectedMessage} AND e.payload->>'trace_id'=${expectedTrace}))
-       AND mr.event_id IS NULL
+       AND (${assignmentEvent}::uuid IS NOT NULL OR mr.event_id IS NULL)
       ORDER BY e.received_at LIMIT ${x.limit||20}`;
      return reply(res,200,{ok:true,agent_id:x.agent_id,messages:events,
        model_calls:0});
